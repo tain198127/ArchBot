@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "skills": {
+    "openspec-apply-change": {
+      "source": "fengshao1227/ccg-workflow",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/openspec-apply-change/SKILL.md",
+      "computedHash": "b742c6e3970322255cf4e294ff3b8abf2d16f6d421b31eeb4c18f296ff664934"
+    },
+    "openspec-archive-change": {
+      "source": "fengshao1227/ccg-workflow",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/openspec-archive-change/SKILL.md",
+      "computedHash": "7843d892a33a8326ff24b8fa6885234ddf2d6925e6751c6d1b804dc3579cc05b"
+    },
+    "openspec-bulk-archive-change": {
+      "source": "fengshao1227/ccg-workflow",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/openspec-bulk-archive-change/SKILL.md",
+      "computedHash": "5f66f519090b667c2109316f7f6736bf0faaff5cc92e679615c38dc283bef0d3"
+    },
+    "openspec-continue-change": {
+      "source": "fengshao1227/ccg-workflow",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/openspec-continue-change/SKILL.md",
+      "computedHash": "cd6e01bb6d39151dc8f801416e0469eead179a23c7ff53fe19387eb22a016652"
+    },
+    "openspec-explore": {
+      "source": "fengshao1227/ccg-workflow",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/openspec-explore/SKILL.md",
+      "computedHash": "7cc7af77c010da92728b063b69b26656cc0ff7c63a2f77c93ad757f4bb6dc7d5"
+    },
+    "openspec-ff-change": {
+      "source": "fengshao1227/ccg-workflow",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/openspec-ff-change/SKILL.md",
+      "computedHash": "93488159829f2fad0418c77e4cdbc5220f9520b9ca5275617a4bd92bb88112b7"
+    },
+    "openspec-new-change": {
+      "source": "fengshao1227/ccg-workflow",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/openspec-new-change/SKILL.md",
+      "computedHash": "e1e9f9ab4b04370550faacae904f6d25f8e8b3a87f614dce973af34d56729379"
+    },
+    "openspec-onboard": {
+      "source": "fengshao1227/ccg-workflow",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/openspec-onboard/SKILL.md",
+      "computedHash": "d50b12e47f9eee02f55b36b33446055e67d7817ceceb9b266ff8b3ebe5fcd117"
+    },
+    "openspec-sync-specs": {
+      "source": "fengshao1227/ccg-workflow",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/openspec-sync-specs/SKILL.md",
+      "computedHash": "b6f7f40bd2949e91863c09868d21e9b24fc39e4853b14c56d43786195926d441"
+    },
+    "openspec-verify-change": {
+      "source": "fengshao1227/ccg-workflow",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/openspec-verify-change/SKILL.md",
+      "computedHash": "32246f0cb3cc0eb5e91bc1a0f379c5ec6cda8f5c5357968f98ee94dea57267cf"
+    }
+  }
+}

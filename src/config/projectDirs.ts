@@ -17,5 +17,6 @@ export const projectDirs: ProjectDir[] = [
   { key: 'businessTest',  labelKey: 'businessTest',  color: '#2ecc71' },
   { key: 'stressTest',    labelKey: 'stressTest',    color: '#e67e22' },
   { key: 'chaosTest',     labelKey: 'chaosTest',     color: '#c0392b' },
+  { key: 'defect',        labelKey: 'defect',        color: '#d35400' },
   { key: 'deployment',    labelKey: 'deployment',    color: '#8e44ad' }
 ]

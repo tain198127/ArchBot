@@ -5,6 +5,7 @@ export interface MenuItem {
   name: string
   shortcut?: string | null
   action?: string
+  submenu?: boolean
 }
 
 export interface MenuGroup {
@@ -40,6 +41,7 @@ export function useMenuConfig() {
           items: [
             { name: t.value.menuFile.newProject, shortcut: 'Ctrl+Shift+N / ⌘+Shift+N', action: 'file.newProject' },
             { name: t.value.menuFile.openProject, shortcut: 'Ctrl+O / ⌘+O', action: 'file.openProject' },
+            { name: t.value.menuFile.openRecentProject, shortcut: null, action: 'file.openRecentProject', submenu: true },
             { name: t.value.menuFile.openRemoteProject, shortcut: null, action: 'file.openRemoteProject' }
           ]
         },

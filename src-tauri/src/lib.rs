@@ -126,13 +126,29 @@ async fn create_project(dir: String, name: String) -> Result<String, String> {
 /// 打开并校验 .ab 项目文件
 ///
 /// 业务逻辑：
-/// 1. 读取文件内容
-/// 2. 通过 serde_yml 反序列化校验 YAML 格式是否合法
-/// 3. 校验必填字段（name、version）非空
-/// 4. 返回文件名和原始内容
+/// 1. 路径安全校验（canonicalize 防目录穿越 + 扩展名校验）
+/// 2. 读取文件内容
+/// 3. 通过 serde_yml 反序列化校验 YAML 格式是否合法
+/// 4. 校验必填字段（name、version）非空
+/// 5. 返回文件名和原始内容
 #[tauri::command]
 async fn open_project(path: String) -> Result<FileContent, String> {
-    let content = std::fs::read_to_string(&path).map_err(|e| format!("读取项目文件失败: {e}"))?;
+    let raw = std::path::Path::new(&path);
+
+    // 扩展名校验
+    if raw.extension().map(|e| e != "ab").unwrap_or(true) {
+        return Err("仅支持打开 .ab 项目文件".into());
+    }
+
+    // canonicalize 解析 .. / . / 符号链接，防止目录穿越
+    let canonical = raw.canonicalize().map_err(|e| format!("项目路径无效: {e}"))?;
+
+    if !canonical.is_file() {
+        return Err("项目路径不是一个有效的文件".into());
+    }
+
+    let content =
+        std::fs::read_to_string(&canonical).map_err(|e| format!("读取项目文件失败: {e}"))?;
 
     let project: AbProject =
         serde_yml::from_str(&content).map_err(|e| format!("项目文件格式错误: {e}"))?;
@@ -144,7 +160,7 @@ async fn open_project(path: String) -> Result<FileContent, String> {
         return Err("项目文件缺少 version 字段".into());
     }
 
-    let name = std::path::Path::new(&path)
+    let name = canonical
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_default();

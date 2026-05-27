@@ -12,10 +12,13 @@ export default {
   menuFile: {
     newProject: '新建项目',
     openProject: '打开项目',
+    openRecentProject: '打开最近项目',
     openRemoteProject: '打开远程项目',
     saveProject: '保存项目',
     saveAsProject: '另存项目',
-    closeProject: '关闭项目'
+    closeProject: '关闭项目',
+    noRecentProjects: '无最近项目',
+    clearRecent: '清除最近打开'
   },
   menuEdit: {
     find: '查找',
@@ -141,6 +144,7 @@ export default {
     businessTest: '业务测试',
     stressTest: '压力测试',
     chaosTest: '混沌测试',
+    defect: '缺陷',
     deployment: '部署'
   },
   contextMenu: {

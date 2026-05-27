@@ -12,10 +12,13 @@ export default {
   menuFile: {
     newProject: 'New Project',
     openProject: 'Open Project',
+    openRecentProject: 'Open Recent Project',
     openRemoteProject: 'Open Remote Project',
     saveProject: 'Save Project',
     saveAsProject: 'Save As',
-    closeProject: 'Close Project'
+    closeProject: 'Close Project',
+    noRecentProjects: 'No recent projects',
+    clearRecent: 'Clear Recently Opened'
   },
   menuEdit: {
     find: 'Find',
@@ -141,6 +144,7 @@ export default {
     businessTest: 'Business Test',
     stressTest: 'Stress Test',
     chaosTest: 'Chaos Test',
+    defect: 'Defect',
     deployment: 'Deployment'
   },
   contextMenu: {

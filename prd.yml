@@ -37,6 +37,7 @@ layout:
           - 业务测试
           - 压力测试
           - 混沌测试
+          - 缺陷
           - 部署
         context_menu:
           - 新建
@@ -280,6 +281,7 @@ iteration:
       - 配置持久化到 ~/.ArchBot/settings.json
       - 新建项目功能（选择路径+输入文件名→生成.ab文件）
       - 打开项目功能（选择.ab文件，校验YAML格式）
+      - 打开最近项目（≥0.5s hover 显示最近5个项目及完整文件路径，localStorage 持久化）
       - 数据标准编辑器（域管理/实体/枚举/字段表格编辑/DDL预览）
       - i18n国际化（中/英）
     excluded:
