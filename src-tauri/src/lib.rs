@@ -35,8 +35,7 @@ async fn read_local_file(path: String) -> Result<FileContent, String> {
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_default();
-    let content = std::fs::read_to_string(&path)
-        .map_err(|e| format!("读取文件失败: {e}"))?;
+    let content = std::fs::read_to_string(&path).map_err(|e| format!("读取文件失败: {e}"))?;
     Ok(FileContent { name, content })
 }
 
@@ -48,7 +47,11 @@ async fn read_local_file(path: String) -> Result<FileContent, String> {
 /// 3. 提取 HTTP 状态码和响应体文本
 /// 4. 任一步骤失败则返回中文错误信息供前端提示
 #[tauri::command]
-async fn fetch_remote(url: String, username: String, password: String) -> Result<RemoteResponse, String> {
+async fn fetch_remote(
+    url: String,
+    username: String,
+    password: String,
+) -> Result<RemoteResponse, String> {
     let client = reqwest::Client::new();
     let resp = client
         .get(&url)
@@ -83,7 +86,10 @@ async fn create_project(dir: String, name: String) -> Result<String, String> {
 
     let invalid_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|'];
     if name.chars().any(|c| invalid_chars.contains(&c)) {
-        return Err(format!("项目名称不能包含以下字符: {}", invalid_chars.iter().collect::<String>()));
+        return Err(format!(
+            "项目名称不能包含以下字符: {}",
+            invalid_chars.iter().collect::<String>()
+        ));
     }
 
     let filename = if name.ends_with(".ab") {
@@ -98,7 +104,7 @@ async fn create_project(dir: String, name: String) -> Result<String, String> {
         return Err(format!("文件已存在: {}", path.display()));
     }
 
-    let now = chrono_now();
+    let now = now_iso();
     let project = AbProject {
         name: name.trim_end_matches(".ab").to_string(),
         version: "1.0.0".to_string(),
@@ -106,16 +112,13 @@ async fn create_project(dir: String, name: String) -> Result<String, String> {
         created_at: now,
     };
 
-    let yaml = serde_yml::to_string(&project)
-        .map_err(|e| format!("生成项目文件失败: {e}"))?;
+    let yaml = serde_yml::to_string(&project).map_err(|e| format!("生成项目文件失败: {e}"))?;
 
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("创建目录失败: {e}"))?;
+        std::fs::create_dir_all(parent).map_err(|e| format!("创建目录失败: {e}"))?;
     }
 
-    std::fs::write(&path, &yaml)
-        .map_err(|e| format!("写入文件失败: {e}"))?;
+    std::fs::write(&path, &yaml).map_err(|e| format!("写入文件失败: {e}"))?;
 
     Ok(path.to_string_lossy().to_string())
 }
@@ -129,11 +132,10 @@ async fn create_project(dir: String, name: String) -> Result<String, String> {
 /// 4. 返回文件名和原始内容
 #[tauri::command]
 async fn open_project(path: String) -> Result<FileContent, String> {
-    let content = std::fs::read_to_string(&path)
-        .map_err(|e| format!("读取项目文件失败: {e}"))?;
+    let content = std::fs::read_to_string(&path).map_err(|e| format!("读取项目文件失败: {e}"))?;
 
-    let project: AbProject = serde_yml::from_str(&content)
-        .map_err(|e| format!("项目文件格式错误: {e}"))?;
+    let project: AbProject =
+        serde_yml::from_str(&content).map_err(|e| format!("项目文件格式错误: {e}"))?;
 
     if project.name.is_empty() {
         return Err("项目文件缺少 name 字段".into());
@@ -150,19 +152,8 @@ async fn open_project(path: String) -> Result<FileContent, String> {
     Ok(FileContent { name, content })
 }
 
-fn chrono_now() -> String {
-    let now = std::time::SystemTime::now();
-    let duration = now.duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
-    let secs = duration.as_secs();
-    let days = secs / 86400;
-    let year = 1970 + (days / 365);
-    let remainder = days % 365;
-    let month = remainder / 30 + 1;
-    let day = remainder % 30 + 1;
-    let hour = (secs % 86400) / 3600;
-    let minute = (secs % 3600) / 60;
-    let second = secs % 60;
-    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")
+pub(crate) fn now_iso() -> String {
+    chrono::Utc::now().to_rfc3339()
 }
 
 /// 获取配置文件路径：~/.ArchBot/settings.json
@@ -181,8 +172,7 @@ async fn load_settings() -> Result<String, String> {
     if !path.exists() {
         return Ok(String::new());
     }
-    std::fs::read_to_string(&path)
-        .map_err(|e| format!("读取配置失败: {e}"))
+    std::fs::read_to_string(&path).map_err(|e| format!("读取配置失败: {e}"))
 }
 
 /// 保存用户配置
@@ -195,11 +185,9 @@ async fn load_settings() -> Result<String, String> {
 async fn save_settings(content: String) -> Result<(), String> {
     let path = get_settings_path()?;
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("创建配置目录失败: {e}"))?;
+        std::fs::create_dir_all(parent).map_err(|e| format!("创建配置目录失败: {e}"))?;
     }
-    std::fs::write(&path, content)
-        .map_err(|e| format!("保存配置失败: {e}"))
+    std::fs::write(&path, content).map_err(|e| format!("保存配置失败: {e}"))
 }
 
 /// 应用入口：初始化 Tauri 并注册插件和命令

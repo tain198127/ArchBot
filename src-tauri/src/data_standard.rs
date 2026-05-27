@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
+use crate::now_iso;
+
 /// 文件元信息，用于乐观锁和协作追踪
 #[derive(Serialize, Deserialize, Clone)]
 pub struct FileMeta {
@@ -99,20 +101,6 @@ pub struct EntityDef {
     pub relations: Vec<Relation>,
 }
 
-fn now_iso() -> String {
-    let now = std::time::SystemTime::now();
-    let secs = now.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
-    let days = secs / 86400;
-    let y = 1970 + days / 365;
-    let r = days % 365;
-    let m = r / 30 + 1;
-    let d = r % 30 + 1;
-    let h = (secs % 86400) / 3600;
-    let min = (secs % 3600) / 60;
-    let s = secs % 60;
-    format!("{y:04}-{m:02}-{d:02}T{h:02}:{min:02}:{s:02}Z")
-}
-
 fn calc_checksum(content: &str) -> String {
     let mut hash: u64 = 5381;
     for b in content.bytes() {
@@ -188,7 +176,10 @@ pub async fn ds_create_domain(
 
 /// 列出域下所有实体
 #[tauri::command]
-pub async fn ds_list_entities(project_dir: String, domain_code: String) -> Result<Vec<EntityDef>, String> {
+pub async fn ds_list_entities(
+    project_dir: String,
+    domain_code: String,
+) -> Result<Vec<EntityDef>, String> {
     let dir = domain_dir(&project_dir, &domain_code).join("entities");
     if !dir.exists() {
         return Ok(vec![]);
@@ -198,9 +189,11 @@ pub async fn ds_list_entities(project_dir: String, domain_code: String) -> Resul
     for entry in entries {
         let entry = entry.map_err(|e| format!("读取条目失败: {e}"))?;
         let path = entry.path();
-        if path.extension().map_or(false, |ext| ext == "yml") {
-            let content = std::fs::read_to_string(&path).map_err(|e| format!("读取文件失败: {e}"))?;
-            let entity: EntityDef = serde_yml::from_str(&content).map_err(|e| format!("解析失败: {e}"))?;
+        if path.extension().is_some_and(|ext| ext == "yml") {
+            let content =
+                std::fs::read_to_string(&path).map_err(|e| format!("读取文件失败: {e}"))?;
+            let entity: EntityDef =
+                serde_yml::from_str(&content).map_err(|e| format!("解析失败: {e}"))?;
             entities.push(entity);
         }
     }
@@ -227,7 +220,8 @@ pub async fn ds_save_entity(
 
     if file_path.exists() {
         let existing = std::fs::read_to_string(&file_path).map_err(|e| format!("读取失败: {e}"))?;
-        let existing_entity: EntityDef = serde_yml::from_str(&existing).map_err(|e| format!("解析失败: {e}"))?;
+        let existing_entity: EntityDef =
+            serde_yml::from_str(&existing).map_err(|e| format!("解析失败: {e}"))?;
         if existing_entity._meta.version != entity._meta.version {
             return Err(format!(
                 "版本冲突：当前版本 {}，你的版本 {}",
@@ -239,9 +233,10 @@ pub async fn ds_save_entity(
     let mut saved = entity;
     saved._meta.version += 1;
     saved._meta.updated_at = now_iso();
+    saved._meta.checksum = String::new();
 
-    let yaml = serde_yml::to_string(&saved).map_err(|e| format!("序列化失败: {e}"))?;
-    saved._meta.checksum = calc_checksum(&yaml);
+    let body_yaml = serde_yml::to_string(&saved).map_err(|e| format!("序列化失败: {e}"))?;
+    saved._meta.checksum = calc_checksum(&body_yaml);
     let yaml = serde_yml::to_string(&saved).map_err(|e| format!("序列化失败: {e}"))?;
 
     std::fs::write(&file_path, &yaml).map_err(|e| format!("写入失败: {e}"))?;
@@ -266,7 +261,10 @@ pub async fn ds_delete_entity(
 
 /// 列出域下所有枚举
 #[tauri::command]
-pub async fn ds_list_enums(project_dir: String, domain_code: String) -> Result<Vec<EnumDef>, String> {
+pub async fn ds_list_enums(
+    project_dir: String,
+    domain_code: String,
+) -> Result<Vec<EnumDef>, String> {
     let dir = domain_dir(&project_dir, &domain_code).join("enums");
     if !dir.exists() {
         return Ok(vec![]);
@@ -276,9 +274,11 @@ pub async fn ds_list_enums(project_dir: String, domain_code: String) -> Result<V
     for entry in entries {
         let entry = entry.map_err(|e| format!("读取条目失败: {e}"))?;
         let path = entry.path();
-        if path.extension().map_or(false, |ext| ext == "yml") {
-            let content = std::fs::read_to_string(&path).map_err(|e| format!("读取文件失败: {e}"))?;
-            let enum_def: EnumDef = serde_yml::from_str(&content).map_err(|e| format!("解析失败: {e}"))?;
+        if path.extension().is_some_and(|ext| ext == "yml") {
+            let content =
+                std::fs::read_to_string(&path).map_err(|e| format!("读取文件失败: {e}"))?;
+            let enum_def: EnumDef =
+                serde_yml::from_str(&content).map_err(|e| format!("解析失败: {e}"))?;
             enums.push(enum_def);
         }
     }
@@ -299,7 +299,8 @@ pub async fn ds_save_enum(
 
     if file_path.exists() {
         let existing = std::fs::read_to_string(&file_path).map_err(|e| format!("读取失败: {e}"))?;
-        let existing_enum: EnumDef = serde_yml::from_str(&existing).map_err(|e| format!("解析失败: {e}"))?;
+        let existing_enum: EnumDef =
+            serde_yml::from_str(&existing).map_err(|e| format!("解析失败: {e}"))?;
         if existing_enum._meta.version != enum_def._meta.version {
             return Err(format!(
                 "版本冲突：当前版本 {}，你的版本 {}",
@@ -311,9 +312,10 @@ pub async fn ds_save_enum(
     let mut saved = enum_def;
     saved._meta.version += 1;
     saved._meta.updated_at = now_iso();
+    saved._meta.checksum = String::new();
 
-    let yaml = serde_yml::to_string(&saved).map_err(|e| format!("序列化失败: {e}"))?;
-    saved._meta.checksum = calc_checksum(&yaml);
+    let body_yaml = serde_yml::to_string(&saved).map_err(|e| format!("序列化失败: {e}"))?;
+    saved._meta.checksum = calc_checksum(&body_yaml);
     let yaml = serde_yml::to_string(&saved).map_err(|e| format!("序列化失败: {e}"))?;
 
     std::fs::write(&file_path, &yaml).map_err(|e| format!("写入失败: {e}"))?;
@@ -338,7 +340,10 @@ pub async fn ds_delete_enum(
 
 /// 读取域信息
 #[tauri::command]
-pub async fn ds_load_domain(project_dir: String, domain_code: String) -> Result<DomainInfo, String> {
+pub async fn ds_load_domain(
+    project_dir: String,
+    domain_code: String,
+) -> Result<DomainInfo, String> {
     let path = domain_dir(&project_dir, &domain_code).join("_domain.yml");
     let content = std::fs::read_to_string(&path).map_err(|e| format!("读取失败: {e}"))?;
     serde_yml::from_str(&content).map_err(|e| format!("解析失败: {e}"))
@@ -346,7 +351,10 @@ pub async fn ds_load_domain(project_dir: String, domain_code: String) -> Result<
 
 /// 读取编码规范
 #[tauri::command]
-pub async fn ds_load_conventions(project_dir: String, domain_code: String) -> Result<Conventions, String> {
+pub async fn ds_load_conventions(
+    project_dir: String,
+    domain_code: String,
+) -> Result<Conventions, String> {
     let path = domain_dir(&project_dir, &domain_code).join("_conventions.yml");
     let content = std::fs::read_to_string(&path).map_err(|e| format!("读取失败: {e}"))?;
     serde_yml::from_str(&content).map_err(|e| format!("解析失败: {e}"))
@@ -367,8 +375,10 @@ pub async fn ds_list_domains(project_dir: String) -> Result<Vec<DomainInfo>, Str
         if path.is_dir() {
             let domain_file = path.join("_domain.yml");
             if domain_file.exists() {
-                let content = std::fs::read_to_string(&domain_file).map_err(|e| format!("读取失败: {e}"))?;
-                let domain: DomainInfo = serde_yml::from_str(&content).map_err(|e| format!("解析失败: {e}"))?;
+                let content =
+                    std::fs::read_to_string(&domain_file).map_err(|e| format!("读取失败: {e}"))?;
+                let domain: DomainInfo =
+                    serde_yml::from_str(&content).map_err(|e| format!("解析失败: {e}"))?;
                 domains.push(domain);
             }
         }

@@ -45,10 +45,12 @@ function closeContextMenu() {
 
 function handleNew() {
   closeContextMenu()
+  // TODO: 实现新建功能 — 根据 contextMenuDir 创建对应类型的文件
 }
 
 function handleImport() {
   closeContextMenu()
+  // TODO: 实现导入功能 — 根据 contextMenuDir 导入文件到对应目录
 }
 
 function handleDirClick(dir: ProjectDir) {

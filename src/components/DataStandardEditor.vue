@@ -4,7 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from '../i18n'
 import { useProject } from '../stores/project'
-import type { DomainInfo, EntityDef, EnumDef } from '../types/dataStandard'
+import type { DomainInfo, EntityDef, EnumDef, IndexDef } from '../types/dataStandard'
 import { newEntity, newEnumDef, newEntityField } from '../types/dataStandard'
 
 const { t } = useI18n()
@@ -39,7 +39,7 @@ const sensitivityOptions = [
 function projectDir(): string {
   if (!currentProject.value) return ''
   const p = currentProject.value.path
-  const idx = p.lastIndexOf('/')
+  const idx = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'))
   return idx >= 0 ? p.substring(0, idx) : p
 }
 
@@ -51,7 +51,9 @@ async function loadDomains() {
     if (domains.value.length > 0 && !currentDomain.value) {
       currentDomain.value = domains.value[0].code
     }
-  } catch { /* ignore */ }
+  } catch (e) {
+    console.error('Failed to load domains:', e)
+  }
 }
 
 /**
@@ -74,7 +76,9 @@ async function loadDomainData() {
     ])
     entities.value = ents
     enums.value = enm
-  } catch { /* ignore */ }
+  } catch (e) {
+    console.error('Failed to load domain data:', e)
+  }
 }
 
 watch(currentDomain, () => loadDomainData())
@@ -158,6 +162,21 @@ function addIndex() {
 function addRelation() {
   if (!selectedEntity.value) return
   selectedEntity.value.relations = [...selectedEntity.value.relations, { target: '', relation_type: 'one_to_many', foreign_key: '' }]
+}
+
+function fieldsToStr(fields: string[]): string {
+  return (fields || []).join(', ')
+}
+
+function strToFields(val: unknown): string[] {
+  return String(val ?? '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+}
+
+function onFieldsChange(idx: IndexDef, val: unknown) {
+  idx.fields = strToFields(val)
 }
 
 /**
@@ -419,7 +438,13 @@ function generateDDL(): string {
                 </thead>
                 <tbody>
                   <tr v-for="(idx, i) in selectedEntity.indexes" :key="i">
-                    <td><el-input v-model="idx.fields" size="small" /></td>
+                    <td>
+                      <el-input
+                        :model-value="fieldsToStr(idx.fields)"
+                        @update:model-value="onFieldsChange(idx, $event)"
+                        size="small"
+                      />
+                    </td>
                     <td><el-checkbox v-model="idx.unique" /></td>
                   </tr>
                 </tbody>
