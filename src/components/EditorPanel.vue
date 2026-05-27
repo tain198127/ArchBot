@@ -1,16 +1,23 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from '../i18n'
+
+const { t } = useI18n()
 
 interface EditorTab {
   id: string
-  label: string
+  labelKey: 'welcome'
   closable: boolean
 }
 
 const tabs = ref<EditorTab[]>([
-  { id: 'welcome', label: '欢迎', closable: false }
+  { id: 'welcome', labelKey: 'welcome', closable: false }
 ])
 const activeTab = ref('welcome')
+
+function getTabLabel(key: string): string {
+  return (t.value.editor as Record<string, string>)[key] || key
+}
 
 function closeTab(id: string) {
   const index = tabs.value.findIndex(t => t.id === id)
@@ -32,7 +39,7 @@ function closeTab(id: string) {
         :class="{ active: activeTab === tab.id }"
         @click="activeTab = tab.id"
       >
-        <span class="tab-label">{{ tab.label }}</span>
+        <span class="tab-label">{{ getTabLabel(tab.labelKey) }}</span>
         <span
           v-if="tab.closable"
           class="tab-close"
@@ -42,9 +49,9 @@ function closeTab(id: string) {
     </div>
     <div class="editor-content">
       <div v-if="activeTab === 'welcome'" class="welcome-page">
-        <h2>ArchBot</h2>
-        <p>全生命周期开发管理工具</p>
-        <p class="hint">从「文件」菜单打开或新建项目开始</p>
+        <h2>{{ t.editor.appName }}</h2>
+        <p>{{ t.editor.appDesc }}</p>
+        <p class="hint">{{ t.editor.startHint }}</p>
       </div>
     </div>
   </div>

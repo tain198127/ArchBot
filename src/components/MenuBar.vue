@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { menuConfig, getPlatformShortcut } from '../config/menu'
+import { useMenuConfig, getPlatformShortcut } from '../config/menu'
+import { useI18n } from '../i18n'
 import type { MenuCategory } from '../config/menu'
 
+const { menuConfig } = useMenuConfig()
+const { t } = useI18n()
 const activeMenu = ref<string | null>(null)
 const menuBarActive = ref(false)
 
@@ -102,7 +105,7 @@ function handleClickOutside() {
           v-if="activeMenu === category.name && category.groups.length === 0"
           class="menu-dropdown menu-dropdown-empty"
         >
-          <div class="menu-item disabled">{{ category.note || '暂无内容' }}</div>
+          <div class="menu-item disabled">{{ category.note || t.menu.noContent }}</div>
         </div>
       </div>
     </div>

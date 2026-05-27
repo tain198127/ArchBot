@@ -1,3 +1,6 @@
+import { computed } from 'vue'
+import { useI18n } from '../i18n'
+
 export interface MenuItem {
   name: string
   shortcut?: string | null
@@ -26,117 +29,123 @@ function getPlatformShortcut(shortcut: string | null | undefined): string {
 
 export { getPlatformShortcut }
 
-export const menuConfig: MenuCategory[] = [
-  {
-    name: '文件',
-    groups: [
-      {
-        items: [
-          { name: '新建项目', shortcut: 'Ctrl+Shift+N / ⌘+Shift+N', action: 'file.newProject' },
-          { name: '打开项目', shortcut: 'Ctrl+O / ⌘+O', action: 'file.openProject' },
-          { name: '打开远程项目', shortcut: null, action: 'file.openRemoteProject' }
-        ]
-      },
-      {
-        items: [
-          { name: '保存项目', shortcut: 'Ctrl+S / ⌘+S', action: 'file.saveProject' },
-          { name: '另存项目', shortcut: 'Ctrl+Shift+S / ⌘+Shift+S', action: 'file.saveAsProject' }
-        ]
-      },
-      {
-        items: [
-          { name: '关闭项目', shortcut: 'Ctrl+W / ⌘+W', action: 'file.closeProject' }
-        ]
-      }
-    ]
-  },
-  {
-    name: '编辑',
-    groups: [
-      {
-        items: [
-          { name: '查找', shortcut: 'Ctrl+F / ⌘+F', action: 'edit.find' },
-          { name: '替换', shortcut: 'Ctrl+R / ⌘+R', action: 'edit.replace' },
-          { name: '定位', shortcut: 'Ctrl+G / ⌘+G', action: 'edit.goTo' }
-        ]
-      },
-      {
-        items: [
-          { name: '剪切', shortcut: 'Ctrl+X / ⌘+X', action: 'edit.cut' },
-          { name: '复制', shortcut: 'Ctrl+C / ⌘+C', action: 'edit.copy' }
-        ]
-      },
-      {
-        items: [
-          { name: '格式化', shortcut: 'Ctrl+Alt+L / ⌘+Option+L', action: 'edit.format' }
-        ]
-      }
-    ]
-  },
-  {
-    name: '视图',
-    groups: [],
-    note: '后续补充'
-  },
-  {
-    name: '配置',
-    groups: [
-      {
-        items: [
-          { name: 'AI配置', shortcut: null, action: 'config.ai' },
-          { name: 'skill配置', shortcut: null, action: 'config.skill' },
-          { name: 'MCP', shortcut: null, action: 'config.mcp' }
-        ]
-      },
-      {
-        items: [
-          { name: '会话', shortcut: null, action: 'config.session' },
-          { name: '规则', shortcut: null, action: 'config.rules' },
-          { name: '记忆', shortcut: null, action: 'config.memory' }
-        ]
-      },
-      {
-        items: [
-          { name: '代码库', shortcut: null, action: 'config.codebase' },
-          { name: 'git集成', shortcut: null, action: 'config.git' }
-        ]
-      }
-    ]
-  },
-  {
-    name: '运行',
-    groups: [
-      {
-        items: [
-          { name: '命令行', shortcut: 'Alt+F12 / Option+F12', action: 'run.terminal' }
-        ]
-      },
-      {
-        items: [
-          { name: '生成需规', shortcut: null, action: 'run.genRequirement' },
-          { name: '生成设计', shortcut: null, action: 'run.genDesign' },
-          { name: '生成代码', shortcut: null, action: 'run.genCode' },
-          { name: '生成代码骨架', shortcut: null, action: 'run.genSkeleton' }
-        ]
-      },
-      {
-        items: [
-          { name: '生成数据库表', shortcut: null, action: 'run.genDbTable' },
-          { name: '生成数据标准', shortcut: null, action: 'run.genDataStandard' },
-          { name: '生成调用链', shortcut: null, action: 'run.genCallChain' }
-        ]
-      },
-      {
-        items: [
-          { name: '生成测试用例', shortcut: null, action: 'run.genTestCase' },
-          { name: '生成e2e测试脚本', shortcut: null, action: 'run.genE2eTest' }
-        ]
-      }
-    ]
-  },
-  {
-    name: '帮助',
-    groups: [],
-    note: '后续补充'
-  }
-]
+export function useMenuConfig() {
+  const { t } = useI18n()
+
+  const menuConfig = computed<MenuCategory[]>(() => [
+    {
+      name: t.value.menu.file,
+      groups: [
+        {
+          items: [
+            { name: t.value.menuFile.newProject, shortcut: 'Ctrl+Shift+N / ⌘+Shift+N', action: 'file.newProject' },
+            { name: t.value.menuFile.openProject, shortcut: 'Ctrl+O / ⌘+O', action: 'file.openProject' },
+            { name: t.value.menuFile.openRemoteProject, shortcut: null, action: 'file.openRemoteProject' }
+          ]
+        },
+        {
+          items: [
+            { name: t.value.menuFile.saveProject, shortcut: 'Ctrl+S / ⌘+S', action: 'file.saveProject' },
+            { name: t.value.menuFile.saveAsProject, shortcut: 'Ctrl+Shift+S / ⌘+Shift+S', action: 'file.saveAsProject' }
+          ]
+        },
+        {
+          items: [
+            { name: t.value.menuFile.closeProject, shortcut: 'Ctrl+W / ⌘+W', action: 'file.closeProject' }
+          ]
+        }
+      ]
+    },
+    {
+      name: t.value.menu.edit,
+      groups: [
+        {
+          items: [
+            { name: t.value.menuEdit.find, shortcut: 'Ctrl+F / ⌘+F', action: 'edit.find' },
+            { name: t.value.menuEdit.replace, shortcut: 'Ctrl+R / ⌘+R', action: 'edit.replace' },
+            { name: t.value.menuEdit.goTo, shortcut: 'Ctrl+G / ⌘+G', action: 'edit.goTo' }
+          ]
+        },
+        {
+          items: [
+            { name: t.value.menuEdit.cut, shortcut: 'Ctrl+X / ⌘+X', action: 'edit.cut' },
+            { name: t.value.menuEdit.copy, shortcut: 'Ctrl+C / ⌘+C', action: 'edit.copy' }
+          ]
+        },
+        {
+          items: [
+            { name: t.value.menuEdit.format, shortcut: 'Ctrl+Alt+L / ⌘+Option+L', action: 'edit.format' }
+          ]
+        }
+      ]
+    },
+    {
+      name: t.value.menu.view,
+      groups: [],
+      note: t.value.menu.comingSoon
+    },
+    {
+      name: t.value.menu.config,
+      groups: [
+        {
+          items: [
+            { name: t.value.menuConfig.ai, shortcut: null, action: 'config.ai' },
+            { name: t.value.menuConfig.skill, shortcut: null, action: 'config.skill' },
+            { name: t.value.menuConfig.mcp, shortcut: null, action: 'config.mcp' }
+          ]
+        },
+        {
+          items: [
+            { name: t.value.menuConfig.session, shortcut: null, action: 'config.session' },
+            { name: t.value.menuConfig.rules, shortcut: null, action: 'config.rules' },
+            { name: t.value.menuConfig.memory, shortcut: null, action: 'config.memory' }
+          ]
+        },
+        {
+          items: [
+            { name: t.value.menuConfig.codebase, shortcut: null, action: 'config.codebase' },
+            { name: t.value.menuConfig.git, shortcut: null, action: 'config.git' }
+          ]
+        }
+      ]
+    },
+    {
+      name: t.value.menu.run,
+      groups: [
+        {
+          items: [
+            { name: t.value.menuRun.terminal, shortcut: 'Alt+F12 / Option+F12', action: 'run.terminal' }
+          ]
+        },
+        {
+          items: [
+            { name: t.value.menuRun.genRequirement, shortcut: null, action: 'run.genRequirement' },
+            { name: t.value.menuRun.genDesign, shortcut: null, action: 'run.genDesign' },
+            { name: t.value.menuRun.genCode, shortcut: null, action: 'run.genCode' },
+            { name: t.value.menuRun.genSkeleton, shortcut: null, action: 'run.genSkeleton' }
+          ]
+        },
+        {
+          items: [
+            { name: t.value.menuRun.genDbTable, shortcut: null, action: 'run.genDbTable' },
+            { name: t.value.menuRun.genDataStandard, shortcut: null, action: 'run.genDataStandard' },
+            { name: t.value.menuRun.genCallChain, shortcut: null, action: 'run.genCallChain' }
+          ]
+        },
+        {
+          items: [
+            { name: t.value.menuRun.genTestCase, shortcut: null, action: 'run.genTestCase' },
+            { name: t.value.menuRun.genE2eTest, shortcut: null, action: 'run.genE2eTest' }
+          ]
+        }
+      ]
+    },
+    {
+      name: t.value.menu.help,
+      groups: [],
+      note: t.value.menu.comingSoon
+    }
+  ])
+
+  return { menuConfig }
+}

@@ -1,10 +1,17 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import MenuBar from './components/MenuBar.vue'
 import SplitPanel from './components/SplitPanel.vue'
 import FileTreePanel from './components/FileTreePanel.vue'
 import EditorPanel from './components/EditorPanel.vue'
 import ModelPanel from './components/ModelPanel.vue'
 import BottomPanel from './components/BottomPanel.vue'
+import { useI18n } from './i18n'
+
+const { t } = useI18n()
+
+const bottomCollapseLabels = computed(() => ['', t.value.panel.bottomPanel])
+const rightCollapseLabels = computed(() => ['', '', t.value.panel.model])
 </script>
 
 <template>
@@ -16,7 +23,7 @@ import BottomPanel from './components/BottomPanel.vue'
       :min-sizes="[300, 120]"
       :collapsible="[false, true]"
       :collapse-icons="['', '⌨']"
-      :collapse-labels="['', '面板']"
+      :collapse-labels="bottomCollapseLabels"
     >
       <template #panel-0>
         <SplitPanel
@@ -25,7 +32,7 @@ import BottomPanel from './components/BottomPanel.vue'
           :min-sizes="[180, 300, 240]"
           :collapsible="[false, false, true]"
           :collapse-icons="['', '', '🤖']"
-          :collapse-labels="['', '', '模型']"
+          :collapse-labels="rightCollapseLabels"
         >
           <template #panel-0>
             <FileTreePanel />

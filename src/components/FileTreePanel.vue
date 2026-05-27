@@ -1,14 +1,17 @@
 <script setup lang="ts">
+import { useI18n } from '../i18n'
+
+const { t } = useI18n()
 </script>
 
 <template>
   <div class="file-tree-panel">
     <div class="panel-header">
-      <span class="panel-title">项目</span>
+      <span class="panel-title">{{ t.panel.project }}</span>
     </div>
     <div class="panel-body">
       <div class="tree-placeholder">
-        <p class="placeholder-text">打开项目以查看文件树</p>
+        <p class="placeholder-text">{{ t.panel.openProjectHint }}</p>
       </div>
     </div>
   </div>

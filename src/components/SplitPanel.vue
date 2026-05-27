@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from '../i18n'
+
+const { t } = useI18n()
 
 const props = withDefaults(defineProps<{
   direction?: 'horizontal' | 'vertical'
@@ -142,7 +145,7 @@ const collapseButtonDirection = computed(() => {
           v-if="collapsible[index + 1] && !collapsed[index + 1]"
           class="collapse-btn"
           :class="direction"
-          :title="`折叠${collapseLabels[index + 1] || ''}`"
+          :title="`${t.panel.collapse}${collapseLabels[index + 1] || ''}`"
           @click.stop="collapsePanel(index + 1)"
           @mousedown.stop
         >

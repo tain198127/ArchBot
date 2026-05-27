@@ -1,37 +1,36 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from '../i18n'
+
+const { t } = useI18n()
 
 const activeTab = ref('log')
 
-const tabs = [
-  { id: 'log', label: '日志' },
-  { id: 'terminal', label: '终端' },
-  { id: 'analysis', label: '分析内容' }
-]
+const tabKeys = ['log', 'terminal', 'analysis'] as const
 </script>
 
 <template>
   <div class="bottom-panel">
     <div class="panel-tabs">
       <div
-        v-for="tab in tabs"
-        :key="tab.id"
+        v-for="key in tabKeys"
+        :key="key"
         class="panel-tab"
-        :class="{ active: activeTab === tab.id }"
-        @click="activeTab = tab.id"
+        :class="{ active: activeTab === key }"
+        @click="activeTab = key"
       >
-        {{ tab.label }}
+        {{ (t.bottom as Record<string, string>)[key] }}
       </div>
     </div>
     <div class="panel-content">
       <div v-if="activeTab === 'log'" class="tab-content">
-        <p class="placeholder-text">日志输出将显示在这里</p>
+        <p class="placeholder-text">{{ t.bottom.logPlaceholder }}</p>
       </div>
       <div v-else-if="activeTab === 'terminal'" class="tab-content">
-        <p class="placeholder-text">终端将在这里运行</p>
+        <p class="placeholder-text">{{ t.bottom.terminalPlaceholder }}</p>
       </div>
       <div v-else-if="activeTab === 'analysis'" class="tab-content">
-        <p class="placeholder-text">分析内容将显示在这里</p>
+        <p class="placeholder-text">{{ t.bottom.analysisPlaceholder }}</p>
       </div>
     </div>
   </div>

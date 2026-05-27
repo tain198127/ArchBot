@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from '../i18n'
+
+const { t } = useI18n()
 
 const currentMode = ref('chat')
 const currentModel = ref('gpt-4')
 
 const modes = [
-  { value: 'chat', label: '问答模式' },
-  { value: 'plan', label: 'Plan模式' },
-  { value: 'expert', label: '专家团模式' }
+  { value: 'chat', labelKey: 'chatMode' },
+  { value: 'plan', labelKey: 'planMode' },
+  { value: 'expert', labelKey: 'expertMode' }
 ]
 
 const models = [
@@ -15,6 +18,10 @@ const models = [
   { value: 'claude-sonnet', label: 'Claude Sonnet' },
   { value: 'claude-opus', label: 'Claude Opus' }
 ]
+
+function getModeLabel(key: string): string {
+  return (t.value.model as Record<string, string>)[key] || key
+}
 </script>
 
 <template>
@@ -25,7 +32,7 @@ const models = [
           v-for="mode in modes"
           :key="mode.value"
           :value="mode.value"
-          :label="mode.label"
+          :label="getModeLabel(mode.labelKey)"
         />
       </el-select>
       <el-select v-model="currentModel" size="small" style="width: 140px">
@@ -39,20 +46,20 @@ const models = [
     </div>
     <div class="panel-body">
       <div v-if="currentMode === 'chat'" class="mode-placeholder">
-        <p>对话消息将显示在这里</p>
+        <p>{{ t.model.chatPlaceholder }}</p>
       </div>
       <div v-else-if="currentMode === 'plan'" class="mode-placeholder">
-        <p>Plan 步骤将显示在这里</p>
+        <p>{{ t.model.planPlaceholder }}</p>
       </div>
       <div v-else-if="currentMode === 'expert'" class="mode-placeholder">
-        <p>专家团讨论将显示在这里</p>
+        <p>{{ t.model.expertPlaceholder }}</p>
       </div>
     </div>
     <div class="panel-input">
       <el-input
         type="textarea"
         :rows="2"
-        placeholder="输入消息..."
+        :placeholder="t.model.inputPlaceholder"
         resize="none"
       />
     </div>
