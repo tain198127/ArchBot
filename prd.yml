@@ -22,6 +22,25 @@ layout:
       content: 文件树（项目目录结构）
       resizable: true
       resize_method: 拖拽调整宽度
+      project_directories:
+        description: 打开项目后显示的子目录，每个有独立颜色和图标
+        items:
+          - 数据标准
+          - 元数据
+          - 需求
+          - 架构设计
+          - 详细设计
+          - 源代码-前端
+          - 源代码-后端
+          - 数据库
+          - 测试用例
+          - 业务测试
+          - 压力测试
+          - 混沌测试
+          - 部署
+        context_menu:
+          - 新建
+          - 导入
     center:
       name: 编辑区
       content: 多Tab编辑器骨架
@@ -215,6 +234,37 @@ project_file:
     - 文件名不含非法字符（/\:*?"<>|）
     - 创建时检查文件是否已存在
 
+data_standard:
+  description: 数据标准管理模块，作为源头驱动数据库表生成和数据校验
+  storage:
+    format: 细粒度拆分 YAML 文件
+    structure:
+      - "{project}/data-standard/{domain}/_domain.yml（域基本信息）"
+      - "{project}/data-standard/{domain}/_conventions.yml（编码规范）"
+      - "{project}/data-standard/{domain}/entities/{entity}.yml（每个实体一个文件）"
+      - "{project}/data-standard/{domain}/enums/{enum}.yml（每个枚举一个文件）"
+    meta: 每个文件头部含 _meta（version, locked_by, updated_by, checksum）用于乐观锁
+  features:
+    - 域管理（创建/切换数据域）
+    - 实体定义（字段、索引、关联关系）
+    - 枚举/码表管理
+    - 编码规范配置
+    - 字段校验规则
+    - DDL 实时预览
+    - 乐观锁版本冲突检测
+  ui:
+    layout: 左侧实体/枚举导航 + 右侧表格编辑器
+    editing: inline 表格编辑（类似 Navicat 表设计器）
+    tabs: [字段, 索引, 关联关系, 预览DDL]
+  downstream:
+    - 生成数据库建表 DDL
+    - 生成前端/后端校验代码
+    - 生成 ORM 关联和 ER 图
+    - 数据脱敏规则
+  collaboration:
+    phase1: Git 协作（细粒度文件减少 merge 冲突）
+    phase2: 后端服务 push/pull + 乐观锁 + 字段级 diff
+
 iteration:
   current:
     name: v0.1 - UI骨架
@@ -229,6 +279,8 @@ iteration:
       - 主题切换实时生效（CSS变量方案）
       - 配置持久化到 ~/.ArchBot/settings.json
       - 新建项目功能（选择路径+输入文件名→生成.ab文件）
+      - 打开项目功能（选择.ab文件，校验YAML格式）
+      - 数据标准编辑器（域管理/实体/枚举/字段表格编辑/DDL预览）
       - i18n国际化（中/英）
     excluded:
       - 其他菜单项实际功能逻辑

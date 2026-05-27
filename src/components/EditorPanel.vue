@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from '../i18n'
 import { useMenuAction } from '../composables/useMenuAction'
 import SettingsPanel from './SettingsPanel.vue'
+import DataStandardEditor from './DataStandardEditor.vue'
 
 const { t } = useI18n()
 const { on } = useMenuAction()
@@ -10,7 +11,7 @@ const { on } = useMenuAction()
 interface EditorTab {
   id: string
   labelKey: string
-  type: 'welcome' | 'settings' | 'editor'
+  type: 'welcome' | 'settings' | 'dataStandard' | 'editor'
   closable: boolean
 }
 
@@ -22,7 +23,8 @@ const activeTab = ref('welcome')
 function getTabLabel(key: string): string {
   const editorLabels = t.value.editor as Record<string, string>
   const settingsLabels = t.value.settings as Record<string, string>
-  return editorLabels[key] || settingsLabels[key] || key
+  const dsLabels = t.value.dataStandard as Record<string, string>
+  return editorLabels[key] || settingsLabels[key] || dsLabels[key] || key
 }
 
 function openTab(id: string, labelKey: string, type: EditorTab['type']) {
@@ -50,6 +52,8 @@ onMounted(() => {
   unsubscribe = on((action) => {
     if (action === 'config.system') {
       openTab('settings', 'title', 'settings')
+    } else if (action === 'open.dataStandard') {
+      openTab('dataStandard', 'title', 'dataStandard')
     }
   })
 })
@@ -84,6 +88,7 @@ onUnmounted(() => {
         <p class="hint">{{ t.editor.startHint }}</p>
       </div>
       <SettingsPanel v-else-if="activeTab === 'settings'" />
+      <DataStandardEditor v-else-if="activeTab === 'dataStandard'" />
     </div>
   </div>
 </template>
@@ -145,7 +150,7 @@ onUnmounted(() => {
 
 .editor-content {
   flex: 1;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .welcome-page {

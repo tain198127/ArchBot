@@ -1,3 +1,5 @@
+mod data_standard;
+
 use serde::{Deserialize, Serialize};
 
 /// 本地文件读取结果
@@ -213,7 +215,17 @@ pub fn run() {
             load_settings,
             save_settings,
             create_project,
-            open_project
+            open_project,
+            data_standard::ds_create_domain,
+            data_standard::ds_list_domains,
+            data_standard::ds_load_domain,
+            data_standard::ds_load_conventions,
+            data_standard::ds_list_entities,
+            data_standard::ds_save_entity,
+            data_standard::ds_delete_entity,
+            data_standard::ds_list_enums,
+            data_standard::ds_save_enum,
+            data_standard::ds_delete_enum
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

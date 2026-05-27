@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { open } from '@tauri-apps/plugin-dialog'
+import { invoke } from '@tauri-apps/api/core'
+import { ElMessage } from 'element-plus'
 import MenuBar from './components/MenuBar.vue'
 import SplitPanel from './components/SplitPanel.vue'
 import FileTreePanel from './components/FileTreePanel.vue'
@@ -10,10 +13,12 @@ import NewProjectDialog from './components/NewProjectDialog.vue'
 import { useI18n } from './i18n'
 import { useSettings } from './stores/settings'
 import { useMenuAction } from './composables/useMenuAction'
+import { useProject } from './stores/project'
 
 const { t } = useI18n()
 const { initSettings } = useSettings()
 const { on } = useMenuAction()
+const { setProject } = useProject()
 
 const newProjectDialogRef = ref<InstanceType<typeof NewProjectDialog> | null>(null)
 
@@ -21,11 +26,38 @@ onMounted(() => {
   initSettings()
 })
 
+async function handleOpenProject() {
+  const selected = await open({
+    multiple: false,
+    filters: [{ name: t.value.openProject.filterName, extensions: ['ab'] }]
+  })
+  if (!selected) return
+
+  try {
+    const result = await invoke<{ name: string; content: string }>('open_project', { path: selected })
+    setProject({ name: result.name, path: selected as string, content: result.content })
+    ElMessage.success(t.value.openProject.success)
+  } catch (e) {
+    ElMessage.error(`${t.value.openProject.failed}: ${e}`)
+  }
+}
+
+async function handleProjectCreated(filePath: string, name: string) {
+  try {
+    const result = await invoke<{ name: string; content: string }>('open_project', { path: filePath })
+    setProject({ name: result.name, path: filePath, content: result.content })
+  } catch {
+    setProject({ name, path: filePath, content: '' })
+  }
+}
+
 let unsubscribe: (() => void) | null = null
 onMounted(() => {
   unsubscribe = on((action) => {
     if (action === 'file.newProject') {
       newProjectDialogRef.value?.show()
+    } else if (action === 'file.openProject') {
+      handleOpenProject()
     }
   })
 })
@@ -72,7 +104,7 @@ const rightCollapseLabels = computed(() => ['', '', t.value.panel.model])
         <BottomPanel />
       </template>
     </SplitPanel>
-    <NewProjectDialog ref="newProjectDialogRef" />
+    <NewProjectDialog ref="newProjectDialogRef" @created="handleProjectCreated" />
   </div>
 </template>
 
