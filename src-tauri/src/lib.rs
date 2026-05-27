@@ -14,6 +14,15 @@ struct RemoteResponse {
     body: String,
 }
 
+/// .ab 项目文件结构（YAML 格式）
+#[derive(Serialize, Deserialize)]
+struct AbProject {
+    name: String,
+    version: String,
+    description: String,
+    created_at: String,
+}
+
 /// 读取本地文件内容
 ///
 /// 根据前端传入的文件绝对路径，提取文件名并读取文本内容，
@@ -53,6 +62,105 @@ async fn fetch_remote(url: String, username: String, password: String) -> Result
         .map_err(|e| format!("读取响应失败: {e}"))?;
 
     Ok(RemoteResponse { status, body })
+}
+
+/// 创建 .ab 项目文件
+///
+/// 业务逻辑：
+/// 1. 校验项目名称非空且不含非法字符
+/// 2. 拼接完整路径：dir/name.ab
+/// 3. 检查文件是否已存在，避免覆盖
+/// 4. 生成默认项目 YAML 内容，通过 serde_yml 序列化
+/// 5. 写入文件并返回完整路径
+#[tauri::command]
+async fn create_project(dir: String, name: String) -> Result<String, String> {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err("项目名称不能为空".into());
+    }
+
+    let invalid_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|'];
+    if name.chars().any(|c| invalid_chars.contains(&c)) {
+        return Err(format!("项目名称不能包含以下字符: {}", invalid_chars.iter().collect::<String>()));
+    }
+
+    let filename = if name.ends_with(".ab") {
+        name.clone()
+    } else {
+        format!("{name}.ab")
+    };
+
+    let path = std::path::Path::new(&dir).join(&filename);
+
+    if path.exists() {
+        return Err(format!("文件已存在: {}", path.display()));
+    }
+
+    let now = chrono_now();
+    let project = AbProject {
+        name: name.trim_end_matches(".ab").to_string(),
+        version: "1.0.0".to_string(),
+        description: String::new(),
+        created_at: now,
+    };
+
+    let yaml = serde_yml::to_string(&project)
+        .map_err(|e| format!("生成项目文件失败: {e}"))?;
+
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("创建目录失败: {e}"))?;
+    }
+
+    std::fs::write(&path, &yaml)
+        .map_err(|e| format!("写入文件失败: {e}"))?;
+
+    Ok(path.to_string_lossy().to_string())
+}
+
+/// 打开并校验 .ab 项目文件
+///
+/// 业务逻辑：
+/// 1. 读取文件内容
+/// 2. 通过 serde_yml 反序列化校验 YAML 格式是否合法
+/// 3. 校验必填字段（name、version）非空
+/// 4. 返回文件名和原始内容
+#[tauri::command]
+async fn open_project(path: String) -> Result<FileContent, String> {
+    let content = std::fs::read_to_string(&path)
+        .map_err(|e| format!("读取项目文件失败: {e}"))?;
+
+    let project: AbProject = serde_yml::from_str(&content)
+        .map_err(|e| format!("项目文件格式错误: {e}"))?;
+
+    if project.name.is_empty() {
+        return Err("项目文件缺少 name 字段".into());
+    }
+    if project.version.is_empty() {
+        return Err("项目文件缺少 version 字段".into());
+    }
+
+    let name = std::path::Path::new(&path)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+
+    Ok(FileContent { name, content })
+}
+
+fn chrono_now() -> String {
+    let now = std::time::SystemTime::now();
+    let duration = now.duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+    let secs = duration.as_secs();
+    let days = secs / 86400;
+    let year = 1970 + (days / 365);
+    let remainder = days % 365;
+    let month = remainder / 30 + 1;
+    let day = remainder % 30 + 1;
+    let hour = (secs % 86400) / 3600;
+    let minute = (secs % 3600) / 60;
+    let second = secs % 60;
+    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")
 }
 
 /// 获取配置文件路径：~/.ArchBot/settings.json
@@ -103,7 +211,9 @@ pub fn run() {
             read_local_file,
             fetch_remote,
             load_settings,
-            save_settings
+            save_settings,
+            create_project,
+            open_project
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

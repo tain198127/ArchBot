@@ -108,5 +108,19 @@ export default {
     reset: 'Reset to Default',
     resetConfirm: 'Are you sure to reset all settings to default?',
     resetDone: 'Settings have been reset to default'
+  },
+  newProject: {
+    title: 'New Project',
+    name: 'Project Name',
+    namePlaceholder: 'Enter project name',
+    location: 'Location',
+    locationPlaceholder: 'Select project directory',
+    browse: 'Browse',
+    create: 'Create',
+    cancel: 'Cancel',
+    nameRequired: 'Please enter a project name',
+    locationRequired: 'Please select a location',
+    success: 'Project created successfully',
+    fileExtHint: 'File will be saved as .ab format'
   }
 }

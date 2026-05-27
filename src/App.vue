@@ -1,19 +1,36 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import MenuBar from './components/MenuBar.vue'
 import SplitPanel from './components/SplitPanel.vue'
 import FileTreePanel from './components/FileTreePanel.vue'
 import EditorPanel from './components/EditorPanel.vue'
 import ModelPanel from './components/ModelPanel.vue'
 import BottomPanel from './components/BottomPanel.vue'
+import NewProjectDialog from './components/NewProjectDialog.vue'
 import { useI18n } from './i18n'
 import { useSettings } from './stores/settings'
+import { useMenuAction } from './composables/useMenuAction'
 
 const { t } = useI18n()
 const { initSettings } = useSettings()
+const { on } = useMenuAction()
+
+const newProjectDialogRef = ref<InstanceType<typeof NewProjectDialog> | null>(null)
 
 onMounted(() => {
   initSettings()
+})
+
+let unsubscribe: (() => void) | null = null
+onMounted(() => {
+  unsubscribe = on((action) => {
+    if (action === 'file.newProject') {
+      newProjectDialogRef.value?.show()
+    }
+  })
+})
+onUnmounted(() => {
+  unsubscribe?.()
 })
 
 const bottomCollapseLabels = computed(() => ['', t.value.panel.bottomPanel])
@@ -55,6 +72,7 @@ const rightCollapseLabels = computed(() => ['', '', t.value.panel.model])
         <BottomPanel />
       </template>
     </SplitPanel>
+    <NewProjectDialog ref="newProjectDialogRef" />
   </div>
 </template>
 

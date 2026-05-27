@@ -200,6 +200,21 @@ i18n:
   usage: useI18n() composable
   type_safe: true
 
+project_file:
+  extension: .ab
+  format: YAML
+  description: 项目文件，通过文件菜单 → 新建项目创建
+  structure:
+    name: 项目名称
+    version: 版本号
+    description: 项目描述
+    created_at: 创建时间
+  validation:
+    - Rust serde_yml 反序列化校验 YAML 格式
+    - name 和 version 字段必填
+    - 文件名不含非法字符（/\:*?"<>|）
+    - 创建时检查文件是否已存在
+
 iteration:
   current:
     name: v0.1 - UI骨架
@@ -213,6 +228,7 @@ iteration:
       - 系统配置页面（语言/字体/主题/AI语言/代理/更新）
       - 主题切换实时生效（CSS变量方案）
       - 配置持久化到 ~/.ArchBot/settings.json
+      - 新建项目功能（选择路径+输入文件名→生成.ab文件）
       - i18n国际化（中/英）
     excluded:
       - 其他菜单项实际功能逻辑

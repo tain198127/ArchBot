@@ -108,5 +108,19 @@ export default {
     reset: '恢复默认',
     resetConfirm: '确定要恢复所有配置为默认值吗？',
     resetDone: '已恢复为默认配置'
+  },
+  newProject: {
+    title: '新建项目',
+    name: '项目名称',
+    namePlaceholder: '请输入项目名称',
+    location: '保存位置',
+    locationPlaceholder: '选择项目保存目录',
+    browse: '浏览',
+    create: '创建',
+    cancel: '取消',
+    nameRequired: '请输入项目名称',
+    locationRequired: '请选择保存位置',
+    success: '项目创建成功',
+    fileExtHint: '文件将保存为 .ab 格式'
   }
 }
