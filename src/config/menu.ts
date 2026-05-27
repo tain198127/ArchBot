@@ -106,6 +106,11 @@ export function useMenuConfig() {
             { name: t.value.menuConfig.codebase, shortcut: null, action: 'config.codebase' },
             { name: t.value.menuConfig.git, shortcut: null, action: 'config.git' }
           ]
+        },
+        {
+          items: [
+            { name: t.value.menuConfig.system, shortcut: null, action: 'config.system' }
+          ]
         }
       ]
     },

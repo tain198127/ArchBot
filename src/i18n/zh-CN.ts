@@ -33,7 +33,8 @@ export default {
     rules: '规则',
     memory: '记忆',
     codebase: '代码库',
-    git: 'git集成'
+    git: 'git集成',
+    system: '系统配置'
   },
   menuRun: {
     terminal: '命令行',
@@ -76,5 +77,33 @@ export default {
     logPlaceholder: '日志输出将显示在这里',
     terminalPlaceholder: '终端将在这里运行',
     analysisPlaceholder: '分析内容将显示在这里'
+  },
+  settings: {
+    title: '系统配置',
+    language: '界面语言',
+    languageZh: '中文',
+    languageEn: 'English',
+    fontSize: '字体大小',
+    fontFamily: '字体',
+    theme: '主题',
+    themeLight: '浅色',
+    themeDark: '深色',
+    aiLanguage: 'AI回复语言',
+    aiLanguageZh: '中文',
+    aiLanguageEn: 'English',
+    aiLanguageAuto: '跟随界面语言',
+    proxy: '代理服务器',
+    proxyAddress: '地址',
+    proxyPort: '端口',
+    proxyProtocol: '协议',
+    proxyEnable: '启用代理',
+    update: '更新',
+    updateCheck: '检查更新',
+    updateCurrent: '当前版本',
+    updateLatest: '已是最新版本',
+    updateAvailable: '发现新版本',
+    updateDownloading: '下载中...',
+    save: '保存配置',
+    saved: '配置已保存'
   }
 }

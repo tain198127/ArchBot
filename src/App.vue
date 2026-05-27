@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import MenuBar from './components/MenuBar.vue'
 import SplitPanel from './components/SplitPanel.vue'
 import FileTreePanel from './components/FileTreePanel.vue'
@@ -7,8 +7,14 @@ import EditorPanel from './components/EditorPanel.vue'
 import ModelPanel from './components/ModelPanel.vue'
 import BottomPanel from './components/BottomPanel.vue'
 import { useI18n } from './i18n'
+import { useSettings } from './stores/settings'
 
 const { t } = useI18n()
+const { initSettings } = useSettings()
+
+onMounted(() => {
+  initSettings()
+})
 
 const bottomCollapseLabels = computed(() => ['', t.value.panel.bottomPanel])
 const rightCollapseLabels = computed(() => ['', '', t.value.panel.model])
@@ -65,22 +71,54 @@ html, body, #app {
   overflow: hidden;
 }
 
-:root {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
-    Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+:root,
+[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f0f0f0;
+  --bg-tertiary: #f5f5f5;
+  --bg-panel: #f9f9f9;
+  --bg-hover: #e8e8e8;
+  --bg-active: #e0e0e0;
+
+  --text-primary: #333333;
+  --text-secondary: #666666;
+  --text-muted: #999999;
+
+  --border-color: #e0e0e0;
+  --border-light: #e8e8e8;
+
+  --accent-color: #409eff;
+  --danger-color: #e81123;
+
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 14px;
   line-height: 1.5;
-  color: #333;
-  background: #fff;
+  color: var(--text-primary);
+  background: var(--bg-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #ccc;
-    background: #1e1e1e;
-  }
+[data-theme="dark"] {
+  --bg-primary: #1e1e1e;
+  --bg-secondary: #252525;
+  --bg-tertiary: #2b2b2b;
+  --bg-panel: #252525;
+  --bg-hover: #2d2d2d;
+  --bg-active: #3c3c3c;
+
+  --text-primary: #cccccc;
+  --text-secondary: #999999;
+  --text-muted: #666666;
+
+  --border-color: #3c3c3c;
+  --border-light: #444444;
+
+  --accent-color: #409eff;
+  --danger-color: #e81123;
+
+  color: var(--text-primary);
+  background: var(--bg-primary);
 }
 </style>
 

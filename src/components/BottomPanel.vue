@@ -41,15 +41,15 @@ const tabKeys = ['log', 'terminal', 'analysis'] as const
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #fff;
+  background: var(--bg-primary);
 }
 
 .panel-tabs {
   display: flex;
   align-items: center;
   height: 30px;
-  background: #f0f0f0;
-  border-bottom: 1px solid #e0e0e0;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 }
 
@@ -59,20 +59,20 @@ const tabKeys = ['log', 'terminal', 'analysis'] as const
   display: flex;
   align-items: center;
   font-size: 12px;
-  color: #666;
+  color: var(--text-secondary);
   cursor: pointer;
-  border-right: 1px solid #e0e0e0;
+  border-right: 1px solid var(--border-color);
   transition: background 0.15s;
 }
 
 .panel-tab:hover {
-  background: #e8e8e8;
+  background: var(--bg-hover);
 }
 
 .panel-tab.active {
-  background: #fff;
-  color: #333;
-  border-bottom: 2px solid #409eff;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--accent-color);
 }
 
 .panel-content {
@@ -90,35 +90,6 @@ const tabKeys = ['log', 'terminal', 'analysis'] as const
 
 .placeholder-text {
   font-size: 13px;
-  color: #999;
-}
-
-@media (prefers-color-scheme: dark) {
-  .bottom-panel {
-    background: #1e1e1e;
-  }
-
-  .panel-tabs {
-    background: #252525;
-    border-bottom-color: #3c3c3c;
-  }
-
-  .panel-tab {
-    color: #999;
-    border-right-color: #3c3c3c;
-  }
-
-  .panel-tab:hover {
-    background: #2d2d2d;
-  }
-
-  .panel-tab.active {
-    background: #1e1e1e;
-    color: #ddd;
-  }
-
-  .placeholder-text {
-    color: #666;
-  }
+  color: var(--text-muted);
 }
 </style>

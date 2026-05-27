@@ -3,10 +3,12 @@ import { ref } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useMenuConfig, getPlatformShortcut } from '../config/menu'
 import { useI18n } from '../i18n'
+import { useMenuAction } from '../composables/useMenuAction'
 import type { MenuCategory } from '../config/menu'
 
 const { menuConfig } = useMenuConfig()
 const { t } = useI18n()
+const { emit: emitMenuAction } = useMenuAction()
 const activeMenu = ref<string | null>(null)
 const menuBarActive = ref(false)
 
@@ -54,7 +56,7 @@ function handleItemClick(action?: string) {
   activeMenu.value = null
   menuBarActive.value = false
   if (action) {
-    console.debug('[Menu Action]', action)
+    emitMenuAction(action)
   }
 }
 
@@ -130,8 +132,8 @@ function handleClickOutside() {
   justify-content: space-between;
   height: 32px;
   padding: 0 8px;
-  background: #f5f5f5;
-  border-bottom: 1px solid #e0e0e0;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
   user-select: none;
   position: relative;
   z-index: 1000;
@@ -151,7 +153,7 @@ function handleClickOutside() {
   display: inline-block;
   padding: 4px 10px;
   font-size: 13px;
-  color: #333;
+  color: var(--text-primary);
   border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.15s;
@@ -159,7 +161,7 @@ function handleClickOutside() {
 
 .menu-category-label:hover,
 .menu-category-label.active {
-  background: #e0e0e0;
+  background: var(--bg-active);
 }
 
 .menu-dropdown {
@@ -167,8 +169,8 @@ function handleClickOutside() {
   top: 100%;
   left: 0;
   min-width: 220px;
-  background: #fff;
-  border: 1px solid #e0e0e0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
   padding: 4px 0;
@@ -185,17 +187,17 @@ function handleClickOutside() {
   justify-content: space-between;
   padding: 6px 16px;
   font-size: 13px;
-  color: #333;
+  color: var(--text-primary);
   cursor: pointer;
   transition: background-color 0.1s;
 }
 
 .menu-item:hover {
-  background: #f0f0f0;
+  background: var(--bg-hover);
 }
 
 .menu-item.disabled {
-  color: #999;
+  color: var(--text-muted);
   cursor: default;
 }
 
@@ -210,14 +212,14 @@ function handleClickOutside() {
 .menu-item-shortcut {
   margin-left: 24px;
   font-size: 12px;
-  color: #999;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
 .menu-divider {
   height: 1px;
   margin: 4px 8px;
-  background: #e8e8e8;
+  background: var(--border-light);
 }
 
 .window-controls {
@@ -228,7 +230,7 @@ function handleClickOutside() {
 
 .window-title {
   font-size: 12px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .window-buttons {
@@ -246,18 +248,18 @@ function handleClickOutside() {
   border: none;
   box-shadow: none;
   font-size: 13px;
-  color: #666;
+  color: var(--text-secondary);
   cursor: pointer;
   border-radius: 0;
   transition: background 0.15s;
 }
 
 .win-btn:hover {
-  background: #e0e0e0;
+  background: var(--bg-active);
 }
 
 .win-btn-close:hover {
-  background: #e81123;
+  background: var(--danger-color);
   color: #fff;
 }
 
@@ -278,43 +280,5 @@ function handleClickOutside() {
 .dropdown-enter-from,
 .dropdown-leave-to {
   opacity: 0;
-}
-
-@media (prefers-color-scheme: dark) {
-  .menu-bar {
-    background: #2b2b2b;
-    border-bottom-color: #3c3c3c;
-  }
-
-  .menu-category-label {
-    color: #ccc;
-  }
-
-  .menu-category-label:hover,
-  .menu-category-label.active {
-    background: #3c3c3c;
-  }
-
-  .menu-dropdown {
-    background: #2d2d2d;
-    border-color: #444;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  }
-
-  .menu-item {
-    color: #ccc;
-  }
-
-  .menu-item:hover {
-    background: #3c3c3c;
-  }
-
-  .menu-divider {
-    background: #444;
-  }
-
-  .window-title {
-    color: #999;
-  }
 }
 </style>

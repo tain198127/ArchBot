@@ -71,7 +71,7 @@ function getModeLabel(key: string): string {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #fafafa;
+  background: var(--bg-panel);
 }
 
 .panel-header {
@@ -79,7 +79,7 @@ function getModeLabel(key: string): string {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 }
 
@@ -94,31 +94,13 @@ function getModeLabel(key: string): string {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #999;
+  color: var(--text-muted);
   font-size: 13px;
 }
 
 .panel-input {
   padding: 8px 12px;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid var(--border-color);
   flex-shrink: 0;
-}
-
-@media (prefers-color-scheme: dark) {
-  .model-panel {
-    background: #252525;
-  }
-
-  .panel-header {
-    border-bottom-color: #3c3c3c;
-  }
-
-  .panel-input {
-    border-top-color: #3c3c3c;
-  }
-
-  .mode-placeholder {
-    color: #666;
-  }
 }
 </style>

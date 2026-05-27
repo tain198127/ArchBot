@@ -200,7 +200,7 @@ const collapseButtonDirection = computed(() => {
 
 .splitter {
   flex-shrink: 0;
-  background: #e0e0e0;
+  background: var(--border-color);
   position: relative;
   transition: background 0.15s;
 }
@@ -238,15 +238,15 @@ const collapseButtonDirection = computed(() => {
 }
 
 .splitter:hover {
-  background: #409eff;
+  background: var(--accent-color);
 }
 
 .collapse-btn {
   position: absolute;
   z-index: 20;
-  background: #f5f5f5;
-  border: 1px solid #e0e0e0;
-  color: #666;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -277,9 +277,9 @@ const collapseButtonDirection = computed(() => {
 }
 
 .collapse-btn:hover {
-  background: #409eff;
+  background: var(--accent-color);
   color: #fff;
-  border-color: #409eff;
+  border-color: var(--accent-color);
 }
 
 .collapsed-bar {
@@ -287,8 +287,8 @@ const collapseButtonDirection = computed(() => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  background: #f5f5f5;
-  border: 1px solid #e0e0e0;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   transition: background 0.15s;
   flex-shrink: 0;
 }
@@ -308,63 +308,23 @@ const collapseButtonDirection = computed(() => {
 }
 
 .collapsed-bar:hover {
-  background: #e8f4ff;
-  border-color: #409eff;
+  background: var(--bg-hover);
+  border-color: var(--accent-color);
 }
 
 .collapsed-icon {
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .collapsed-label {
   font-size: 11px;
-  color: #666;
+  color: var(--text-secondary);
   writing-mode: vertical-rl;
   text-orientation: mixed;
 }
 
 .collapsed-bar.vertical .collapsed-label {
   writing-mode: horizontal-tb;
-}
-
-@media (prefers-color-scheme: dark) {
-  .splitter {
-    background: #3c3c3c;
-  }
-
-  .splitter:hover {
-    background: #409eff;
-  }
-
-  .collapse-btn {
-    background: #2b2b2b;
-    border-color: #444;
-    color: #aaa;
-  }
-
-  .collapse-btn:hover {
-    background: #409eff;
-    color: #fff;
-    border-color: #409eff;
-  }
-
-  .collapsed-bar {
-    background: #2b2b2b;
-    border-color: #3c3c3c;
-  }
-
-  .collapsed-bar:hover {
-    background: #2d3a4a;
-    border-color: #409eff;
-  }
-
-  .collapsed-icon {
-    color: #aaa;
-  }
-
-  .collapsed-label {
-    color: #aaa;
-  }
 }
 </style>

@@ -22,7 +22,7 @@ const { t } = useI18n()
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #f9f9f9;
+  background: var(--bg-panel);
 }
 
 .panel-header {
@@ -30,14 +30,14 @@ const { t } = useI18n()
   align-items: center;
   height: 32px;
   padding: 0 12px;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 }
 
 .panel-title {
   font-size: 12px;
   font-weight: 600;
-  color: #666;
+  color: var(--text-secondary);
   text-transform: uppercase;
 }
 
@@ -56,24 +56,6 @@ const { t } = useI18n()
 
 .placeholder-text {
   font-size: 13px;
-  color: #999;
-}
-
-@media (prefers-color-scheme: dark) {
-  .file-tree-panel {
-    background: #252525;
-  }
-
-  .panel-header {
-    border-bottom-color: #3c3c3c;
-  }
-
-  .panel-title {
-    color: #aaa;
-  }
-
-  .placeholder-text {
-    color: #666;
-  }
+  color: var(--text-muted);
 }
 </style>
