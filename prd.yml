@@ -124,6 +124,9 @@ menu_bar:
               shortcut: null
             - name: git集成
               shortcut: null
+        - items:
+            - name: 系统配置
+              shortcut: null
 
     - name: 运行
       groups:
@@ -157,13 +160,45 @@ menu_bar:
       note: 后续补充
 
 theme:
-  default: 默认主题
+  default: Light
   options:
-    - 默认
     - Light
     - Dark
-  switch_location: 配置菜单中
-  current_iteration: false
+  switch_location: 系统配置页面
+  current_iteration: true
+
+settings:
+  description: 系统配置页面，从配置菜单 → 系统配置打开，在编辑区以Tab形式展示
+  storage: ~/.ArchBot/settings.json
+  items:
+    - name: 界面语言
+      options: [中文, English]
+      effect: 实时切换界面所有文字
+    - name: 字体大小
+      range: 12-24px
+      effect: 实时更新全局字体大小
+    - name: 字体
+      options: [System Default, JetBrains Mono, Fira Code, Cascadia Code, Source Code Pro, Microsoft YaHei]
+      effect: 实时更新全局字体
+    - name: 主题
+      options: [Light, Dark]
+      effect: 实时切换CSS变量主题
+    - name: AI回复语言
+      options: [跟随界面语言, 中文, English]
+    - name: 代理服务器
+      fields: [启用开关, 协议(HTTP/HTTPS/SOCKS5), 地址, 端口]
+    - name: 更新
+      fields: [当前版本, 检查更新]
+  actions:
+    - 保存配置
+    - 恢复默认（重置为初始配置）
+
+i18n:
+  resource_files:
+    - src/i18n/zh-CN.ts
+    - src/i18n/en-US.ts
+  usage: useI18n() composable
+  type_safe: true
 
 iteration:
   current:
@@ -175,8 +210,12 @@ iteration:
       - 可拖拽分割面板
       - 菜单栏完整交互（展开/悬浮切换/快捷键显示）
       - 多Tab骨架（编辑区+底部面板）
+      - 系统配置页面（语言/字体/主题/AI语言/代理/更新）
+      - 主题切换实时生效（CSS变量方案）
+      - 配置持久化到 ~/.ArchBot/settings.json
+      - i18n国际化（中/英）
     excluded:
-      - 菜单项实际功能逻辑
-      - 各区域具体内容和业务逻辑
-      - 主题切换功能
+      - 其他菜单项实际功能逻辑
+      - 各区域具体业务内容
       - AI模型实际调用
+      - 软件更新功能实现

@@ -104,6 +104,9 @@ export default {
     updateAvailable: '发现新版本',
     updateDownloading: '下载中...',
     save: '保存配置',
-    saved: '配置已保存'
+    saved: '配置已保存',
+    reset: '恢复默认',
+    resetConfirm: '确定要恢复所有配置为默认值吗？',
+    resetDone: '已恢复为默认配置'
   }
 }

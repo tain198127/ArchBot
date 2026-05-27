@@ -104,6 +104,9 @@ export default {
     updateAvailable: 'New version available',
     updateDownloading: 'Downloading...',
     save: 'Save Settings',
-    saved: 'Settings saved'
+    saved: 'Settings saved',
+    reset: 'Reset to Default',
+    resetConfirm: 'Are you sure to reset all settings to default?',
+    resetDone: 'Settings have been reset to default'
   }
 }

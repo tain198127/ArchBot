@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { useI18n } from '../i18n'
 import { useSettings } from '../stores/settings'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const { t } = useI18n()
-const { settings, saveSettings } = useSettings()
+const { settings, saveSettings, resetSettings } = useSettings()
 
 const fontFamilyOptions = [
   { value: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', label: 'System Default' },
@@ -18,6 +18,16 @@ const fontFamilyOptions = [
 function handleSave() {
   saveSettings()
   ElMessage.success(t.value.settings.saved)
+}
+
+async function handleReset() {
+  try {
+    await ElMessageBox.confirm(t.value.settings.resetConfirm, '', { type: 'warning' })
+    resetSettings()
+    ElMessage.success(t.value.settings.resetDone)
+  } catch {
+    // cancelled
+  }
 }
 </script>
 
@@ -110,6 +120,7 @@ function handleSave() {
 
     <div class="settings-actions">
       <el-button type="primary" @click="handleSave">{{ t.settings.save }}</el-button>
+      <el-button @click="handleReset">{{ t.settings.reset }}</el-button>
     </div>
   </div>
 </template>

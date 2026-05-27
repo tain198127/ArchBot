@@ -1,4 +1,5 @@
 import { reactive, watch, toRefs } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import { useI18n } from '../i18n'
 import type { Locale } from '../i18n'
 
@@ -18,20 +19,6 @@ export interface AppSettings {
   proxy: ProxyConfig
 }
 
-const STORAGE_KEY = 'archbot-settings'
-
-function loadSettings(): AppSettings {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) {
-      return { ...getDefaults(), ...JSON.parse(stored) }
-    }
-  } catch {
-    // ignore
-  }
-  return getDefaults()
-}
-
 function getDefaults(): AppSettings {
   return {
     locale: 'zh-CN',
@@ -48,7 +35,7 @@ function getDefaults(): AppSettings {
   }
 }
 
-const state = reactive<AppSettings>(loadSettings())
+const state = reactive<AppSettings>(getDefaults())
 
 function applyTheme(theme: 'light' | 'dark') {
   document.documentElement.setAttribute('data-theme', theme)
@@ -59,8 +46,12 @@ function applyFont(fontSize: number, fontFamily: string) {
   document.documentElement.style.fontFamily = fontFamily
 }
 
-function saveSettings() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+async function persistSettings() {
+  try {
+    await invoke('save_settings', { content: JSON.stringify(state) })
+  } catch {
+    // ignore
+  }
 }
 
 export function useSettings() {
@@ -68,42 +59,70 @@ export function useSettings() {
 
   watch(() => state.locale, (locale) => {
     setLocale(locale)
-    saveSettings()
+    persistSettings()
   })
 
   watch(() => state.theme, (theme) => {
     applyTheme(theme)
-    saveSettings()
+    persistSettings()
   })
 
   watch(() => state.fontSize, (size) => {
     applyFont(size, state.fontFamily)
-    saveSettings()
+    persistSettings()
   })
 
   watch(() => state.fontFamily, (family) => {
     applyFont(state.fontSize, family)
-    saveSettings()
+    persistSettings()
   })
 
   watch(() => state.aiLanguage, () => {
-    saveSettings()
+    persistSettings()
   })
 
   watch(() => state.proxy, () => {
-    saveSettings()
+    persistSettings()
   }, { deep: true })
 
-  function initSettings() {
+  /**
+   * 初始化配置
+   *
+   * 业务逻辑：
+   * 1. 通过 Tauri 命令从 ~/.ArchBot/settings.json 读取配置
+   * 2. 配置文件存在且有效则合并到当前 state
+   * 3. 配置文件不存在或无效则使用默认值
+   * 4. 应用主题、字体、语言等视觉设置
+   */
+  async function initSettings() {
+    try {
+      const stored = await invoke<string>('load_settings')
+      if (stored) {
+        const parsed = JSON.parse(stored) as Partial<AppSettings>
+        Object.assign(state, { ...getDefaults(), ...parsed })
+      }
+    } catch {
+      // ignore
+    }
     applyTheme(state.theme)
     applyFont(state.fontSize, state.fontFamily)
     setLocale(state.locale)
+  }
+
+  function resetSettings() {
+    const defaults = getDefaults()
+    Object.assign(state, defaults)
+    applyTheme(defaults.theme)
+    applyFont(defaults.fontSize, defaults.fontFamily)
+    setLocale(defaults.locale)
+    persistSettings()
   }
 
   return {
     settings: state,
     ...toRefs(state),
     initSettings,
-    saveSettings
+    resetSettings,
+    saveSettings: persistSettings
   }
 }
