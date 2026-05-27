@@ -1,0 +1,182 @@
+project:
+  name: ArchBot
+  description: 全生命周期开发管理工具（需求→设计→代码→测试→迁移）
+  target_users:
+    - 开发者个人
+    - 开发团队
+  tech_stack:
+    frontend: Vue 3 + TypeScript + Element Plus
+    backend: Tauri 2 (Rust)
+    build_tool: Vite
+
+window:
+  style: 无边框窗口
+  title_bar: 隐藏Tauri默认标题栏
+  drag_area: 菜单栏兼做窗口拖拽区域
+
+layout:
+  structure: 顶部菜单栏 → 左侧文件树 | 中间多Tab编辑区 | 右侧模型区 → 底部多Tab面板
+  panels:
+    left:
+      name: 工作区
+      content: 文件树（项目目录结构）
+      resizable: true
+      resize_method: 拖拽调整宽度
+    center:
+      name: 编辑区
+      content: 多Tab编辑器骨架
+      features:
+        - 多文件Tab切换
+    right:
+      name: 模型区
+      controls:
+        - type: 下拉框
+          purpose: 切换模式（问答/Plan/专家团）
+        - type: 下拉框
+          purpose: 选择AI模型（来自AI配置）
+      modes:
+        - name: 问答模式
+          description: 对话界面，用户输入问题，模型返回回答
+        - name: Plan模式
+          description: AI生成计划步骤，用户逐步反馈确认
+          feedback_types:
+            - 文本回答（自由输入）
+            - 单选（AI给出选项，选一个）
+            - 多选（AI给出选项，选多个）
+            - 是否（Yes/No确认）
+        - name: 专家团模式
+          description: 多Agent协作，单窗口时间线展示所有Agent消息
+          mechanism: 内置不同agent配合skill，对同一问题分工处理
+          conclusion: 专家团主席统一合并结论
+    bottom:
+      name: 底部面板
+      collapsible: true
+      tabs:
+        - 日志
+        - 终端（可执行真实shell）
+        - 分析内容
+
+menu_bar:
+  position: 页面内顶部（自定义实现）
+  ui_library: Element Plus
+  style: 纯文字无图标
+  interaction: 点击展开，悬浮切换相邻菜单
+  shortcuts: 按IntelliJ IDEA习惯，自动适配平台（macOS ⌘ / Windows Ctrl）
+  items:
+    - name: 文件
+      groups:
+        - items:
+            - name: 新建项目
+              shortcut: Ctrl+Shift+N / ⌘+Shift+N
+            - name: 打开项目
+              shortcut: Ctrl+O / ⌘+O
+            - name: 打开远程项目
+              shortcut: null
+        - items:
+            - name: 保存项目
+              shortcut: Ctrl+S / ⌘+S
+            - name: 另存项目
+              shortcut: Ctrl+Shift+S / ⌘+Shift+S
+        - items:
+            - name: 关闭项目
+              shortcut: Ctrl+W / ⌘+W
+
+    - name: 编辑
+      groups:
+        - items:
+            - name: 查找
+              shortcut: Ctrl+F / ⌘+F
+            - name: 替换
+              shortcut: Ctrl+R / ⌘+R
+            - name: 定位
+              shortcut: Ctrl+G / ⌘+G
+        - items:
+            - name: 剪切
+              shortcut: Ctrl+X / ⌘+X
+            - name: 复制
+              shortcut: Ctrl+C / ⌘+C
+        - items:
+            - name: 格式化
+              shortcut: Ctrl+Alt+L / ⌘+Option+L
+
+    - name: 视图
+      groups: []
+      note: 后续补充
+
+    - name: 配置
+      groups:
+        - items:
+            - name: AI配置
+              shortcut: null
+            - name: skill配置
+              shortcut: null
+            - name: MCP
+              shortcut: null
+        - items:
+            - name: 会话
+              shortcut: null
+            - name: 规则
+              shortcut: null
+            - name: 记忆
+              shortcut: null
+        - items:
+            - name: 代码库
+              shortcut: null
+            - name: git集成
+              shortcut: null
+
+    - name: 运行
+      groups:
+        - items:
+            - name: 命令行
+              shortcut: Alt+F12 / Option+F12
+        - items:
+            - name: 生成需规
+              shortcut: null
+            - name: 生成设计
+              shortcut: null
+            - name: 生成代码
+              shortcut: null
+            - name: 生成代码骨架
+              shortcut: null
+        - items:
+            - name: 生成数据库表
+              shortcut: null
+            - name: 生成数据标准
+              shortcut: null
+            - name: 生成调用链
+              shortcut: null
+        - items:
+            - name: 生成测试用例
+              shortcut: null
+            - name: 生成e2e测试脚本
+              shortcut: null
+
+    - name: 帮助
+      groups: []
+      note: 后续补充
+
+theme:
+  default: 默认主题
+  options:
+    - 默认
+    - Light
+    - Dark
+  switch_location: 配置菜单中
+  current_iteration: false
+
+iteration:
+  current:
+    name: v0.1 - UI骨架
+    scope:
+      - UI骨架（整体布局+菜单+各区域占位）
+      - Element Plus集成
+      - 无边框窗口配置
+      - 可拖拽分割面板
+      - 菜单栏完整交互（展开/悬浮切换/快捷键显示）
+      - 多Tab骨架（编辑区+底部面板）
+    excluded:
+      - 菜单项实际功能逻辑
+      - 各区域具体内容和业务逻辑
+      - 主题切换功能
+      - AI模型实际调用
