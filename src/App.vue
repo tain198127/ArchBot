@@ -14,12 +14,18 @@ import BottomPanel from './components/BottomPanel.vue'
       direction="vertical"
       :initial-sizes="[-1, 200]"
       :min-sizes="[300, 120]"
+      :collapsible="[false, true]"
+      :collapse-icons="['', '⌨']"
+      :collapse-labels="['', '面板']"
     >
       <template #panel-0>
         <SplitPanel
           direction="horizontal"
           :initial-sizes="[240, -1, 320]"
           :min-sizes="[180, 300, 240]"
+          :collapsible="[false, false, true]"
+          :collapse-icons="['', '', '🤖']"
+          :collapse-labels="['', '', '模型']"
         >
           <template #panel-0>
             <FileTreePanel />
