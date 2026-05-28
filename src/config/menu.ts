@@ -149,8 +149,13 @@ export function useMenuConfig() {
     },
     {
       name: t.value.menu.help,
-      groups: [],
-      note: t.value.menu.comingSoon
+      groups: [
+        {
+          items: [
+            { name: t.value.license.register, shortcut: null, action: 'file.register' }
+          ]
+        }
+      ]
     }
   ])
 

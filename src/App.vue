@@ -10,17 +10,18 @@ import EditorPanel from './components/EditorPanel.vue'
 import ModelPanel from './components/ModelPanel.vue'
 import BottomPanel from './components/BottomPanel.vue'
 import NewProjectDialog from './components/NewProjectDialog.vue'
+import LicenseDialog from './components/LicenseDialog.vue'
 import { useI18n } from './i18n'
 import { useSettings } from './stores/settings'
 import { useMenuAction } from './composables/useMenuAction'
 import { useProject } from './stores/project'
-
 const { t } = useI18n()
 const { initSettings } = useSettings()
 const { on } = useMenuAction()
 const { setProject } = useProject()
 
 const newProjectDialogRef = ref<InstanceType<typeof NewProjectDialog> | null>(null)
+const licenseDialogRef = ref<InstanceType<typeof LicenseDialog> | null>(null)
 
 onMounted(() => {
   initSettings()
@@ -58,6 +59,8 @@ onMounted(() => {
       newProjectDialogRef.value?.show()
     } else if (action === 'file.openProject') {
       handleOpenProject()
+    } else if (action === 'file.register') {
+      licenseDialogRef.value?.show()
     }
   })
 })
@@ -105,6 +108,7 @@ const rightCollapseLabels = computed(() => ['', '', t.value.panel.model])
       </template>
     </SplitPanel>
     <NewProjectDialog ref="newProjectDialogRef" @created="handleProjectCreated" />
+    <LicenseDialog ref="licenseDialogRef" />
   </div>
 </template>
 

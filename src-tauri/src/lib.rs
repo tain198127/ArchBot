@@ -1,4 +1,5 @@
 mod data_standard;
+mod license;
 
 use serde::{Deserialize, Serialize};
 
@@ -141,7 +142,9 @@ async fn open_project(path: String) -> Result<FileContent, String> {
     }
 
     // canonicalize 解析 .. / . / 符号链接，防止目录穿越
-    let canonical = raw.canonicalize().map_err(|e| format!("项目路径无效: {e}"))?;
+    let canonical = raw
+        .canonicalize()
+        .map_err(|e| format!("项目路径无效: {e}"))?;
 
     if !canonical.is_file() {
         return Err("项目路径不是一个有效的文件".into());
@@ -209,6 +212,13 @@ async fn save_settings(content: String) -> Result<(), String> {
 /// 应用入口：初始化 Tauri 并注册插件和命令
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Debug mode detection
+    if std::env::var("ARCHBOT_DEBUG").is_ok_and(|v| v == "1" || v == "true") {
+        license::set_debug_mode(true);
+    }
+
+    license::check_license_on_startup();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -229,7 +239,10 @@ pub fn run() {
             data_standard::ds_delete_entity,
             data_standard::ds_list_enums,
             data_standard::ds_save_enum,
-            data_standard::ds_delete_enum
+            data_standard::ds_delete_enum,
+            license::get_machine_id_cmd,
+            license::register_software,
+            license::get_license_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

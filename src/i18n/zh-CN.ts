@@ -131,6 +131,20 @@ export default {
     success: '项目已打开',
     failed: '打开项目失败'
   },
+  license: {
+    register: '注册',
+    title: '软件注册',
+    machineId: '注册码',
+    machineIdHint: '请将注册码发送至 support@archbot.dev',
+    verificationCode: '验证码',
+    verificationCodePlaceholder: '请输入16进制验证码',
+    registerBtn: '注册',
+    registered: '已注册',
+    registerSuccess: '注册成功！所有功能已解锁',
+    registerFailed: '验证码无效',
+    unregistered: '未注册',
+    debugMode: '调试模式（已注册）'
+  },
   projectDirs: {
     dataStandard: '数据标准',
     metadata: '元数据',

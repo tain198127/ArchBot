@@ -131,6 +131,20 @@ export default {
     success: 'Project opened',
     failed: 'Failed to open project'
   },
+  license: {
+    register: 'Register',
+    title: 'Software Registration',
+    machineId: 'Machine ID',
+    machineIdHint: 'Send this Machine ID to support@archbot.dev',
+    verificationCode: 'Verification Code',
+    verificationCodePlaceholder: 'Enter hex verification code',
+    registerBtn: 'Register',
+    registered: 'Registered',
+    registerSuccess: 'Registration successful! All features unlocked',
+    registerFailed: 'Invalid verification code',
+    unregistered: 'Unregistered',
+    debugMode: 'Debug Mode (Registered)'
+  },
   projectDirs: {
     dataStandard: 'Data Standard',
     metadata: 'Metadata',
