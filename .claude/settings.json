@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \".claude/scripts/code-check.sh\""
+            "command": "bash \"scripts/code-check.sh\""
           }
         ]
       }

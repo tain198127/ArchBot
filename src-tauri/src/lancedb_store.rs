@@ -53,6 +53,21 @@ pub struct SearchResult {
     pub distance: f32,
 }
 
+// ─── Validation ───────────────────────────────────────────────
+
+fn validate_table_name(name: &str) -> Result<(), String> {
+    if name.is_empty() || name.len() > 64 {
+        return Err("表名长度必须为 1-64 个字符".into());
+    }
+    if !name
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        return Err("表名只能包含字母、数字、下划线和连字符".into());
+    }
+    Ok(())
+}
+
 // ─── Tauri Commands ───────────────────────────────────────────
 
 #[tauri::command]
@@ -68,6 +83,7 @@ pub async fn db_list_tables() -> Result<Vec<TableInfo>, String> {
 
 #[tauri::command]
 pub async fn db_create_table(name: String, dimension: u32) -> Result<(), String> {
+    validate_table_name(&name)?;
     let db = get_conn().await?;
 
     use arrow_array::{FixedSizeListArray, RecordBatch, StringArray};
@@ -115,6 +131,7 @@ pub async fn db_create_table(name: String, dimension: u32) -> Result<(), String>
 
 #[tauri::command]
 pub async fn db_insert(table_name: String, id: String, vector: Vec<f32>) -> Result<(), String> {
+    validate_table_name(&table_name)?;
     let db = get_conn().await?;
 
     let table = db
@@ -152,6 +169,7 @@ pub async fn db_search(
     query_vector: Vec<f32>,
     top_k: usize,
 ) -> Result<Vec<SearchResult>, String> {
+    validate_table_name(&table_name)?;
     let db = get_conn().await?;
 
     let table = db
