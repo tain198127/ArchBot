@@ -285,6 +285,7 @@ iteration:
       - 数据标准编辑器（域管理/实体/枚举/字段表格编辑/DDL预览）
       - i18n国际化（中/英）
       - 软件注册（硬件指纹+RSA验证码+license文件防篡改+受限功能置灰+debug模式绕过）
+      - 文件系统抽象层（FsBackend trait + LocalFs + RemoteFs，6个操作+8个Tauri commands）
       - LanceDB 嵌入式向量数据库（Rust 原生，4 个 Tauri commands：建表/插入/搜索/列表）
       - LanceDB 数据存储于 ~/.ArchBot/lancedb/，支持 FixedSizeList 向量 + ANN 搜索
     excluded:

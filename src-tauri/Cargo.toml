@@ -34,6 +34,8 @@ lancedb = "0.17"
 arrow-array = "53"
 arrow-schema = "53"
 futures = "0.3"
+async-trait = "0.1"
+tokio = { version = "1", features = ["sync"] }
 reqwest = { version = "0.12", features = ["json"] }
 dirs = "5"
 
