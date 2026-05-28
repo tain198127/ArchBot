@@ -1,6 +1,11 @@
 import { ref } from 'vue'
 
-export type MenuAction = string
+export interface MenuActionPayload {
+  action: string
+  payload?: Record<string, string>
+}
+
+export type MenuAction = string | MenuActionPayload
 
 const listeners = ref<Array<(action: MenuAction) => void>>([])
 
@@ -17,4 +22,12 @@ export function useMenuAction() {
   }
 
   return { emit, on }
+}
+
+export function getAction(action: MenuAction): string {
+  return typeof action === 'string' ? action : action.action
+}
+
+export function getPayload(action: MenuAction): Record<string, string> | undefined {
+  return typeof action === 'string' ? undefined : action.payload
 }

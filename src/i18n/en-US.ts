@@ -17,6 +17,7 @@ export default {
     saveProject: 'Save Project',
     saveAsProject: 'Save As',
     closeProject: 'Close Project',
+    clearCache: 'Clear Cache',
     noRecentProjects: 'No recent projects',
     clearRecent: 'Clear Recently Opened'
   },
@@ -37,7 +38,12 @@ export default {
     memory: 'Memory',
     codebase: 'Codebase',
     git: 'Git Integration',
-    system: 'System Settings'
+    system: 'System Settings',
+    digitalEmployee: 'Digital Employee',
+    businessFlow: 'Business Flow',
+    sharedDocs: 'Shared Docs',
+    imIntegration: 'IM Integration',
+    agentConfig: 'Agent Config'
   },
   menuRun: {
     terminal: 'Terminal',
@@ -84,7 +90,7 @@ export default {
   settings: {
     title: 'System Settings',
     language: 'Language',
-    languageZh: '中文',
+    languageZh: 'Chinese',
     languageEn: 'English',
     fontSize: 'Font Size',
     fontFamily: 'Font Family',
@@ -146,24 +152,52 @@ export default {
     debugMode: 'Debug Mode (Registered)'
   },
   projectDirs: {
+    requirements: 'Requirements',
+    bizReq: 'Business Req',
+    specReq: 'Specification',
+    prototype: 'Prototype',
+    design: 'Design',
     dataStandard: 'Data Standard',
     metadata: 'Metadata',
-    requirements: 'Requirements',
     architecture: 'Architecture',
     detailDesign: 'Detail Design',
+    development: 'Development',
     frontendCode: 'Source-Frontend',
     backendCode: 'Source-Backend',
-    database: 'Database',
+    database: 'Source-Database',
+    config: 'Configuration',
+    defectFix: 'Defect Fix',
+    testing: 'Testing',
     testCases: 'Test Cases',
     businessTest: 'Business Test',
     stressTest: 'Stress Test',
     chaosTest: 'Chaos Test',
+    securityTest: 'Security Test',
     defect: 'Defect',
-    deployment: 'Deployment'
+    deployment: 'Deployment',
+    cicd: 'CICD',
+    versionMgmt: 'Version Mgmt',
+    envMgmt: 'Environment',
+    artifactMgmt: 'Artifacts'
   },
   contextMenu: {
-    new: 'New',
-    import: 'Import'
+    newDomain: 'New Domain',
+    newEntity: 'New Entity',
+    newDictionary: 'New Dictionary',
+    importFile: 'Import File',
+    reverseDb: 'Reverse DB',
+    reverseDdl: 'Reverse DDL',
+    importFileHint: 'Import file feature in development',
+    reverseDbHint: 'Reverse DB feature in development',
+    reverseDdlHint: 'Reverse DDL feature in development'
+  },
+  tabMenu: {
+    closeAll: 'Close All',
+    closeRight: 'Close Right',
+    closeLeft: 'Close Left',
+    closeOthers: 'Close Others',
+    pin: 'Pin to Left',
+    unpin: 'Unpin'
   },
   dataStandard: {
     title: 'Data Standard',
@@ -225,6 +259,9 @@ export default {
     save: 'Save',
     saved: 'Saved successfully',
     confirmDelete: 'Are you sure to delete?',
-    versionConflict: 'Version conflict, please refresh and retry'
+    versionConflict: 'Version conflict, please refresh and retry',
+    defaultDomain: 'Default Domain',
+    entityGroup: 'Entities',
+    dictGroup: 'Dictionaries'
   }
 }

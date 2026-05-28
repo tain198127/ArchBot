@@ -17,6 +17,7 @@ export default {
     saveProject: '保存项目',
     saveAsProject: '另存项目',
     closeProject: '关闭项目',
+    clearCache: '清除缓存',
     noRecentProjects: '无最近项目',
     clearRecent: '清除最近打开'
   },
@@ -37,7 +38,12 @@ export default {
     memory: '记忆',
     codebase: '代码库',
     git: 'git集成',
-    system: '系统配置'
+    system: '系统配置',
+    digitalEmployee: '数字员工',
+    businessFlow: '业务流',
+    sharedDocs: '共享文档',
+    imIntegration: 'IM对接',
+    agentConfig: 'Agent配置'
   },
   menuRun: {
     terminal: '命令行',
@@ -146,24 +152,52 @@ export default {
     debugMode: '调试模式（已注册）'
   },
   projectDirs: {
+    requirements: '需求',
+    bizReq: '业务需求',
+    specReq: '需求规格',
+    prototype: '原型',
+    design: '设计',
     dataStandard: '数据标准',
     metadata: '元数据',
-    requirements: '需求',
     architecture: '架构设计',
     detailDesign: '详细设计',
-    frontendCode: '源代码-前端',
-    backendCode: '源代码-后端',
-    database: '数据库',
+    development: '开发',
+    frontendCode: '源码-前端',
+    backendCode: '源码-后端',
+    database: '源码-数据库',
+    config: '配置',
+    defectFix: '缺陷修复',
+    testing: '测试',
     testCases: '测试用例',
     businessTest: '业务测试',
     stressTest: '压力测试',
     chaosTest: '混沌测试',
+    securityTest: '安全测试',
     defect: '缺陷',
-    deployment: '部署'
+    deployment: '部署',
+    cicd: 'CICD',
+    versionMgmt: '版本管理',
+    envMgmt: '环境管理',
+    artifactMgmt: '制品管理'
   },
   contextMenu: {
-    new: '新建',
-    import: '导入'
+    newDomain: '新建域',
+    newEntity: '新建实体',
+    newDictionary: '新建字典',
+    importFile: '导入文件',
+    reverseDb: '逆向数据库',
+    reverseDdl: '逆向DDL',
+    importFileHint: '导入文件功能开发中',
+    reverseDbHint: '逆向数据库功能开发中',
+    reverseDdlHint: '逆向DDL功能开发中'
+  },
+  tabMenu: {
+    closeAll: '关闭所有',
+    closeRight: '关闭右侧',
+    closeLeft: '关闭左侧',
+    closeOthers: '关闭其他',
+    pin: '固定到最左侧',
+    unpin: '取消固定'
   },
   dataStandard: {
     title: '数据标准',
@@ -225,6 +259,9 @@ export default {
     save: '保存',
     saved: '保存成功',
     confirmDelete: '确定要删除吗？',
-    versionConflict: '版本冲突，请刷新后重试'
+    versionConflict: '版本冲突，请刷新后重试',
+    defaultDomain: '默认域',
+    entityGroup: '实体',
+    dictGroup: '字典'
   }
 }

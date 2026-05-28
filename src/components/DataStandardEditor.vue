@@ -7,6 +7,11 @@ import { useProject } from '../stores/project'
 import type { DomainInfo, EntityDef, EnumDef, IndexDef } from '../types/dataStandard'
 import { newEntity, newEnumDef, newEntityField } from '../types/dataStandard'
 
+const props = defineProps<{
+  initialDomainCode?: string
+  initialFocus?: string
+}>()
+
 const { t } = useI18n()
 const { currentProject } = useProject()
 
@@ -19,6 +24,7 @@ const enums = ref<EnumDef[]>([])
 const selectedEntity = ref<EntityDef | null>(null)
 const selectedEnum = ref<EnumDef | null>(null)
 const activeTab = ref('fields')
+const viewMode = ref<'entityList' | 'enumList' | ''>('')
 const showNewDomainDialog = ref(false)
 const newDomainForm = ref({ name: '', code: '', owner: '', description: '' })
 
@@ -49,7 +55,10 @@ async function loadDomains() {
   try {
     domains.value = await invoke<DomainInfo[]>('ds_list_domains', { projectDir: dir })
     if (domains.value.length > 0 && !currentDomain.value) {
-      currentDomain.value = domains.value[0].code
+      currentDomain.value = props.initialDomainCode &&
+        domains.value.some(d => d.code === props.initialDomainCode)
+        ? props.initialDomainCode
+        : domains.value[0].code
     }
   } catch (e) {
     console.error('Failed to load domains:', e)
@@ -86,6 +95,21 @@ watch(() => currentProject.value, () => {
   currentDomain.value = ''
   loadDomains()
 }, { immediate: true })
+watch(() => props.initialDomainCode, (code) => {
+  if (code && domains.value.some(d => d.code === code)) {
+    currentDomain.value = code
+  }
+})
+watch(() => props.initialFocus, (focus) => {
+  if (focus === 'entity') viewMode.value = 'entityList'
+  else if (focus === 'enum') viewMode.value = 'enumList'
+})
+
+function backToList() {
+  selectedEntity.value = null
+  selectedEnum.value = null
+  viewMode.value = viewMode.value || 'entityList'
+}
 
 async function createDomain() {
   const dir = projectDir()
@@ -111,11 +135,13 @@ function selectEntity(entity: EntityDef) {
   selectedEntity.value = entity
   selectedEnum.value = null
   activeTab.value = 'fields'
+  viewMode.value = ''
 }
 
 function selectEnum(enumDef: EnumDef) {
   selectedEnum.value = enumDef
   selectedEntity.value = null
+  viewMode.value = ''
 }
 
 function addNewEntity() {
@@ -310,55 +336,6 @@ function generateDDL(): string {
 
 <template>
   <div class="ds-editor">
-    <!-- 左侧导航 -->
-    <div class="ds-sidebar">
-      <div class="ds-domain-bar">
-        <el-select v-model="currentDomain" size="small" style="flex:1">
-          <el-option
-            v-for="d in domains"
-            :key="d.code"
-            :value="d.code"
-            :label="d.name"
-          />
-        </el-select>
-        <el-button size="small" @click="showNewDomainDialog = true">+</el-button>
-      </div>
-
-      <div class="ds-nav-section">
-        <div class="ds-nav-title">
-          {{ ds.entity }}
-          <span class="ds-nav-add" @click="addNewEntity">+</span>
-        </div>
-        <div
-          v-for="entity in entities"
-          :key="entity.code"
-          class="ds-nav-item"
-          :class="{ active: selectedEntity?.code === entity.code }"
-          @click="selectEntity(entity)"
-        >
-          <svg class="ds-nav-icon" viewBox="0 0 24 24"><path fill="#409eff" d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
-          <span>{{ entity.name || entity.code }}</span>
-        </div>
-      </div>
-
-      <div class="ds-nav-section">
-        <div class="ds-nav-title">
-          {{ ds.enum }}
-          <span class="ds-nav-add" @click="addNewEnum">+</span>
-        </div>
-        <div
-          v-for="enumDef in enums"
-          :key="enumDef.code"
-          class="ds-nav-item"
-          :class="{ active: selectedEnum?.code === enumDef.code }"
-          @click="selectEnum(enumDef)"
-        >
-          <svg class="ds-nav-icon" viewBox="0 0 24 24"><path fill="#e6a23c" d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
-          <span>{{ enumDef.name || enumDef.code }}</span>
-        </div>
-      </div>
-    </div>
-
     <!-- 右侧编辑区 -->
     <div class="ds-content">
       <!-- 实体编辑 -->
@@ -383,6 +360,7 @@ function generateDDL(): string {
             </el-form-item>
           </el-form>
           <div class="ds-header-actions">
+            <el-button size="small" text @click="backToList">← {{ ds.entityGroup || ds.entity }}</el-button>
             <el-button type="primary" size="small" @click="saveEntity">{{ ds.save }}</el-button>
             <el-button type="danger" size="small" plain @click="deleteEntity(selectedEntity)">{{ ds.deleteEntity }}</el-button>
           </div>
@@ -499,6 +477,7 @@ function generateDDL(): string {
             </el-form-item>
           </el-form>
           <div class="ds-header-actions">
+            <el-button size="small" text @click="backToList">← {{ ds.dictGroup || ds.enum }}</el-button>
             <el-button type="primary" size="small" @click="saveEnum">{{ ds.save }}</el-button>
             <el-button type="danger" size="small" plain @click="deleteEnum(selectedEnum)">{{ ds.deleteEnum }}</el-button>
           </div>
@@ -524,6 +503,74 @@ function generateDDL(): string {
           <el-button size="small" class="ds-add-btn" @click="addEnumValue">+ {{ ds.addEnumValue }}</el-button>
         </div>
       </template>
+
+      <!-- 实体列表视图 -->
+      <div v-else-if="viewMode === 'entityList'" class="ds-list-view">
+        <div class="ds-list-header">
+          <h3>{{ ds.entityGroup || ds.entity }}</h3>
+          <el-button size="small" type="primary" @click="addNewEntity">+ {{ ds.newEntity }}</el-button>
+        </div>
+        <table class="ds-table ds-list-table" v-if="entities.length > 0">
+          <thead>
+            <tr>
+              <th>{{ ds.entityCode }}</th>
+              <th>{{ ds.entityName }}</th>
+              <th>{{ ds.entityDesc }}</th>
+              <th>{{ ds.sensitivity }}</th>
+              <th>{{ ds.field }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="entity in entities"
+              :key="entity.code"
+              class="ds-list-row"
+              @click="selectEntity(entity)"
+            >
+              <td>{{ entity.code }}</td>
+              <td>{{ entity.name }}</td>
+              <td>{{ entity.description }}</td>
+              <td>{{ ds['sensitivity' + entity.sensitivity.charAt(0).toUpperCase() + entity.sensitivity.slice(1)] || entity.sensitivity }}</td>
+              <td>{{ entity.fields.length }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div v-else class="ds-empty">
+          <p>{{ ds.entity }}</p>
+        </div>
+      </div>
+
+      <!-- 字典列表视图 -->
+      <div v-else-if="viewMode === 'enumList'" class="ds-list-view">
+        <div class="ds-list-header">
+          <h3>{{ ds.dictGroup || ds.enum }}</h3>
+          <el-button size="small" type="primary" @click="addNewEnum">+ {{ ds.newEnum }}</el-button>
+        </div>
+        <table class="ds-table ds-list-table" v-if="enums.length > 0">
+          <thead>
+            <tr>
+              <th>{{ ds.enumCode }}</th>
+              <th>{{ ds.enumName }}</th>
+              <th>{{ ds.enumValues }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="enumDef in enums"
+              :key="enumDef.code"
+              class="ds-list-row"
+              @click="selectEnum(enumDef)"
+            >
+              <td>{{ enumDef.code }}</td>
+              <td>{{ enumDef.name }}</td>
+              <td>{{ enumDef.values.length }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div v-else class="ds-empty">
+          <p>{{ ds.enum }}</p>
+        </div>
+      </div>
 
       <!-- 空状态 -->
       <div v-else class="ds-empty">
@@ -560,74 +607,6 @@ function generateDDL(): string {
   display: flex;
   height: 100%;
   overflow: hidden;
-}
-
-.ds-sidebar {
-  width: 200px;
-  flex-shrink: 0;
-  border-right: 1px solid var(--border-color);
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  background: var(--bg-panel);
-}
-
-.ds-domain-bar {
-  display: flex;
-  gap: 4px;
-  padding: 8px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.ds-nav-section {
-  padding: 4px 0;
-}
-
-.ds-nav-title {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 4px 10px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-}
-
-.ds-nav-add {
-  cursor: pointer;
-  font-size: 14px;
-  color: var(--accent-color);
-  font-weight: bold;
-}
-
-.ds-nav-add:hover {
-  opacity: 0.7;
-}
-
-.ds-nav-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 10px 5px 14px;
-  font-size: 13px;
-  color: var(--text-primary);
-  cursor: pointer;
-  transition: background 0.12s;
-}
-
-.ds-nav-item:hover {
-  background: var(--bg-hover);
-}
-
-.ds-nav-item.active {
-  background: var(--bg-active);
-}
-
-.ds-nav-icon {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
 }
 
 .ds-content {
@@ -696,6 +675,37 @@ function generateDDL(): string {
   overflow-x: auto;
   white-space: pre;
   color: var(--text-primary);
+}
+
+.ds-list-view {
+  padding: 0;
+}
+
+.ds-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.ds-list-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ds-list-table {
+  margin-top: 0;
+}
+
+.ds-list-row {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.ds-list-row:hover {
+  background: var(--bg-hover);
 }
 
 .ds-empty {

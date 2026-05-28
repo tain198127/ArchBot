@@ -16,7 +16,7 @@ import { useSettings } from './stores/settings'
 import { useMenuAction } from './composables/useMenuAction'
 import { useProject } from './stores/project'
 const { t } = useI18n()
-const { initSettings } = useSettings()
+const { initSettings, saveSettings } = useSettings()
 const { on } = useMenuAction()
 const { setProject } = useProject()
 
@@ -52,6 +52,11 @@ async function handleProjectCreated(filePath: string, name: string) {
   }
 }
 
+function handleClearCache() {
+  saveSettings()
+  window.location.reload()
+}
+
 let unsubscribe: (() => void) | null = null
 onMounted(() => {
   unsubscribe = on((action) => {
@@ -61,6 +66,8 @@ onMounted(() => {
       handleOpenProject()
     } else if (action === 'file.register') {
       licenseDialogRef.value?.show()
+    } else if (action === 'file.clearCache') {
+      handleClearCache()
     }
   })
 })

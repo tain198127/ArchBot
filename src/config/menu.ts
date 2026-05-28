@@ -55,6 +55,11 @@ export function useMenuConfig() {
           items: [
             { name: t.value.menuFile.closeProject, shortcut: 'Ctrl+W / ⌘+W', action: 'file.closeProject' }
           ]
+        },
+        {
+          items: [
+            { name: t.value.menuFile.clearCache, shortcut: null, action: 'file.clearCache' }
+          ]
         }
       ]
     },
@@ -89,6 +94,15 @@ export function useMenuConfig() {
     {
       name: t.value.menu.config,
       groups: [
+        {
+          items: [
+            { name: t.value.menuConfig.digitalEmployee, shortcut: null, action: 'config.digitalEmployee' },
+            { name: t.value.menuConfig.businessFlow, shortcut: null, action: 'config.businessFlow' },
+            { name: t.value.menuConfig.sharedDocs, shortcut: null, action: 'config.sharedDocs' },
+            { name: t.value.menuConfig.imIntegration, shortcut: null, action: 'config.imIntegration' },
+            { name: t.value.menuConfig.agentConfig, shortcut: null, action: 'config.agentConfig' }
+          ]
+        },
         {
           items: [
             { name: t.value.menuConfig.ai, shortcut: null, action: 'config.ai' },

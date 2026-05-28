@@ -364,7 +364,7 @@ function handleClearRecent() {
 
 .menu-overlay {
   position: fixed;
-  top: 0;
+  top: 32px;
   left: 0;
   right: 0;
   bottom: 0;
