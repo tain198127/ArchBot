@@ -30,6 +30,10 @@ sha2 = "0.10"
 rsa = "0.9"
 hex = "0.4"
 hostname = "0.4"
+lancedb = "0.17"
+arrow-array = "53"
+arrow-schema = "53"
+futures = "0.3"
 reqwest = { version = "0.12", features = ["json"] }
 dirs = "5"
 

@@ -1,4 +1,5 @@
 mod data_standard;
+mod lancedb_store;
 mod license;
 
 use serde::{Deserialize, Serialize};
@@ -242,7 +243,11 @@ pub fn run() {
             data_standard::ds_delete_enum,
             license::get_machine_id_cmd,
             license::register_software,
-            license::get_license_status
+            license::get_license_status,
+            lancedb_store::db_list_tables,
+            lancedb_store::db_create_table,
+            lancedb_store::db_insert,
+            lancedb_store::db_search
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

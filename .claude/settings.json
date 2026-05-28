@@ -2,14 +2,13 @@
   "hooks": {
     "PreToolUse": [
       {
-        "tool": "Edit",
-        "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/scripts/code-check.sh\"",
-        "matcher": "src/(.*\\.(ts|vue)|src-tauri/src/.*\\.rs)"
-      },
-      {
-        "tool": "Write",
-        "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/scripts/code-check.sh\"",
-        "matcher": "src/(.*\\.(ts|vue)|src-tauri/src/.*\\.rs)"
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \".claude/scripts/code-check.sh\""
+          }
+        ]
       }
     ]
   }
