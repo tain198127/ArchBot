@@ -1,7 +1,9 @@
 mod data_standard;
+mod db;
 mod fs;
 mod lancedb_store;
 mod license;
+mod vector;
 
 /// 获取当前 ISO 8601 格式 UTC 时间戳
 ///
@@ -65,11 +67,30 @@ pub fn run() {
             license::get_machine_id_cmd,
             license::register_software,
             license::get_license_status,
+            // db
+            db::db_connect,
+            db::db_configure_remote,
+            db::db_find_all,
+            db::db_find_by_id,
+            db::db_insert,
+            db::db_update,
+            db::db_delete,
+            db::db_execute_raw,
             // lancedb
-            lancedb_store::db_list_tables,
-            lancedb_store::db_create_table,
-            lancedb_store::db_insert,
-            lancedb_store::db_search
+            // vector
+            vector::vec_connect,
+            vector::vec_configure_remote,
+            vector::vec_create_table,
+            vector::vec_insert,
+            vector::vec_search,
+            vector::vec_delete,
+            vector::vec_list_tables,
+            vector::vec_table_info,
+            // lancedb (legacy)
+            lancedb_store::lancedb_list_tables,
+            lancedb_store::lancedb_create_table,
+            lancedb_store::lancedb_insert,
+            lancedb_store::lancedb_search
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

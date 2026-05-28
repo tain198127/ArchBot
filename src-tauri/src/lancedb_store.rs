@@ -71,7 +71,7 @@ fn validate_table_name(name: &str) -> Result<(), String> {
 // ─── Tauri Commands ───────────────────────────────────────────
 
 #[tauri::command]
-pub async fn db_list_tables() -> Result<Vec<TableInfo>, String> {
+pub async fn lancedb_list_tables() -> Result<Vec<TableInfo>, String> {
     let db = get_conn().await?;
     let names = db
         .table_names()
@@ -82,7 +82,7 @@ pub async fn db_list_tables() -> Result<Vec<TableInfo>, String> {
 }
 
 #[tauri::command]
-pub async fn db_create_table(name: String, dimension: u32) -> Result<(), String> {
+pub async fn lancedb_create_table(name: String, dimension: u32) -> Result<(), String> {
     validate_table_name(&name)?;
     let db = get_conn().await?;
 
@@ -130,7 +130,7 @@ pub async fn db_create_table(name: String, dimension: u32) -> Result<(), String>
 }
 
 #[tauri::command]
-pub async fn db_insert(table_name: String, id: String, vector: Vec<f32>) -> Result<(), String> {
+pub async fn lancedb_insert(table_name: String, id: String, vector: Vec<f32>) -> Result<(), String> {
     validate_table_name(&table_name)?;
     let db = get_conn().await?;
 
@@ -164,7 +164,7 @@ pub async fn db_insert(table_name: String, id: String, vector: Vec<f32>) -> Resu
 }
 
 #[tauri::command]
-pub async fn db_search(
+pub async fn lancedb_search(
     table_name: String,
     query_vector: Vec<f32>,
     top_k: usize,

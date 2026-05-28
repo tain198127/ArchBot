@@ -188,6 +188,8 @@ impl FsBackend for RemoteFs {
 /// 注意：`@` 被编码为 `%40`，防止 URL userinfo 注入。
 fn urlencoding(s: &str) -> String {
     s.replace('%', "%25")
+        .replace('/', "%2F")
+        .replace('\\', "%5C")
         .replace(' ', "%20")
         .replace('&', "%26")
         .replace('=', "%3D")
