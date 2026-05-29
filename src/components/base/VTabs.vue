@@ -37,9 +37,9 @@ const emit = defineEmits<{
       </Tab>
     </TabList>
     <TabPanels>
-      <TabPanel :value="modelValue || tabs[0]?.value">
+      <TabPanel v-for="tab in tabs" :key="tab.value" :value="tab.value">
         <div class="pt-4">
-          <slot />
+          <slot :name="tab.value" />
         </div>
       </TabPanel>
     </TabPanels>

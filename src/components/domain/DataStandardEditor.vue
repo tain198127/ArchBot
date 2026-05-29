@@ -347,8 +347,7 @@ function generateDDL(): string {
         </div>
 
         <VTabs v-model="activeTab" :tabs="entityTabs">
-          <!-- Fields Tab -->
-          <div v-if="activeTab === 'fields'" class="overflow-x-auto">
+          <template #fields>
             <table class="ds-table w-full text-sm border-collapse">
               <thead>
                 <tr>
@@ -402,10 +401,10 @@ function generateDDL(): string {
               </tbody>
             </table>
             <VButton size="sm" class="mt-2" @click="addField">+ {{ ds.addField }}</VButton>
-          </div>
+          </template>
 
           <!-- Indexes Tab -->
-          <div v-if="activeTab === 'indexes'" class="overflow-x-auto">
+          <template #indexes>
             <table class="ds-table w-full text-sm border-collapse">
               <thead>
                 <tr>
@@ -425,10 +424,10 @@ function generateDDL(): string {
               </tbody>
             </table>
             <VButton size="sm" class="mt-2" @click="addIndex">+ {{ ds.addIndex }}</VButton>
-          </div>
+          </template>
 
           <!-- Relations Tab -->
-          <div v-if="activeTab === 'relations'" class="overflow-x-auto">
+          <template #relations>
             <table class="ds-table w-full text-sm border-collapse">
               <thead>
                 <tr>
@@ -448,12 +447,12 @@ function generateDDL(): string {
               </tbody>
             </table>
             <VButton size="sm" class="mt-2" @click="addRelation">+ {{ ds.addRelation }}</VButton>
-          </div>
+          </template>
 
           <!-- DDL Tab -->
-          <div v-if="activeTab === 'ddl'">
+          <template #ddl>
             <pre class="bg-surface-100 dark:bg-surface-100 border border-border-default rounded-lg p-4 font-mono text-sm leading-relaxed overflow-x-auto whitespace-pre text-text-primary">{{ generateDDL() }}</pre>
-          </div>
+          </template>
         </VTabs>
       </template>
 

@@ -194,6 +194,8 @@ function removeHandoff(idx: number) {
 }
 
 const opOptions = computed(() => operationOptions.map(o => ({ value: o, label: o })))
+const empOptions = computed(() => employeeOptions.value.map((e: any) => ({ value: e.code, label: e.name })))
+const tmOptions = computed(() => transferModeOptions.map(t => ({ value: t.value, label: t.label })))
 onMounted(async () => { await loadEmployees(); await loadLookups() })
 </script>
 
@@ -364,17 +366,10 @@ onMounted(async () => { await loadEmployees(); await loadLookups() })
         <fieldset class="border border-border-default rounded-lg px-4 py-3 mb-3">
           <legend class="text-sm font-semibold text-text-secondary px-1.5">{{ de.handoffRules || '交互规则' }}</legend>
           <div v-for="(h, idx) in editHandoffs" :key="idx" class="flex gap-2 items-center mb-1.5">
-            <select v-model="h.trigger_op" class="h-7 px-1.5 border border-border-default rounded text-xs" :disabled="editMode === 'view'">
-              <option v-for="o in operationOptions" :key="o" :value="o">{{ o }}</option>
-            </select>
+            <VSelect v-model="h.trigger_op" :options="opOptions" class="!h-7 !text-xs !w-[100px]" :disabled="editMode === 'view'" />
             <span class="text-text-muted text-sm">&rarr;</span>
-            <select v-model="h.target_employee_code" class="h-7 px-1.5 border border-border-default rounded text-xs" :disabled="editMode === 'view'">
-              <option value="">选择角色</option>
-              <option v-for="emp in employeeOptions" :key="emp.code" :value="emp.code">{{ emp.name }}</option>
-            </select>
-            <select v-model="h.transfer_mode" class="h-7 px-1.5 border border-border-default rounded text-xs" :disabled="editMode === 'view'">
-              <option v-for="tm in transferModeOptions" :key="tm.value" :value="tm.value">{{ tm.label }}</option>
-            </select>
+            <VSelect v-model="h.target_employee_code" :options="empOptions" class="!h-7 !text-xs !w-[140px]" :disabled="editMode === 'view'" placeholder="选择角色" />
+            <VSelect v-model="h.transfer_mode" :options="tmOptions" class="!h-7 !text-xs !w-[100px]" :disabled="editMode === 'view'" />
             <button v-if="editMode === 'edit'" class="px-1.5 py-0.5 text-xs border border-border-default rounded cursor-pointer hover:bg-surface-100 dark:hover:bg-surface-100" @click="removeHandoff(idx)">&#10005;</button>
           </div>
           <VButton v-if="editMode === 'edit'" size="sm" variant="secondary" @click="addHandoff">+ {{ de.addHandoff || '添加交互规则' }}</VButton>
