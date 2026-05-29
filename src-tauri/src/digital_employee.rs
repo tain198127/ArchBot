@@ -11,6 +11,7 @@ use crate::db::{self, DbRow};
 /// 数字员工 JSON 表示（前端使用，code 是唯一业务键）
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct DigitalEmployee {
+    #[serde(default)]
     pub id: i32,
     pub code: String,
     pub name: String,
@@ -82,7 +83,7 @@ async fn run_migrations(db_type: &str) -> Result<(), String> {
 }
 
 /// 将 SQL 字符串按语句分割（处理 INSERT 多行值）
-fn split_statements(sql: &str) -> Vec<String> {
+pub(crate) fn split_statements(sql: &str) -> Vec<String> {
     let mut stmts = Vec::new();
     let mut current = String::new();
     let mut in_parent = false;

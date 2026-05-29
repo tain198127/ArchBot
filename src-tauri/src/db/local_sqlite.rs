@@ -114,6 +114,7 @@ impl LocalSqliteDb {
 #[async_trait]
 impl DbBackend for LocalSqliteDb {
     async fn find_by_id(&self, table: &str, id: &str) -> Result<Option<DbRow>, String> {
+        let columns = get_table_columns(&self.conn, table).await?;
         let sql = format!("SELECT * FROM `{}` WHERE id = ?", table);
         let rows = self
             .conn
@@ -128,7 +129,7 @@ impl DbBackend for LocalSqliteDb {
         if rows.is_empty() {
             return Ok(None);
         }
-        Ok(Some(query_result_to_dbrow(&rows[0])))
+        Ok(Some(query_result_to_dbrow(&rows[0], &columns)))
     }
 
     async fn find_all(&self, table: &str, params: QueryParams) -> Result<QueryResult, String> {
@@ -166,6 +167,9 @@ impl DbBackend for LocalSqliteDb {
             }
         };
 
+        // 获取列名
+        let columns = get_table_columns(&self.conn, table).await?;
+
         // 查数据
         let sql = format!(
             "SELECT * FROM `{}` {} {} {}",
@@ -182,7 +186,7 @@ impl DbBackend for LocalSqliteDb {
             .await
             .map_err(|e| format!("查询失败: {e}"))?;
 
-        let db_rows: Vec<DbRow> = rows.iter().map(query_result_to_dbrow).collect();
+        let db_rows: Vec<DbRow> = rows.iter().map(|r| query_result_to_dbrow(r, &columns)).collect();
         Ok(QueryResult {
             rows: db_rows,
             total,
@@ -275,7 +279,7 @@ impl DbBackend for LocalSqliteDb {
             .await
             .map_err(|e| format!("执行 SQL 失败: {e}"))?;
 
-        let db_rows: Vec<DbRow> = rows.iter().map(query_result_to_dbrow).collect();
+        let db_rows: Vec<DbRow> = rows.iter().map(|r| query_result_to_dbrow(r, &[])).collect();
         let total = db_rows.len() as u64;
         Ok(QueryResult {
             rows: db_rows,
@@ -286,19 +290,222 @@ impl DbBackend for LocalSqliteDb {
 
 // ─── Helpers ──────────────────────────────────────────────────
 
+/// 通过 PRAGMA table_info 获取表的所有列名（按顺序）
+async fn get_table_columns(conn: &DatabaseConnection, table: &str) -> Result<Vec<String>, String> {
+    let sql = format!("PRAGMA table_info('{}')", table);
+    let rows = conn
+        .query_all(Statement::from_string(SeaDbBackend::Sqlite, &sql))
+        .await
+        .map_err(|e| format!("获取表结构失败: {e}"))?;
+
+    let mut columns = Vec::new();
+    for row in &rows {
+        let name: String = row
+            .try_get_by_index(1)
+            .map_err(|e| format!("获取列名失败: {e}"))?;
+        columns.push(name);
+    }
+    Ok(columns)
+}
+
 /// 将 SeaORM QueryResult 行转为 DbRow（HashMap<String, Value>）
 ///
-/// 通过 JSON 序列化/反序列化中转实现列名到值的映射。
-/// 生产环境建议使用预定义的 SeaORM Entity 来获得编译期类型安全。
-fn query_result_to_dbrow(row: &sea_orm::QueryResult) -> DbRow {
-    // SeaORM QueryResult 不支持按名称遍历列，这里用 JSON 兜底
-    let json_val: Value = row
-        .try_get::<serde_json::Value>("", "")
-        .unwrap_or(Value::Null);
-    if let Value::Object(obj) = json_val {
-        return obj.into_iter().collect();
+/// 按索引遍历每一列，尝试 i64 → f64 → String → null 的类型解码顺序，
+/// 匹配 SQLite 的 INTEGER / REAL / TEXT 三种亲和类型。
+fn query_result_to_dbrow(row: &sea_orm::QueryResult, columns: &[String]) -> DbRow {
+    let mut map = DbRow::new();
+    for (i, col_name) in columns.iter().enumerate() {
+        let val: Value = row
+            .try_get_by_index::<i64>(i)
+            .map(Value::from)
+            .or_else(|_| row.try_get_by_index::<f64>(i).map(|v| serde_json::json!(v)))
+            .or_else(|_| row.try_get_by_index::<String>(i).map(Value::String))
+            .unwrap_or(Value::Null);
+        map.insert(col_name.clone(), val);
     }
-    DbRow::new()
+    map
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::OrderBy;
+    use crate::digital_employee;
+
+    /// 创建内存数据库并执行完整迁移
+    async fn setup_memory_db() -> LocalSqliteDb {
+        let conn = Database::connect("sqlite::memory:")
+            .await
+            .expect("连接内存数据库失败");
+        conn.execute(Statement::from_string(
+            SeaDbBackend::Sqlite,
+            "PRAGMA journal_mode=WAL;",
+        ))
+        .await
+        .ok();
+        LocalSqliteDb { conn }
+    }
+
+    /// 在数据库中执行 DDL 和种子 SQL
+    async fn run_full_migration(db: &LocalSqliteDb) {
+        let ddl = include_str!("migrations/m20260529_001_create_digital_tables.sql");
+        let seed = include_str!("migrations/m20260529_002_seed_digital_employees.sql");
+
+        for stmt in digital_employee::split_statements(ddl) {
+            db.execute_raw(&stmt).await.expect("DDL 执行失败");
+        }
+        for stmt in digital_employee::split_statements(seed) {
+            db.execute_raw(&stmt).await.expect("Seed 执行失败");
+        }
+    }
+
+    /// 构建测试用的员工数据 HashMap
+    fn make_employee_data(code: &str, name: &str, sort_order: i32) -> DbRow {
+        let now = "2026-05-29T00:00:00+08:00";
+        [
+            ("code", Value::String(code.into())),
+            ("name", Value::String(name.into())),
+            ("is_builtin", Value::Bool(false)),
+            ("avatar", Value::String("🤖".into())),
+            ("personality_tags", Value::String("[]".into())),
+            ("personality_desc", Value::String("".into())),
+            ("comm_style", Value::String("formal".into())),
+            ("decision_pref", Value::String("data_driven".into())),
+            ("focus_areas", Value::String("[]".into())),
+            ("deliverable_groups", Value::String("[]".into())),
+            ("default_op", Value::String("write".into())),
+            ("sort_order", Value::from(sort_order)),
+            ("created_at", Value::String(now.into())),
+            ("updated_at", Value::String(now.into())),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v))
+        .collect()
+    }
+
+    // ─── Tests ────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn seed_creates_18_builtin_employees() {
+        let db = setup_memory_db().await;
+        run_full_migration(&db).await;
+
+        let result = db
+            .find_all("digital_employees", QueryParams::default())
+            .await
+            .expect("查询失败");
+
+        assert_eq!(result.total, 18);
+        assert_eq!(result.rows.len(), 18);
+
+        // 验证第一个员工数据完整性
+        let first = &result.rows[0];
+        assert_eq!(first.get("code").unwrap().as_str().unwrap(), "ba-analyst");
+        assert_eq!(first.get("name").unwrap().as_str().unwrap(), "需求分析师");
+        assert!(first.get("is_builtin").unwrap().as_i64().unwrap() == 1);
+    }
+
+    #[tokio::test]
+    async fn seed_creates_skills_agents_mcps() {
+        let db = setup_memory_db().await;
+        run_full_migration(&db).await;
+
+        let skills = db.find_all("skills", QueryParams::default()).await.unwrap();
+        let agents = db.find_all("agents", QueryParams::default()).await.unwrap();
+        let mcps = db.find_all("mcps", QueryParams::default()).await.unwrap();
+
+        assert_eq!(skills.total, 11);
+        assert_eq!(agents.total, 5);
+        assert_eq!(mcps.total, 4);
+    }
+
+    #[tokio::test]
+    async fn insert_employee_auto_increment_id() {
+        let db = setup_memory_db().await;
+        run_full_migration(&db).await;
+
+        let id_str = db
+            .insert("digital_employees", make_employee_data("test-user", "测试用户", 99))
+            .await
+            .expect("插入失败");
+
+        // SQLite 自增 ID 从已有最大 id + 1 开始（种子 18 条后应为 19）
+        let id: i64 = id_str.parse().unwrap();
+        assert!(id >= 19, "自增 ID 应 >= 19, 实际: {id}");
+
+        let row = db
+            .find_by_id("digital_employees", &id_str)
+            .await
+            .expect("查询失败")
+            .expect("记录不存在");
+
+        assert_eq!(row.get("code").unwrap().as_str().unwrap(), "test-user");
+        assert_eq!(row.get("name").unwrap().as_str().unwrap(), "测试用户");
+    }
+
+    #[tokio::test]
+    async fn update_employee_preserves_id() {
+        let db = setup_memory_db().await;
+        run_full_migration(&db).await;
+
+        // 更新第一个员工的名字
+        let mut data = DbRow::new();
+        data.insert("name".into(), Value::String("需求分析师(已更名)".into()));
+        data.insert("updated_at".into(), Value::String("2026-06-01T00:00:00+08:00".into()));
+
+        db.update("digital_employees", "1", data).await.expect("更新失败");
+
+        let row = db.find_by_id("digital_employees", "1").await.unwrap().unwrap();
+        assert_eq!(row.get("name").unwrap().as_str().unwrap(), "需求分析师(已更名)");
+        // code 不应被修改
+        assert_eq!(row.get("code").unwrap().as_str().unwrap(), "ba-analyst");
+    }
+
+    #[tokio::test]
+    async fn find_all_with_ordering() {
+        let db = setup_memory_db().await;
+        run_full_migration(&db).await;
+
+        let result = db
+            .find_all(
+                "digital_employees",
+                QueryParams {
+                    order_by: vec![OrderBy {
+                        field: "sort_order".into(),
+                        descending: true,
+                    }],
+                    limit: Some(3),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(result.rows.len(), 3);
+        // 按 sort_order DESC, 前 3 应为 18, 17, 16
+        let first_code = result.rows[0].get("code").unwrap().as_str().unwrap();
+        assert_eq!(first_code, "external-coordinator");
+    }
+
+    #[tokio::test]
+    async fn delete_employee() {
+        let db = setup_memory_db().await;
+        run_full_migration(&db).await;
+
+        db.delete("digital_employees", "19").await.expect("删除失败");
+
+        let result = db.find_all("digital_employees", QueryParams::default()).await.unwrap();
+        assert_eq!(result.total, 18); // 种子 18 条，第 19 条不存在时删除是 no-op？不对...
+
+        // 先插入再删除
+        let id = db.insert("digital_employees", make_employee_data("tmp", "临时", 100)).await.unwrap();
+        let before = db.find_all("digital_employees", QueryParams::default()).await.unwrap();
+        assert_eq!(before.total, 19);
+
+        db.delete("digital_employees", &id).await.unwrap();
+        let after = db.find_all("digital_employees", QueryParams::default()).await.unwrap();
+        assert_eq!(after.total, 18);
+    }
 }
 
 /// 将 serde_json::Value 转为 sea_orm::Value
