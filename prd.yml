@@ -5,9 +5,14 @@ project:
     - 开发者个人
     - 开发团队
   tech_stack:
-    frontend: Vue 3 + TypeScript + Element Plus
+    frontend: Vue 3 + TypeScript + PrimeVue (Unstyled) + Tailwind CSS v4
+    icons: "@lucide/vue"
     backend: Tauri 2 (Rust)
-    build_tool: Vite
+    build_tool: Vite + @tailwindcss/vite
+    design_system: Storybook 10 + @storybook/addon-a11y
+    fonts:
+      ui: Inter
+      code: JetBrains Mono
 
 window:
   style: 无边框窗口
