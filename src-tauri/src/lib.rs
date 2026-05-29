@@ -1,8 +1,10 @@
 mod data_standard;
 mod db;
+mod digital_employee;
 mod fs;
 mod lancedb_store;
 mod license;
+mod resource;
 mod vector;
 
 /// 获取当前 ISO 8601 格式 UTC 时间戳
@@ -76,6 +78,12 @@ pub fn run() {
             db::db_update,
             db::db_delete,
             db::db_execute_raw,
+            // digital_employee
+            digital_employee::de_init,
+            digital_employee::de_list,
+            digital_employee::de_get,
+            digital_employee::de_save,
+            digital_employee::de_delete,
             // lancedb
             // vector
             vector::vec_connect,
