@@ -66,6 +66,30 @@ export const projectCategories: ProjectDirCategory[] = [
           { key: 'availability',    labelKey: 'availability',    color: '#6c3483' },
           { key: 'migration',       labelKey: 'migration',       color: '#5b2c6f' }
         ]
+      },
+      {
+        key: 'evidence', labelKey: 'evidence', color: '#2ecc71',
+        children: [
+          { key: 'reqEvidence',      labelKey: 'reqEvidence',      color: '#2ecc71' },
+          { key: 'designRationale',  labelKey: 'designRationale',  color: '#27ae60' },
+          { key: 'testEvidence',     labelKey: 'testEvidence',     color: '#1e8449' }
+        ]
+      },
+      {
+        key: 'materials', labelKey: 'materials', color: '#3498db',
+        children: [
+          { key: 'references',       labelKey: 'references',       color: '#3498db' },
+          { key: 'meetingNotes',     labelKey: 'meetingNotes',     color: '#2980b9' },
+          { key: 'decisionRecords',  labelKey: 'decisionRecords',  color: '#1f6dad' }
+        ]
+      },
+      {
+        key: 'risk', labelKey: 'risk', color: '#e67e22',
+        children: [
+          { key: 'riskRegister',     labelKey: 'riskRegister',     color: '#e67e22' },
+          { key: 'issueTracking',    labelKey: 'issueTracking',    color: '#d35400' },
+          { key: 'assumptionLog',    labelKey: 'assumptionLog',    color: '#ba4a00' }
+        ]
       }
     ]
   },

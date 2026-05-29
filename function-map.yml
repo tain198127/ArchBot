@@ -356,7 +356,7 @@ tree:
     label_en: "Requirements"
     type: category
     icon: folder
-    children: [group.req.business, group.req.stories, group.req.data, group.req.functional, group.req.quality]
+    children: [group.req.business, group.req.stories, group.req.data, group.req.functional, group.req.quality, group.req.evidence, group.req.materials, group.req.risk]
     actions:
       - id: act.req.brainstorm
         label: "头脑风暴"
@@ -1297,6 +1297,114 @@ tree:
         input:  ["@ctx.security"]
         carry:  ["project_id"]
         output: ["Excel 安全审计清单"]
+
+  # ──────────────────────────────────────────────
+  # 分组6: 证据
+  # ──────────────────────────────────────────────
+  group.req.evidence:
+    label: "证据"
+    label_en: "Evidence"
+    type: group
+    icon: file-check
+    parent: panel.req.root
+    children:
+      - item.req.evidence.requirement
+      - item.req.evidence.design
+      - item.req.evidence.test
+    actions:
+      - id: act.evd.review_evidence
+        label: "评审证据完整性"
+        category: review
+        employee: solo
+        trigger: right_click
+        target: "@target:view.review_report"
+        input:  ["@ctx.req_evidence", "@ctx.design_rationale", "@ctx.test_evidence"]
+        carry:  ["project_id", "target_doc=evidence"]
+        output: ["评审报告"]
+      - id: act.evd.seal_evidence
+        label: "封板证据"
+        category: seal
+        employee: none
+        trigger: right_click
+        target: null
+        input:  ["@ctx.req_evidence", "@ctx.design_rationale", "@ctx.test_evidence"]
+        carry:  ["project_id"]
+        output: ["证据组全部 seal_status → sealed"]
+
+  # ──────────────────────────────────────────────
+  # 分组7: 资料
+  # ──────────────────────────────────────────────
+  group.req.materials:
+    label: "资料"
+    label_en: "Materials"
+    type: group
+    icon: folder-open
+    parent: panel.req.root
+    children:
+      - item.req.materials.references
+      - item.req.materials.meetings
+      - item.req.materials.decisions
+    actions:
+      - id: act.mat.review_materials
+        label: "评审资料完整性"
+        category: review
+        employee: solo
+        trigger: right_click
+        target: "@target:view.review_report"
+        input:  ["@ctx.references", "@ctx.meeting_notes", "@ctx.decision_records"]
+        carry:  ["project_id", "target_doc=materials"]
+        output: ["评审报告"]
+      - id: act.mat.seal_materials
+        label: "封板资料"
+        category: seal
+        employee: none
+        trigger: right_click
+        target: null
+        input:  ["@ctx.references", "@ctx.meeting_notes", "@ctx.decision_records"]
+        carry:  ["project_id"]
+        output: ["资料组全部 seal_status → sealed"]
+
+  # ──────────────────────────────────────────────
+  # 分组8: 风险
+  # ──────────────────────────────────────────────
+  group.req.risk:
+    label: "风险"
+    label_en: "Risk"
+    type: group
+    icon: alert-triangle
+    parent: panel.req.root
+    children:
+      - item.req.risk.register
+      - item.req.risk.issues
+      - item.req.risk.assumptions
+    actions:
+      - id: act.rsk.analyze_risk
+        label: "风险分析"
+        category: analyze
+        employee: solo
+        trigger: right_click
+        target: "@target:view.analysis_report"
+        input:  ["@ctx.risk_register", "@ctx.issue_tracking", "@ctx.assumption_log"]
+        carry:  ["project_id", "target_doc=risk"]
+        output: ["分析报告 {findings:[高风险项,阻塞问题,失效假设]}"]
+      - id: act.rsk.review_risk
+        label: "评审风险管理"
+        category: review
+        employee: solo
+        trigger: right_click
+        target: "@target:view.review_report"
+        input:  ["@ctx.risk_register", "@ctx.issue_tracking"]
+        carry:  ["project_id", "target_doc=risk"]
+        output: ["评审报告"]
+      - id: act.rsk.seal_risk
+        label: "封板风险"
+        category: seal
+        employee: none
+        trigger: right_click
+        target: null
+        input:  ["@ctx.risk_register", "@ctx.issue_tracking", "@ctx.assumption_log"]
+        carry:  ["project_id"]
+        output: ["风险组全部 seal_status → sealed"]
 
 # ============================================================================
 # 跳转汇总表 — 全部 action → target 扁平列表，方便逐条评审
