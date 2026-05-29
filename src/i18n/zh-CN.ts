@@ -265,7 +265,14 @@ export default {
     save: '保存',
     copy: '复制',
     cancel: '取消',
-    delete: '删除'
+    delete: '删除',
+    nameOrCodeRequired: '编码和姓名不能为空',
+    createSuccess: '创建成功',
+    saveSuccess: '保存成功',
+    builtinCannotDelete: '内置员工不可删除',
+    deleteConfirmTitle: '确认删除',
+    deleteConfirmMessage: '确定删除员工「{name}」？',
+    deleted: '已删除'
   },
   tabMenu: {
     closeAll: '关闭所有',
@@ -339,5 +346,13 @@ export default {
     defaultDomain: '默认域',
     entityGroup: '实体',
     dictGroup: '字典'
+  },
+  common: {
+    cancel: '取消',
+    confirm: '确认',
+    dismiss: '关闭',
+    close: '关闭',
+    copySuccess: '已复制',
+    delete: '删除'
   }
 }

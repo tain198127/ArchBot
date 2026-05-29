@@ -1,0 +1,144 @@
+<script setup lang="ts">
+import { ref } from 'vue'
+import { getCurrentWindow } from '@tauri-apps/api/window'
+import { invoke } from '@tauri-apps/api/core'
+import { useToast } from '../../composables/useToast'
+import { useMenuConfig, getPlatformShortcut } from '../../config/menu'
+import { useI18n } from '../../i18n'
+import { useMenuAction } from '../../composables/useMenuAction'
+import { useProject } from '../../stores/project'
+import type { MenuCategory } from '../../config/menu'
+import type { RecentProject } from '../../stores/project'
+
+const { menuConfig } = useMenuConfig()
+const { t } = useI18n()
+const toast = useToast()
+const { emit: emitMenuAction } = useMenuAction()
+const { recentProjects, setProject, clearRecentProjects } = useProject()
+const activeMenu = ref<string | null>(null)
+const menuBarActive = ref(false)
+const activeSubmenu = ref<string | null>(null)
+let submenuTimer: ReturnType<typeof setTimeout> | null = null
+let hideSubmenuTimer: ReturnType<typeof setTimeout> | null = null
+
+async function startDrag(event: MouseEvent) {
+  const target = event.target as HTMLElement
+  if (target.closest('.menu-items') || target.closest('.window-controls')) return
+  await getCurrentWindow().startDragging()
+}
+
+async function toggleMaximize() {
+  const win = getCurrentWindow()
+  const maximized = await win.isMaximized()
+  if (maximized) await win.unmaximize()
+  else await win.maximize()
+}
+
+async function minimizeWindow() { await getCurrentWindow().minimize() }
+async function closeWindow() { await getCurrentWindow().close() }
+
+function handleMenuClick(category: MenuCategory) {
+  if (activeMenu.value === category.name) { activeMenu.value = null; menuBarActive.value = false }
+  else { activeMenu.value = category.name; menuBarActive.value = true }
+}
+
+function handleMenuEnter(category: MenuCategory) {
+  if (menuBarActive.value) activeMenu.value = category.name
+}
+
+function handleItemClick(action?: string) {
+  activeMenu.value = null; menuBarActive.value = false
+  if (action) emitMenuAction(action)
+}
+
+function handleClickOutside() { activeMenu.value = null; menuBarActive.value = false; activeSubmenu.value = null }
+
+function onSubmenuEnter(itemName: string) {
+  clearHideTimer()
+  submenuTimer = setTimeout(() => { activeSubmenu.value = itemName }, 500)
+}
+
+function onSubmenuLeave() { clearSubmenuTimer(); startHideTimer() }
+function onFlyoutEnter() { clearHideTimer() }
+function onFlyoutLeave() { startHideTimer() }
+
+function clearSubmenuTimer() { if (submenuTimer) { clearTimeout(submenuTimer); submenuTimer = null } }
+function startHideTimer() { hideSubmenuTimer = setTimeout(() => { activeSubmenu.value = null }, 150) }
+function clearHideTimer() { if (hideSubmenuTimer) { clearTimeout(hideSubmenuTimer); hideSubmenuTimer = null } }
+
+async function handleRecentProjectClick(project: RecentProject) {
+  try {
+    const result = await invoke<{ name: string; content: string }>('open_project', { path: project.path })
+    setProject({ name: result.name, path: project.path, content: result.content })
+    toast.success(t.value.openProject.success)
+  } catch (e) { toast.error(`${t.value.openProject.failed}: ${e}`) }
+  activeMenu.value = null; menuBarActive.value = false; activeSubmenu.value = null
+}
+
+function handleClearRecent() { clearRecentProjects(); activeSubmenu.value = null }
+</script>
+
+<template>
+  <div class="flex items-center justify-between h-8 px-2 bg-surface-200 dark:bg-surface-200 border-b border-border-default select-none relative z-[1000]" @mousedown="startDrag" @dblclick="toggleMaximize">
+    <div class="flex items-center menu-items">
+      <div v-for="category in menuConfig" :key="category.name" class="relative" @click.stop="handleMenuClick(category)" @mouseenter="handleMenuEnter(category)">
+        <span class="inline-block px-2.5 py-1 text-sm text-text-primary rounded cursor-pointer hover:bg-surface-200 dark:hover:bg-surface-200" :class="{ 'bg-surface-200 dark:bg-surface-200': activeMenu === category.name }">
+          {{ category.name }}
+        </span>
+
+        <Transition name="menu-dropdown">
+          <div v-if="activeMenu === category.name && category.groups.length > 0" class="absolute top-full left-0 min-w-[220px] bg-white dark:bg-surface-0 border border-border-default rounded-lg shadow-lg py-1 z-[2000]" @click.stop>
+            <template v-for="(group, gIdx) in category.groups" :key="gIdx">
+              <div
+                v-for="item in group.items" :key="item.name"
+                class="flex items-center justify-between px-4 py-1.5 text-sm text-text-primary cursor-pointer hover:bg-surface-100 dark:hover:bg-surface-100"
+                :class="{ 'relative': item.submenu }"
+                @click="!item.submenu && handleItemClick(item.action)"
+                @mouseenter="item.submenu && onSubmenuEnter(item.name)"
+                @mouseleave="item.submenu && onSubmenuLeave()"
+              >
+                <span class="flex-1">{{ item.name }}</span>
+                <span v-if="item.submenu" class="ml-auto text-[10px] text-text-muted">▶</span>
+                <span v-else-if="item.shortcut" class="ml-6 text-xs text-text-muted whitespace-nowrap">{{ getPlatformShortcut(item.shortcut) }}</span>
+
+                <div
+                  v-if="item.submenu && activeSubmenu === item.name"
+                  class="absolute left-full top-0 min-w-[320px] bg-white dark:bg-surface-0 border border-border-default rounded-lg shadow-xl py-1 z-[2001]"
+                  @mouseenter="onFlyoutEnter()"
+                  @mouseleave="onFlyoutLeave()"
+                  @click.stop
+                >
+                  <template v-if="recentProjects.length > 0">
+                    <div v-for="rp in recentProjects" :key="rp.path" class="flex flex-col px-4 py-1.5 cursor-pointer hover:bg-surface-100 dark:hover:bg-surface-100" @click="handleRecentProjectClick(rp)">
+                      <span class="text-sm text-text-primary">{{ rp.name }}</span>
+                      <span class="text-xs text-text-muted mt-0.5 truncate">{{ rp.path }}</span>
+                    </div>
+                    <div class="h-px mx-2 my-1 bg-border-default" />
+                    <div class="px-4 py-1.5 text-xs text-text-secondary cursor-pointer hover:bg-surface-100 dark:hover:bg-surface-100" @click="handleClearRecent()">{{ t.menuFile.clearRecent }}</div>
+                  </template>
+                  <div v-else class="px-4 py-1.5 text-xs text-text-muted cursor-default">{{ t.menuFile.noRecentProjects }}</div>
+                </div>
+              </div>
+              <div v-if="gIdx < category.groups.length - 1" class="h-px mx-2 my-1 bg-border-default" />
+            </template>
+          </div>
+        </Transition>
+
+        <div v-if="activeMenu === category.name && category.groups.length === 0" class="absolute top-full left-0 min-w-[140px] bg-white dark:bg-surface-0 border border-border-default rounded-lg shadow-lg py-1 z-[2000]">
+          <div class="px-4 py-1.5 text-sm text-text-muted cursor-default">{{ category.note || t.menu.noContent }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3 window-controls">
+      <span class="text-xs text-text-secondary">ArchBot</span>
+      <div class="flex items-center">
+        <button class="w-9 h-8 flex items-center justify-center bg-transparent border-0 text-sm text-text-secondary cursor-pointer hover:bg-surface-200 dark:hover:bg-surface-200" @click.stop="minimizeWindow">─</button>
+        <button class="w-9 h-8 flex items-center justify-center bg-transparent border-0 text-sm text-text-secondary cursor-pointer hover:bg-surface-200 dark:hover:bg-surface-200" @click.stop="toggleMaximize">□</button>
+        <button class="w-9 h-8 flex items-center justify-center bg-transparent border-0 text-sm text-text-secondary cursor-pointer hover:bg-danger-500 hover:text-white" @click.stop="closeWindow">×</button>
+      </div>
+    </div>
+
+    <div v-if="menuBarActive" class="fixed top-8 left-0 right-0 bottom-0 z-[999]" @click="handleClickOutside" />
+  </div>
+</template>

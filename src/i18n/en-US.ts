@@ -265,7 +265,14 @@ export default {
     save: 'Save',
     copy: 'Copy',
     cancel: 'Cancel',
-    delete: 'Delete'
+    delete: 'Delete',
+    nameOrCodeRequired: 'Code and name cannot be empty',
+    createSuccess: 'Created successfully',
+    saveSuccess: 'Saved successfully',
+    builtinCannotDelete: 'Built-in employees cannot be deleted',
+    deleteConfirmTitle: 'Confirm Delete',
+    deleteConfirmMessage: 'Delete employee "{name}"?',
+    deleted: 'Deleted'
   },
   tabMenu: {
     closeAll: 'Close All',
@@ -339,5 +346,13 @@ export default {
     defaultDomain: 'Default Domain',
     entityGroup: 'Entities',
     dictGroup: 'Dictionaries'
+  },
+  common: {
+    cancel: 'Cancel',
+    confirm: 'Confirm',
+    dismiss: 'Dismiss',
+    close: 'Close',
+    copySuccess: 'Copied',
+    delete: 'Delete'
   }
 }

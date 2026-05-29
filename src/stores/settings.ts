@@ -39,6 +39,7 @@ const state = reactive<AppSettings>(getDefaults())
 
 function applyTheme(theme: 'light' | 'dark') {
   document.documentElement.setAttribute('data-theme', theme)
+  document.documentElement.classList.toggle('dark', theme === 'dark')
 }
 
 function applyFont(fontSize: number, fontFamily: string) {
