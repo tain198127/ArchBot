@@ -136,6 +136,16 @@ pub async fn db_connect(path: String) -> Result<(), String> {
     Ok(())
 }
 
+/// 断开本地数据库连接
+///
+/// 释放数据库连接，允许切换项目时重新连接到新项目的数据库。
+#[tauri::command]
+pub async fn db_disconnect() -> Result<(), String> {
+    let mut guard = local_db_cell().lock().await;
+    *guard = None;
+    Ok(())
+}
+
 /// 配置远程数据库后端
 ///
 /// `base_url` 为 REST API 根地址。

@@ -22,18 +22,18 @@ const emit = defineEmits<{
     role="switch"
     :aria-checked="modelValue"
     :class="[
-      'relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors',
-      'focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none',
-      'disabled:opacity-50 disabled:cursor-not-allowed',
-      modelValue ? 'bg-primary-500' : 'bg-surface-300 dark:bg-surface-200',
+      'relative inline-flex h-5 w-9 shrink-0 rounded-full transition-all duration-200',
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40 focus-visible:ring-offset-1',
+      'disabled:opacity-40 disabled:cursor-not-allowed',
+      modelValue ? 'bg-primary-500' : 'bg-surface-300 dark:bg-surface-300',
     ]"
     :disabled="disabled"
     @click="emit('update:modelValue', !modelValue)"
   >
     <span
       :class="[
-        'inline-block h-4 w-4 rounded-full bg-white transition-transform mt-0.5',
-        modelValue ? 'translate-x-[18px]' : 'translate-x-[2px]',
+        'inline-block h-[18px] w-[18px] rounded-full bg-white shadow-sm transition-transform duration-200',
+        modelValue ? 'translate-x-[17px] mt-px' : 'translate-x-px mt-px',
       ]"
     />
   </button>

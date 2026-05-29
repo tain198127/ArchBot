@@ -166,6 +166,93 @@ fn now_iso() -> String {
     chrono::Utc::now().to_rfc3339()
 }
 
+// ─── ArchBot project directory ──────────────────────────────────
+
+/// 获取 `.archbot` 目录路径
+///
+/// `project_path` 为 `.ab` 文件的完整路径，`.archbot/` 位于其同级目录。
+fn get_archbot_dir(project_path: &str) -> Result<std::path::PathBuf, String> {
+    let ab_path = std::path::Path::new(project_path);
+    let project_dir = ab_path.parent().ok_or("无法获取项目目录")?;
+    Ok(project_dir.join(".archbot"))
+}
+
+/// `.archbot/` 骨架目录列表
+const ARCHBOT_SKELETON_DIRS: &[&str] = &[
+    "digital-employees",
+    "business-flows",
+    "skills",
+    "agents",
+    "context/rules",
+    "context/memory",
+    "mcp",
+    "db",
+];
+
+/// 初始化项目 `.archbot/` 目录骨架
+///
+/// 业务逻辑：
+/// 1. 解析 `.ab` 文件路径 → 计算项目目录
+/// 2. 创建 `.archbot/` 及其所有子目录
+/// 3. 创建默认 `scenario.yml`（空场景配置）
+/// 4. 幂等：已存在的目录不报错
+#[tauri::command]
+pub fn init_archbot_dir(project_path: String) -> Result<(), String> {
+    let archbot_dir = get_archbot_dir(&project_path)?;
+
+    for subdir in ARCHBOT_SKELETON_DIRS {
+        let dir = archbot_dir.join(subdir);
+        std::fs::create_dir_all(&dir)
+            .map_err(|e| format!("创建目录失败 {}: {e}", dir.display()))?;
+    }
+
+    // 创建默认 scenario.yml（空场景，用户后续可在面板中设置）
+    let scenario_path = archbot_dir.join("scenario.yml");
+    if !scenario_path.exists() {
+        let default_scenario = "type: \"\"\noverrides: {}\napplied_at: \"\"\n";
+        std::fs::write(&scenario_path, default_scenario)
+            .map_err(|e| format!("创建 scenario.yml 失败: {e}"))?;
+    }
+
+    Ok(())
+}
+
+/// 确保项目 `.gitignore` 中排除 `.archbot/db`
+///
+/// 业务逻辑：
+/// 1. 查找项目目录下的 `.gitignore` 文件
+/// 2. 不存在则创建并写入 `.archbot/db`
+/// 3. 存在但不含 `.archbot/db` 则追加
+/// 4. 已包含则不操作
+/// 返回 `true` 表示进行了修改，`false` 表示无需修改
+#[tauri::command]
+pub fn ensure_gitignore(project_path: String) -> Result<bool, String> {
+    let ab_path = std::path::Path::new(&project_path);
+    let project_dir = ab_path.parent().ok_or("无法获取项目目录")?;
+    let gitignore_path = project_dir.join(".gitignore");
+    let pattern = ".archbot/db";
+
+    if gitignore_path.exists() {
+        let content =
+            std::fs::read_to_string(&gitignore_path).map_err(|e| format!("读取 .gitignore 失败: {e}"))?;
+        if content.lines().any(|line| line.trim() == pattern) {
+            return Ok(false);
+        }
+        let mut new_content = content;
+        if !new_content.ends_with('\n') {
+            new_content.push('\n');
+        }
+        new_content.push_str(&format!("\n# ArchBot database files\n{pattern}\n"));
+        std::fs::write(&gitignore_path, new_content)
+            .map_err(|e| format!("写入 .gitignore 失败: {e}"))?;
+    } else {
+        std::fs::write(&gitignore_path, format!("# ArchBot database files\n{pattern}\n"))
+            .map_err(|e| format!("创建 .gitignore 失败: {e}"))?;
+    }
+
+    Ok(true)
+}
+
 // ═══════════════════════════════════════════════════════════════
 // Tauri Commands — 通用文件操作（通过 fs_type 切换 local/remote）
 // ═══════════════════════════════════════════════════════════════

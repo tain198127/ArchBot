@@ -1,3 +1,4 @@
+mod context;
 mod data_standard;
 mod db;
 mod digital_employee;
@@ -5,6 +6,7 @@ mod fs;
 mod lancedb_store;
 mod license;
 mod resource;
+mod scenario;
 mod vector;
 
 /// 获取当前 ISO 8601 格式 UTC 时间戳
@@ -43,6 +45,8 @@ pub fn run() {
             fs::save_settings,
             fs::create_project,
             fs::open_project,
+            fs::init_archbot_dir,
+            fs::ensure_gitignore,
             // fs — remote
             fs::fetch_remote,
             // fs — generic (local/remote switchable)
@@ -71,6 +75,7 @@ pub fn run() {
             license::get_license_status,
             // db
             db::db_connect,
+            db::db_disconnect,
             db::db_configure_remote,
             db::db_find_all,
             db::db_find_by_id,
@@ -84,6 +89,16 @@ pub fn run() {
             digital_employee::de_get,
             digital_employee::de_save,
             digital_employee::de_delete,
+            // scenario
+            scenario::get_scenario,
+            scenario::save_scenario,
+            // context
+            context::get_context_config,
+            context::save_context_config,
+            context::list_context_entries,
+            context::get_context_entry,
+            context::save_context_entry,
+            context::delete_context_entry,
             // lancedb
             // vector
             vector::vec_connect,
@@ -95,6 +110,7 @@ pub fn run() {
             vector::vec_list_tables,
             vector::vec_table_info,
             // lancedb (legacy)
+            lancedb_store::lancedb_init,
             lancedb_store::lancedb_list_tables,
             lancedb_store::lancedb_create_table,
             lancedb_store::lancedb_insert,

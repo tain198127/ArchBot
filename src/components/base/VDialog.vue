@@ -29,27 +29,29 @@ function close() {
     :style="{ width }"
     :pt="{
       root: { class: 'fixed inset-0 z-50 flex items-center justify-center' },
-      mask: { class: 'fixed inset-0 bg-black/40' },
+      mask: { class: 'fixed inset-0 bg-black/50 backdrop-blur-[2px]' },
     }"
     @update:visible="emit('update:visible', $event)"
   >
-    <div class="bg-white dark:bg-surface-0 rounded-lg shadow-xl max-h-[90vh] flex flex-col">
-      <div class="flex items-center justify-between px-6 py-4 border-b border-border-default">
-        <h2 class="text-base font-semibold text-text-primary">{{ title }}</h2>
-        <button
-          class="p-1 rounded hover:bg-surface-100 dark:hover:bg-surface-200 focus-visible:ring-2 focus-visible:ring-primary-500"
-          @click="close"
-          aria-label="Close"
-        >
-          <X :size="18" />
-        </button>
+    <Transition name="dialog">
+      <div v-if="visible" class="dialog-panel bg-white dark:bg-surface-50 rounded-xl shadow-xl max-h-[85vh] flex flex-col ring-1 ring-border-default/50">
+        <div class="flex items-center justify-between px-5 py-3.5 border-b border-border-default">
+          <h2 class="text-sm font-semibold text-text-primary">{{ title }}</h2>
+          <button
+            class="p-1.5 rounded-md hover:bg-surface-100 dark:hover:bg-surface-200 transition-colors text-text-muted hover:text-text-primary"
+            @click="close"
+            aria-label="Close"
+          >
+            <X :size="16" />
+          </button>
+        </div>
+        <div class="px-5 py-4 overflow-y-auto flex-1">
+          <slot />
+        </div>
+        <div v-if="$slots.footer" class="px-5 py-3 border-t border-border-default flex justify-end gap-2">
+          <slot name="footer" />
+        </div>
       </div>
-      <div class="px-6 py-4 overflow-y-auto flex-1">
-        <slot />
-      </div>
-      <div v-if="$slots.footer" class="px-6 py-3 border-t border-border-default flex justify-end gap-2">
-        <slot name="footer" />
-      </div>
-    </div>
+    </Transition>
   </Dialog>
 </template>

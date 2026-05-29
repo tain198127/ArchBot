@@ -5,8 +5,10 @@ import { useMenuAction, getAction, getPayload } from '../../composables/useMenuA
 import SettingsPanel from './SettingsPanel.vue'
 import DataStandardEditor from './DataStandardEditor.vue'
 import DigitalEmployeePanel from './DigitalEmployeePanel.vue'
+import ScenarioPanel from './ScenarioPanel.vue'
+import ContextEngineeringPanel from './ContextEngineeringPanel.vue'
 
-const { t } = useI18n()
+const { t, tt } = useI18n()
 
 const { on } = useMenuAction()
 
@@ -103,6 +105,10 @@ onMounted(() => {
 
     if (action === 'config.system') {
       openTab('settings', t.value.settings.title, 'settings')
+    } else if (action === 'config.contextEngineering') {
+      openTab('context-engineering', tt('context.title'), 'context-engineering')
+    } else if (action === 'config.scenario') {
+      openTab('scenario', tt('scenario.title'), 'scenario')
     } else if (action === 'config.digitalEmployee') {
       openTab('digital-employee', (t.value.digitalEmployee as Record<string, string>).title || '数字员工', 'digital-employee')
     } else if (action === 'open.dataStandard') {
@@ -150,12 +156,27 @@ onUnmounted(() => { unsubscribe?.() })
       </div>
     </div>
     <div class="flex-1 overflow-hidden">
-      <div v-if="activeTab === 'welcome'" class="flex flex-col items-center justify-center h-full text-text-secondary">
-        <h2 class="text-3xl font-light mb-2 text-text-primary">{{ t.editor.appName }}</h2>
-        <p class="text-sm my-1">{{ t.editor.appDesc }}</p>
-        <p class="mt-4 text-sm text-text-muted">{{ t.editor.startHint }}</p>
+      <div v-if="activeTab === 'welcome'" class="flex flex-col items-center justify-center h-full select-none">
+        <div class="text-center animate-fade-in">
+          <div class="mb-6 inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary-500/10 ring-1 ring-primary-500/20">
+            <span class="text-2xl font-bold text-primary-500 tracking-tight">AB</span>
+          </div>
+          <h2 class="text-2xl font-semibold text-text-primary tracking-tight mb-2">{{ t.editor.appName }}</h2>
+          <p class="text-sm text-text-secondary max-w-md leading-relaxed">{{ t.editor.appDesc }}</p>
+          <div class="mt-6 flex items-center gap-2 justify-center">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-50 dark:bg-surface-100 border border-border-default rounded-lg text-xs text-text-secondary">
+              <kbd class="font-mono text-[11px] text-text-muted">⌘O</kbd> {{ t.menuFile.openProject }}
+            </span>
+            <span class="text-xs text-text-muted">or</span>
+            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface-50 dark:bg-surface-100 border border-border-default rounded-lg text-xs text-text-secondary">
+              <kbd class="font-mono text-[11px] text-text-muted">⌘⇧N</kbd> {{ t.menuFile.newProject }}
+            </span>
+          </div>
+        </div>
       </div>
       <SettingsPanel v-else-if="activeTabData()?.type === 'settings'" />
+      <ScenarioPanel v-else-if="activeTabData()?.type === 'scenario'" />
+      <ContextEngineeringPanel v-else-if="activeTabData()?.type === 'context-engineering'" />
       <DigitalEmployeePanel v-else-if="activeTabData()?.type === 'digital-employee'" />
       <DataStandardEditor
         v-else-if="activeTabData()?.type === 'dataStandard'"

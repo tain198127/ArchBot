@@ -10,11 +10,11 @@ import { useProject } from '../../stores/project'
 import type { MenuCategory } from '../../config/menu'
 import type { RecentProject } from '../../stores/project'
 
-const { menuConfig } = useMenuConfig()
 const { t } = useI18n()
 const toast = useToast()
 const { emit: emitMenuAction } = useMenuAction()
-const { recentProjects, setProject, clearRecentProjects } = useProject()
+const { recentProjects, setProject, clearRecentProjects, currentProject } = useProject()
+const { menuConfig } = useMenuConfig(currentProject)
 const activeMenu = ref<string | null>(null)
 const menuBarActive = ref(false)
 const activeSubmenu = ref<string | null>(null)
@@ -38,11 +38,13 @@ async function minimizeWindow() { await getCurrentWindow().minimize() }
 async function closeWindow() { await getCurrentWindow().close() }
 
 function handleMenuClick(category: MenuCategory) {
+  if (category.disabled) return
   if (activeMenu.value === category.name) { activeMenu.value = null; menuBarActive.value = false }
   else { activeMenu.value = category.name; menuBarActive.value = true }
 }
 
 function handleMenuEnter(category: MenuCategory) {
+  if (category.disabled) return
   if (menuBarActive.value) activeMenu.value = category.name
 }
 
@@ -55,7 +57,7 @@ function handleClickOutside() { activeMenu.value = null; menuBarActive.value = f
 
 function onSubmenuEnter(itemName: string) {
   clearHideTimer()
-  submenuTimer = setTimeout(() => { activeSubmenu.value = itemName }, 500)
+  submenuTimer = setTimeout(() => { activeSubmenu.value = itemName }, 200)
 }
 
 function onSubmenuLeave() { clearSubmenuTimer(); startHideTimer() }
@@ -63,7 +65,7 @@ function onFlyoutEnter() { clearHideTimer() }
 function onFlyoutLeave() { startHideTimer() }
 
 function clearSubmenuTimer() { if (submenuTimer) { clearTimeout(submenuTimer); submenuTimer = null } }
-function startHideTimer() { hideSubmenuTimer = setTimeout(() => { activeSubmenu.value = null }, 150) }
+function startHideTimer() { hideSubmenuTimer = setTimeout(() => { activeSubmenu.value = null }, 100) }
 function clearHideTimer() { if (hideSubmenuTimer) { clearTimeout(hideSubmenuTimer); hideSubmenuTimer = null } }
 
 async function handleRecentProjectClick(project: RecentProject) {
@@ -79,44 +81,58 @@ function handleClearRecent() { clearRecentProjects(); activeSubmenu.value = null
 </script>
 
 <template>
-  <div class="flex items-center justify-between h-8 px-2 bg-surface-200 dark:bg-surface-200 border-b border-border-default select-none relative z-[1000]" @mousedown="startDrag" @dblclick="toggleMaximize">
+  <div
+    class="flex items-center justify-between h-8 px-2 bg-surface-50/80 dark:bg-surface-50/80 backdrop-blur-md border-b border-border-default select-none relative z-[1000]"
+    @mousedown="startDrag" @dblclick="toggleMaximize"
+  >
     <div class="flex items-center menu-items">
       <div v-for="category in menuConfig" :key="category.name" class="relative" @click.stop="handleMenuClick(category)" @mouseenter="handleMenuEnter(category)">
-        <span class="inline-block px-2.5 py-1 text-sm text-text-primary rounded cursor-pointer hover:bg-surface-200 dark:hover:bg-surface-200" :class="{ 'bg-surface-200 dark:bg-surface-200': activeMenu === category.name }">
+        <span
+          class="inline-block px-2.5 py-1 text-[12.5px] rounded-md select-none transition-colors duration-100"
+          :class="{
+            'text-text-primary cursor-pointer hover:bg-surface-100 dark:hover:bg-surface-200': !category.disabled,
+            'bg-surface-100 dark:bg-surface-200': activeMenu === category.name && !category.disabled,
+            'text-text-muted/40 cursor-default': category.disabled
+          }"
+        >
           {{ category.name }}
         </span>
 
         <Transition name="menu-dropdown">
-          <div v-if="activeMenu === category.name && category.groups.length > 0" class="absolute top-full left-0 min-w-[220px] bg-white dark:bg-surface-0 border border-border-default rounded-lg shadow-lg py-1 z-[2000]" @click.stop>
+          <div v-if="activeMenu === category.name && category.groups.length > 0" class="absolute top-full left-0 min-w-[220px] bg-surface-0 dark:bg-surface-50 border border-border-default rounded-lg shadow-lg py-1 z-[2000] ring-1 ring-black/5" @click.stop>
             <template v-for="(group, gIdx) in category.groups" :key="gIdx">
               <div
                 v-for="item in group.items" :key="item.name"
-                class="flex items-center justify-between px-4 py-1.5 text-sm text-text-primary cursor-pointer hover:bg-surface-100 dark:hover:bg-surface-100"
-                :class="{ 'relative': item.submenu }"
-                @click="!item.submenu && handleItemClick(item.action)"
-                @mouseenter="item.submenu && onSubmenuEnter(item.name)"
-                @mouseleave="item.submenu && onSubmenuLeave()"
+                class="flex items-center justify-between px-3 py-1.5 text-[13px] select-none"
+                :class="{
+                  'text-text-primary cursor-pointer hover:bg-surface-50 dark:hover:bg-surface-100': !item.disabled,
+                  'text-text-muted/40 cursor-default': item.disabled,
+                  'relative': item.submenu
+                }"
+                @click="!item.submenu && !item.disabled && handleItemClick(item.action)"
+                @mouseenter="item.submenu && !item.disabled && onSubmenuEnter(item.name)"
+                @mouseleave="item.submenu && !item.disabled && onSubmenuLeave()"
               >
                 <span class="flex-1">{{ item.name }}</span>
                 <span v-if="item.submenu" class="ml-auto text-[10px] text-text-muted">▶</span>
-                <span v-else-if="item.shortcut" class="ml-6 text-xs text-text-muted whitespace-nowrap">{{ getPlatformShortcut(item.shortcut) }}</span>
+                <span v-else-if="item.shortcut" class="ml-8 text-[11px] text-text-muted whitespace-nowrap font-mono">{{ getPlatformShortcut(item.shortcut) }}</span>
 
                 <div
                   v-if="item.submenu && activeSubmenu === item.name"
-                  class="absolute left-full top-0 min-w-[320px] bg-white dark:bg-surface-0 border border-border-default rounded-lg shadow-xl py-1 z-[2001]"
+                  class="absolute left-full top-0 min-w-[320px] bg-surface-0 dark:bg-surface-50 border border-border-default rounded-lg shadow-lg py-1 z-[2001] ring-1 ring-black/5"
                   @mouseenter="onFlyoutEnter()"
                   @mouseleave="onFlyoutLeave()"
                   @click.stop
                 >
                   <template v-if="recentProjects.length > 0">
-                    <div v-for="rp in recentProjects" :key="rp.path" class="flex flex-col px-4 py-1.5 cursor-pointer hover:bg-surface-100 dark:hover:bg-surface-100" @click="handleRecentProjectClick(rp)">
-                      <span class="text-sm text-text-primary">{{ rp.name }}</span>
-                      <span class="text-xs text-text-muted mt-0.5 truncate">{{ rp.path }}</span>
+                    <div v-for="rp in recentProjects" :key="rp.path" class="flex flex-col px-3 py-1.5 cursor-pointer hover:bg-surface-50 dark:hover:bg-surface-100" @click="handleRecentProjectClick(rp)">
+                      <span class="text-[13px] text-text-primary">{{ rp.name }}</span>
+                      <span class="text-[11px] text-text-muted mt-0.5 truncate font-mono">{{ rp.path }}</span>
                     </div>
                     <div class="h-px mx-2 my-1 bg-border-default" />
-                    <div class="px-4 py-1.5 text-xs text-text-secondary cursor-pointer hover:bg-surface-100 dark:hover:bg-surface-100" @click="handleClearRecent()">{{ t.menuFile.clearRecent }}</div>
+                    <div class="px-3 py-1.5 text-[12px] text-text-secondary cursor-pointer hover:bg-surface-50 dark:hover:bg-surface-100" @click="handleClearRecent()">{{ t.menuFile.clearRecent }}</div>
                   </template>
-                  <div v-else class="px-4 py-1.5 text-xs text-text-muted cursor-default">{{ t.menuFile.noRecentProjects }}</div>
+                  <div v-else class="px-3 py-2 text-[12px] text-text-muted cursor-default">{{ t.menuFile.noRecentProjects }}</div>
                 </div>
               </div>
               <div v-if="gIdx < category.groups.length - 1" class="h-px mx-2 my-1 bg-border-default" />
@@ -124,18 +140,18 @@ function handleClearRecent() { clearRecentProjects(); activeSubmenu.value = null
           </div>
         </Transition>
 
-        <div v-if="activeMenu === category.name && category.groups.length === 0" class="absolute top-full left-0 min-w-[140px] bg-white dark:bg-surface-0 border border-border-default rounded-lg shadow-lg py-1 z-[2000]">
-          <div class="px-4 py-1.5 text-sm text-text-muted cursor-default">{{ category.note || t.menu.noContent }}</div>
+        <div v-if="activeMenu === category.name && category.groups.length === 0" class="absolute top-full left-0 min-w-[140px] bg-surface-0 dark:bg-surface-50 border border-border-default rounded-lg shadow-lg py-1 z-[2000] ring-1 ring-black/5">
+          <div class="px-3 py-2 text-[12px] text-text-muted cursor-default">{{ category.note || t.menu.noContent }}</div>
         </div>
       </div>
     </div>
 
-    <div class="flex items-center gap-3 window-controls">
-      <span class="text-xs text-text-secondary">ArchBot</span>
-      <div class="flex items-center">
-        <button class="w-9 h-8 flex items-center justify-center bg-transparent border-0 text-sm text-text-secondary cursor-pointer hover:bg-surface-200 dark:hover:bg-surface-200" @click.stop="minimizeWindow">─</button>
-        <button class="w-9 h-8 flex items-center justify-center bg-transparent border-0 text-sm text-text-secondary cursor-pointer hover:bg-surface-200 dark:hover:bg-surface-200" @click.stop="toggleMaximize">□</button>
-        <button class="w-9 h-8 flex items-center justify-center bg-transparent border-0 text-sm text-text-secondary cursor-pointer hover:bg-danger-500 hover:text-white" @click.stop="closeWindow">×</button>
+    <div class="flex items-center window-controls">
+      <span class="text-[11px] text-text-muted font-medium tracking-wide mr-1 opacity-50">ArchBot</span>
+      <div class="flex items-center -mr-2">
+        <button class="w-8 h-8 flex items-center justify-center bg-transparent border-0 text-xs text-text-secondary cursor-pointer hover:bg-surface-100 dark:hover:bg-surface-200 transition-colors" @click.stop="minimizeWindow">─</button>
+        <button class="w-8 h-8 flex items-center justify-center bg-transparent border-0 text-xs text-text-secondary cursor-pointer hover:bg-surface-100 dark:hover:bg-surface-200 transition-colors" @click.stop="toggleMaximize">□</button>
+        <button class="w-8 h-8 flex items-center justify-center bg-transparent border-0 text-xs text-text-secondary cursor-pointer hover:bg-danger-500 hover:text-white transition-colors" @click.stop="closeWindow">×</button>
       </div>
     </div>
 

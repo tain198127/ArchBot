@@ -21,8 +21,8 @@ const emit = defineEmits<{
 <template>
   <label
     :class="[
-      'inline-flex items-center gap-2 text-sm text-text-primary cursor-pointer',
-      disabled && 'opacity-50 cursor-not-allowed',
+      'inline-flex items-center gap-2 text-[13px] text-text-primary cursor-pointer select-none',
+      disabled && 'opacity-40 cursor-not-allowed',
     ]"
   >
     <input
@@ -36,15 +36,15 @@ const emit = defineEmits<{
     />
     <span
       :class="[
-        'inline-flex h-4 w-4 rounded-full border-2 items-center justify-center shrink-0',
+        'inline-flex h-[18px] w-[18px] rounded-full border-2 items-center justify-center shrink-0 transition-all duration-150',
         modelValue === value
           ? 'border-primary-500'
-          : 'border-border-default dark:border-border-light',
+          : 'border-border-default',
       ]"
     >
       <span
         v-if="modelValue === value"
-        class="inline-block h-2 w-2 rounded-full bg-primary-500"
+        class="inline-block h-2 w-2 rounded-full bg-primary-500 transition-transform duration-150 scale-100"
       />
     </span>
     <span v-if="label">{{ label }}</span>

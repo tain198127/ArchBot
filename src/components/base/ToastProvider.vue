@@ -57,11 +57,11 @@ const iconMap: Record<ToastItem['type'], typeof CheckCircle> = {
       v-for="t in toasts"
       :key="t.id"
       :class="[
-        'flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-sm font-medium animate-slide-in',
-        t.type === 'success' && 'bg-green-600 text-white dark:bg-green-700',
-        t.type === 'error' && 'bg-red-600 text-white dark:bg-red-700',
-        t.type === 'info' && 'bg-blue-600 text-white dark:bg-blue-700',
-        t.type === 'warning' && 'bg-yellow-500 text-white dark:bg-yellow-600',
+        'flex items-center gap-2.5 px-4 py-3 rounded-lg shadow-lg text-[13px] font-medium animate-slide-in backdrop-blur-md',
+        t.type === 'success' && 'bg-success-500/95 text-white',
+        t.type === 'error' && 'bg-danger-500/95 text-white',
+        t.type === 'info' && 'bg-primary-500/95 text-white',
+        t.type === 'warning' && 'bg-warning-500/95 text-white',
       ]"
     >
       <component :is="iconMap[t.type]" :size="16" />
@@ -79,26 +79,26 @@ const iconMap: Record<ToastItem['type'], typeof CheckCircle> = {
   <Teleport to="body">
     <div
       v-if="confirmVisible"
-      class="fixed inset-0 z-[9998] flex items-center justify-center bg-black/40"
+      class="fixed inset-0 z-[9998] flex items-center justify-center bg-black/50 backdrop-blur-[2px]"
       @keydown.escape="onConfirm(false)"
     >
       <div
-        class="bg-white dark:bg-surface-100 rounded-lg shadow-xl p-6 max-w-sm w-full mx-4"
+        class="bg-white dark:bg-surface-50 rounded-xl shadow-xl p-5 max-w-sm w-full mx-4 ring-1 ring-border-default/50 animate-scale-in"
         role="alertdialog"
         aria-modal="true"
         :aria-label="confirmTitle"
       >
-        <h3 class="text-base font-semibold text-text-primary">{{ confirmTitle }}</h3>
-        <p class="mt-2 text-sm text-text-secondary">{{ confirmMessage }}</p>
+        <h3 class="text-sm font-semibold text-text-primary">{{ confirmTitle }}</h3>
+        <p class="mt-2 text-[13px] text-text-secondary leading-relaxed">{{ confirmMessage }}</p>
         <div class="mt-4 flex justify-end gap-2">
           <button
-            class="px-4 py-2 text-sm rounded bg-surface-100 dark:bg-surface-200 text-text-primary hover:bg-surface-200 dark:hover:bg-surface-300 focus-visible:ring-2 focus-visible:ring-primary-500"
+            class="px-4 py-1.5 text-[13px] rounded-md bg-surface-100 dark:bg-surface-200 text-text-primary hover:bg-surface-200 dark:hover:bg-surface-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40"
             @click="onConfirm(false)"
           >
             {{ cm.cancel }}
           </button>
           <button
-            class="px-4 py-2 text-sm rounded bg-primary-500 text-white hover:bg-primary-600 focus-visible:ring-2 focus-visible:ring-primary-500"
+            class="px-4 py-1.5 text-[13px] rounded-md bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-700 transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40"
             @click="onConfirm(true)"
           >
             {{ cm.confirm }}

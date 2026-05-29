@@ -15,11 +15,11 @@ const toast = useToast()
 const { settings, saveSettings, resetSettings } = useSettings()
 
 const fontFamilyOptions = [
+  { value: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', label: 'Inter (Default)' },
   { value: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', label: 'System Default' },
-  { value: '"JetBrains Mono", "Fira Code", monospace', label: 'JetBrains Mono' },
-  { value: '"Fira Code", "Cascadia Code", monospace', label: 'Fira Code' },
+  { value: '"JetBrains Mono", monospace', label: 'JetBrains Mono' },
+  { value: '"Fira Code", monospace', label: 'Fira Code' },
   { value: '"Cascadia Code", "Consolas", monospace', label: 'Cascadia Code' },
-  { value: '"Source Code Pro", monospace', label: 'Source Code Pro' },
   { value: '"Microsoft YaHei", "PingFang SC", sans-serif', label: 'Microsoft YaHei' }
 ]
 

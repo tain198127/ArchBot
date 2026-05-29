@@ -6,16 +6,38 @@ use lancedb::query::{ExecutableQuery, QueryBase};
 use serde::Serialize;
 
 static DB: OnceLock<Mutex<Option<Arc<Connection>>>> = OnceLock::new();
+static DB_PATH: OnceLock<Mutex<std::path::PathBuf>> = OnceLock::new();
 
 fn db_cell() -> &'static Mutex<Option<Arc<Connection>>> {
     DB.get_or_init(|| Mutex::new(None))
 }
 
+fn db_path_cell() -> &'static Mutex<std::path::PathBuf> {
+    DB_PATH.get_or_init(|| {
+        let default = dirs::home_dir()
+            .unwrap_or_default()
+            .join(".ArchBot")
+            .join("lancedb");
+        Mutex::new(default)
+    })
+}
+
 fn db_path() -> std::path::PathBuf {
-    dirs::home_dir()
-        .unwrap_or_default()
-        .join(".ArchBot")
-        .join("lancedb")
+    db_path_cell()
+        .lock()
+        .map(|guard| guard.clone())
+        .unwrap_or_else(|_| {
+            dirs::home_dir()
+                .unwrap_or_default()
+                .join(".ArchBot")
+                .join("lancedb")
+        })
+}
+
+fn set_db_path(path: std::path::PathBuf) {
+    if let Ok(mut guard) = db_path_cell().lock() {
+        *guard = path;
+    }
 }
 
 async fn get_conn() -> Result<Arc<Connection>, String> {
@@ -69,6 +91,24 @@ fn validate_table_name(name: &str) -> Result<(), String> {
 }
 
 // ─── Tauri Commands ───────────────────────────────────────────
+
+/// 初始化 LanceDB 连接
+///
+/// 本地路径: `{project_dir}/.archbot/db/lancedb/`
+/// 若传入空字符串则回退到 `~/.ArchBot/lancedb/`。
+#[tauri::command]
+pub async fn lancedb_init(project_path: String) -> Result<(), String> {
+    if !project_path.is_empty() {
+        let ab_path = std::path::Path::new(&project_path);
+        let project_dir = ab_path.parent().unwrap_or(ab_path);
+        let new_path = project_dir.join(".archbot").join("db").join("lancedb");
+        set_db_path(new_path);
+    }
+
+    // Trigger connection to ensure the path works
+    let _ = get_conn().await?;
+    Ok(())
+}
 
 #[tauri::command]
 pub async fn lancedb_list_tables() -> Result<Vec<TableInfo>, String> {

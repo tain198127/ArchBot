@@ -38,6 +38,8 @@ export default {
     memory: '记忆',
     codebase: '代码库',
     git: 'git集成',
+    contextEngineering: '上下文工程',
+    scenario: '项目场景',
     system: '系统配置',
     digitalEmployee: '数字员工',
     businessFlow: '业务流',
@@ -358,6 +360,48 @@ export default {
     defaultDomain: '默认域',
     entityGroup: '实体',
     dictGroup: '字典'
+  },
+  scenario: {
+    greenfield: {
+      name: '从0到1新项目',
+      desc: '全新项目，完整生命周期：需求→设计→开发→测试→部署。多Agent并行协作模式。'
+    },
+    legacy: {
+      name: '老项目改造',
+      desc: '存量系统翻新/迁移/重构。从逆向分析开始，专注于迁移和重构。单Agent深度分析模式。'
+    },
+    product: {
+      name: '产品化二开',
+      desc: '基于现有产品进行二次开发/定制。产品理解优先，上游参考管理。混合协作模式。'
+    },
+    title: '项目场景',
+    selectHint: '选择场景以配置项目工作流',
+    current: '当前',
+    switch: '切换场景',
+    switchConfirm: '切换场景将更改默认配置，您的自定义修改将被保留。',
+    dimension: {
+      digitalEmployees: '数字员工',
+      businessFlow: '业务流程',
+      skills: '技能集',
+      collaborationMode: '协作模式',
+      dirStructure: '目录结构',
+    },
+    modes: {
+      parallel: '并行（多Agent）',
+      sequential: '串行（单Agent深度分析）',
+      hybrid: '混合（串行分析+并行开发）',
+    },
+  },
+  context: {
+    title: '上下文工程',
+    rules: '规则',
+    memory: '记忆',
+    session: '会话',
+    codebase: '代码库',
+    git: 'Git',
+    noData: '暂无条目',
+    linkedAgents: '关联Agent',
+    enabled: '已启用',
   },
   common: {
     cancel: '取消',

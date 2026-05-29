@@ -38,6 +38,8 @@ export default {
     memory: 'Memory',
     codebase: 'Codebase',
     git: 'Git Integration',
+    contextEngineering: 'Context Engineering',
+    scenario: 'Project Scenario',
     system: 'System Settings',
     digitalEmployee: 'Digital Employee',
     businessFlow: 'Business Flow',
@@ -358,6 +360,48 @@ export default {
     defaultDomain: 'Default Domain',
     entityGroup: 'Entities',
     dictGroup: 'Dictionaries'
+  },
+  scenario: {
+    greenfield: {
+      name: 'Greenfield',
+      desc: 'New project from scratch. Full lifecycle: requirements → design → development → testing → deployment. Multi-agent parallel collaboration.'
+    },
+    legacy: {
+      name: 'Legacy Modernization',
+      desc: 'Modernize existing systems. Starts with reverse analysis, focuses on migration and refactoring. Sequential deep-analysis mode.'
+    },
+    product: {
+      name: 'Product Customization',
+      desc: 'Secondary development on existing products. Product understanding first, upstream reference management. Hybrid collaboration mode.'
+    },
+    title: 'Project Scenario',
+    selectHint: 'Select a scenario to configure your project workflow',
+    current: 'Current',
+    switch: 'Switch Scenario',
+    switchConfirm: 'Switching scenario will change default configurations. Your custom modifications will be preserved.',
+    dimension: {
+      digitalEmployees: 'Digital Employees',
+      businessFlow: 'Business Flow',
+      skills: 'Skills',
+      collaborationMode: 'Collaboration Mode',
+      dirStructure: 'Directory Structure',
+    },
+    modes: {
+      parallel: 'Parallel (multi-agent)',
+      sequential: 'Sequential (single agent deep analysis)',
+      hybrid: 'Hybrid (sequential analysis + parallel development)',
+    },
+  },
+  context: {
+    title: 'Context Engineering',
+    rules: 'Rules',
+    memory: 'Memory',
+    session: 'Session',
+    codebase: 'Codebase',
+    git: 'Git',
+    noData: 'No entries yet',
+    linkedAgents: 'Linked Agents',
+    enabled: 'Enabled',
   },
   common: {
     cancel: 'Cancel',

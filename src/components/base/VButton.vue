@@ -21,16 +21,17 @@ defineEmits<{ click: [e: MouseEvent] }>()
 <template>
   <Button
     :class="[
-      'inline-flex items-center justify-center gap-1.5 font-medium rounded transition-colors',
-      'focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 focus-visible:outline-none',
-      'disabled:opacity-50 disabled:cursor-not-allowed',
-      variant === 'primary' && 'bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-600',
-      variant === 'secondary' && 'bg-surface-100 dark:bg-surface-200 text-text-primary hover:bg-surface-200 dark:hover:bg-surface-300',
-      variant === 'danger' && 'bg-danger-500 text-white hover:bg-danger-600',
-      variant === 'ghost' && 'text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-200',
-      size === 'sm' && 'px-2.5 py-1 text-xs',
-      size === 'md' && 'px-4 py-2 text-sm',
-      size === 'lg' && 'px-5 py-2.5 text-base',
+      'inline-flex items-center justify-center gap-1.5 font-medium rounded-md select-none',
+      'transition-all duration-150 ease-out',
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40 focus-visible:ring-offset-1 focus-visible:ring-offset-surface-0',
+      'disabled:opacity-40 disabled:cursor-not-allowed',
+      variant === 'primary' && 'bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-700 shadow-sm hover:shadow-md',
+      variant === 'secondary' && 'bg-surface-100 dark:bg-surface-200 text-text-primary hover:bg-surface-200 dark:hover:bg-surface-300 active:bg-surface-300 border border-border-default',
+      variant === 'danger' && 'bg-danger-500 text-white hover:bg-danger-600 active:opacity-90 shadow-sm',
+      variant === 'ghost' && 'text-text-secondary hover:text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 active:bg-surface-200',
+      size === 'sm' && 'px-2.5 py-1 text-xs rounded-sm',
+      size === 'md' && 'px-4 py-1.5 text-[13px]',
+      size === 'lg' && 'px-5 py-2 text-sm',
     ]"
     :disabled="disabled || loading"
     :type="type"
@@ -38,7 +39,7 @@ defineEmits<{ click: [e: MouseEvent] }>()
   >
     <svg
       v-if="loading"
-      class="animate-spin -ml-0.5 h-4 w-4"
+      class="animate-spin -ml-0.5 h-3.5 w-3.5"
       fill="none"
       viewBox="0 0 24 24"
     >

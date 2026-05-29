@@ -123,17 +123,31 @@ pub(crate) fn split_statements(sql: &str) -> Vec<String> {
 
 /// 初始化数据库并执行迁移
 ///
-/// 自动连接本地 SQLite（路径: `~/.ArchBot/archbot.db`），然后执行 DDL + 种子数据。
+/// 本地 SQLite 路径: `{project_dir}/.archbot/db/archbot.db`
+/// 若传入 `project_path` 为空字符串，则回退到旧路径 `~/.ArchBot/archbot.db`。
+/// 自动创建 `.archbot/db/` 父目录。然后执行 DDL + 种子数据。
 #[tauri::command]
-pub async fn de_init(db_type: String) -> Result<(), String> {
-    // Auto-connect if not already connected
+pub async fn de_init(db_type: String, project_path: String) -> Result<(), String> {
     if db_type == "local" {
-        let db_path = dirs::home_dir()
-            .ok_or("无法获取用户主目录")?
-            .join(".ArchBot")
-            .join("archbot.db");
+        let db_path = if project_path.is_empty() {
+            // Fallback to global path for backward compatibility
+            dirs::home_dir()
+                .ok_or("无法获取用户主目录")?
+                .join(".ArchBot")
+                .join("archbot.db")
+        } else {
+            let ab_path = std::path::Path::new(&project_path);
+            let project_dir = ab_path.parent().unwrap_or(ab_path);
+            project_dir.join(".archbot").join("db").join("archbot.db")
+        };
+
+        // Ensure parent directory exists
+        if let Some(parent) = db_path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("创建数据库目录失败: {e}"))?;
+        }
+
         let db_path_str = db_path.to_string_lossy().to_string();
-        // db_connect is idempotent — calling again just reinitializes WAL mode
         let _ = crate::db::db_connect(db_path_str).await;
     }
     run_migrations(&db_type).await

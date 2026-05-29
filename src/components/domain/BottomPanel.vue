@@ -11,22 +11,26 @@ const tabKeys = ['log', 'terminal', 'analysis'] as const
 
 <template>
   <div class="flex flex-col h-full bg-surface-0 dark:bg-surface-0">
-    <div class="flex items-center h-[30px] bg-surface-100 dark:bg-surface-100 border-b border-border-default shrink-0">
+    <div class="flex items-center h-[32px] bg-surface-50 dark:bg-surface-100 border-b border-border-default shrink-0">
       <div
         v-for="key in tabKeys"
         :key="key"
-        class="px-3.5 h-full flex items-center text-xs cursor-pointer border-r border-border-default transition-colors select-none"
+        class="relative px-3.5 h-full flex items-center text-[12px] cursor-pointer border-r border-border-default transition-colors select-none"
         :class="activeTab === key
-          ? 'bg-surface-0 dark:bg-surface-0 text-text-primary border-b-2 border-primary-500'
-          : 'text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'"
+          ? 'bg-surface-0 dark:bg-surface-0 text-text-primary'
+          : 'text-text-secondary hover:bg-surface-50 dark:hover:bg-surface-50 hover:text-text-primary'"
         @click="activeTab = key"
       >
         {{ (t.bottom as Record<string, string>)[key] }}
+        <span
+          v-if="activeTab === key"
+          class="absolute bottom-0 left-3.5 right-3.5 h-[2px] bg-primary-500 rounded-full"
+        />
       </div>
     </div>
-    <div class="flex-1 overflow-auto">
-      <div class="flex items-center justify-center h-full p-4">
-        <p class="text-sm text-text-muted">
+    <div class="flex-1 overflow-auto bg-surface-0 dark:bg-surface-0">
+      <div class="flex items-center justify-center h-full">
+        <p class="text-[12px] text-text-muted font-mono">
           <template v-if="activeTab === 'log'">{{ t.bottom.logPlaceholder }}</template>
           <template v-else-if="activeTab === 'terminal'">{{ t.bottom.terminalPlaceholder }}</template>
           <template v-else>{{ t.bottom.analysisPlaceholder }}</template>

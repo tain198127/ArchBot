@@ -20,7 +20,7 @@ const { t } = useI18n()
 const toast = useToast()
 const { initSettings, saveSettings } = useSettings()
 const { on } = useMenuAction()
-const { setProject } = useProject()
+const { setProject, closeProject } = useProject()
 
 const newProjectDialogRef = ref<InstanceType<typeof NewProjectDialog> | null>(null)
 const licenseDialogRef = ref<InstanceType<typeof LicenseDialog> | null>(null)
@@ -39,6 +39,7 @@ async function handleOpenProject() {
   try {
     const result = await invoke<{ name: string; content: string }>('open_project', { path: selected })
     setProject({ name: result.name, path: selected as string, content: result.content })
+    await initProjectDir(selected as string)
     toast.success(t.value.openProject.success)
   } catch (e) {
     toast.error(`${t.value.openProject.failed}: ${e}`)
@@ -52,6 +53,24 @@ async function handleProjectCreated(filePath: string, name: string) {
   } catch {
     setProject({ name, path: filePath, content: '' })
   }
+  await initProjectDir(filePath)
+}
+
+async function initProjectDir(projectPath: string) {
+  try {
+    await invoke('init_archbot_dir', { projectPath })
+    await invoke('ensure_gitignore', { projectPath })
+  } catch {
+    // Non-critical: project still usable without .archbot directory
+  }
+}
+
+async function handleCloseProject() {
+  try {
+    await invoke('db_disconnect')
+  } catch { /* ignore */ }
+  closeProject()
+  toast.success('Project closed')
 }
 
 function handleClearCache() {
@@ -68,6 +87,8 @@ onMounted(() => {
       handleOpenProject()
     } else if (action === 'file.register') {
       licenseDialogRef.value?.show()
+    } else if (action === 'file.closeProject') {
+      handleCloseProject()
     } else if (action === 'file.clearCache') {
       handleClearCache()
     }

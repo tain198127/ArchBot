@@ -96,14 +96,18 @@ const collapseButtonDirection = computed(() => props.direction === 'horizontal' 
 
       <div
         v-if="index < initialSizes.length - 1"
-        class="splitter shrink-0 bg-border-default hover:bg-primary-500 transition-colors relative"
-        :class="direction === 'horizontal' ? 'w-px cursor-col-resize' : 'h-px cursor-row-resize'"
+        class="splitter shrink-0 relative group"
+        :class="[
+          direction === 'horizontal' ? 'w-px cursor-col-resize' : 'h-px cursor-row-resize',
+          dragging ? 'bg-primary-500' : 'bg-border-default hover:bg-primary-400',
+          'transition-colors duration-150',
+        ]"
         @mousedown="startDrag(index, $event)"
       >
         <button
           v-if="collapsible[index + 1] && !collapsed[index + 1]"
-          class="collapse-btn absolute z-20 flex items-center justify-center bg-surface-200 dark:bg-surface-200 border border-border-default text-text-secondary text-[10px] rounded hover:bg-primary-500 hover:text-white hover:border-primary-500 transition-all p-0"
-          :class="direction === 'horizontal' ? 'top-1/2 -translate-y-1/2 w-3.5 h-7' : 'left-1/2 -translate-x-1/2 w-7 h-3.5'"
+          class="collapse-btn absolute z-20 flex items-center justify-center bg-surface-100 dark:bg-surface-200 border border-border-default text-text-muted text-[9px] rounded-full hover:bg-primary-500 hover:text-white hover:border-primary-500 transition-all duration-150 shadow-sm opacity-0 group-hover:opacity-100"
+          :class="direction === 'horizontal' ? 'top-1/2 -translate-y-1/2 w-4 h-7' : 'left-1/2 -translate-x-1/2 w-7 h-4'"
           :title="`${t.panel.collapse}${collapseLabels[index + 1] || ''}`"
           @click.stop="collapsePanel(index + 1)"
           @mousedown.stop
@@ -116,14 +120,14 @@ const collapseButtonDirection = computed(() => props.direction === 'horizontal' 
     <div
       v-for="(isCollapsed, idx) in collapsed" :key="`collapsed-${idx}`"
       v-show="isCollapsed"
-      class="collapsed-bar flex items-center justify-center cursor-pointer bg-surface-200 dark:bg-surface-200 border border-border-default transition-colors hover:bg-surface-100 dark:hover:bg-surface-100 hover:border-primary-500 shrink-0"
+      class="collapsed-bar flex items-center justify-center cursor-pointer bg-surface-50 dark:bg-surface-100 border border-border-default transition-all duration-150 hover:border-primary-400 hover:bg-surface-100 dark:hover:bg-surface-200 shrink-0"
       :class="direction === 'horizontal' ? 'w-7 flex-col gap-1 py-2' : 'h-7 flex-row gap-1.5 px-2'"
       @click="expandPanel(idx)"
     >
       <span class="text-sm text-text-secondary">{{ collapseIcons[idx] || '◫' }}</span>
       <span
         v-if="collapseLabels[idx]"
-        class="text-xs text-text-secondary"
+        class="text-[11px] text-text-secondary"
         :class="direction === 'horizontal' ? '[writing-mode:vertical-rl]' : ''"
       >{{ collapseLabels[idx] }}</span>
     </div>

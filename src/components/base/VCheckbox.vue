@@ -12,16 +12,15 @@ defineProps<Props>()
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
 }>()
-
 </script>
 
 <template>
   <label
     :class="[
-      'inline-flex items-center gap-2 text-sm text-text-primary cursor-pointer',
-      disabled && 'opacity-50 cursor-not-allowed',
+      'inline-flex items-center gap-2 text-[13px] text-text-primary cursor-pointer select-none group',
+      disabled && 'opacity-40 cursor-not-allowed',
     ]"
-    @click.prevent="emit('update:modelValue', !modelValue)"
+    @click.prevent="!disabled && emit('update:modelValue', !modelValue)"
   >
     <input
       type="checkbox"
@@ -32,14 +31,16 @@ const emit = defineEmits<{
     />
     <span
       :class="[
-        'inline-flex items-center justify-center h-4 w-4 rounded border shrink-0 transition-colors',
+        'inline-flex items-center justify-center h-[18px] w-[18px] rounded-sm border shrink-0 transition-all duration-150',
         modelValue
-          ? 'bg-primary-500 border-primary-500'
-          : 'border-border-default dark:border-border-light bg-surface-0 dark:bg-surface-50',
+          ? 'bg-primary-500 border-primary-500 shadow-sm shadow-primary-500/20'
+          : 'border-border-default bg-surface-0 dark:bg-surface-100',
         !disabled && 'group-hover:border-primary-400',
       ]"
     >
-      <Check v-if="modelValue" :size="12" class="text-white" />
+      <Transition name="fade">
+        <Check v-if="modelValue" :size="13" class="text-white" stroke-width="3" />
+      </Transition>
     </span>
     <span v-if="label">{{ label }}</span>
     <slot v-else />

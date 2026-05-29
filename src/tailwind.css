@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* ═══════════════════════════════════════════════════════════════
+   ArchBot Design System v2 — Dark-first, tech-forward
+   ═══════════════════════════════════════════════════════════════ */
+
 @layer base {
   html, body, #app {
     width: 100%;
@@ -8,81 +12,242 @@
   }
   :root {
     font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
-    font-size: 14px;
+    font-size: 13px;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
+
+  /* Thin, minimal scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border-default);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
 }
 
+/* ─── Dark mode variant ─────────────────────────────────────── */
 @variant dark (&:where(.dark, .dark *));
+
+/* ═══════════════════════════════════════════════════════════════
+   Design Tokens
+   ═══════════════════════════════════════════════════════════════ */
 
 @theme {
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
-  /* Surface colors */
+  /* ── Surface (slate-cool grays) ── */
   --color-surface-0: #ffffff;
-  --color-surface-50: #f8f9fa;
-  --color-surface-100: #f0f0f0;
-  --color-surface-200: #e0e0e0;
-  --color-surface-300: #c0c0c0;
+  --color-surface-50: #f8f9fb;
+  --color-surface-100: #f1f3f6;
+  --color-surface-200: #e4e7ec;
+  --color-surface-300: #d1d5dc;
 
-  /* Primary accent */
-  --color-primary-400: #5b9bd5;
-  --color-primary-500: #409eff;
-  --color-primary-600: #3a8de6;
+  /* ── Primary (indigo) ── */
+  --color-primary-50: #eef1ff;
+  --color-primary-100: #dce2fe;
+  --color-primary-200: #b9c5fc;
+  --color-primary-300: #8b9ef9;
+  --color-primary-400: #6b7ff5;
+  --color-primary-500: #4f6ef7;
+  --color-primary-600: #3d54e0;
+  --color-primary-700: #2f43c5;
+  --color-primary-800: #29389e;
+  --color-primary-900: #24327d;
+  --color-primary-950: #161d4f;
 
-  /* Danger */
-  --color-danger-400: #f46b6b;
-  --color-danger-500: #e81123;
-  --color-danger-600: #d01020;
+  /* ── Danger ── */
+  --color-danger-50: #fef2f2;
+  --color-danger-100: #fee2e2;
+  --color-danger-400: #f87171;
+  --color-danger-500: #ef4444;
+  --color-danger-600: #dc2626;
 
-  /* Success */
-  --color-success-500: #67c23a;
+  /* ── Success ── */
+  --color-success-50: #f0fdf4;
+  --color-success-100: #dcfce7;
+  --color-success-500: #22c55e;
+  --color-success-600: #16a34a;
 
-  /* Warning */
-  --color-warning-500: #e6a23c;
+  /* ── Warning ── */
+  --color-warning-50: #fffbeb;
+  --color-warning-100: #fef3c7;
+  --color-warning-500: #f59e0b;
+  --color-warning-600: #d97706;
 
-  /* Text */
-  --color-text-primary: #1a1a1a;
-  --color-text-secondary: #666666;
-  --color-text-muted: #999999;
+  /* ── Text ── */
+  --color-text-primary: #1a1c21;
+  --color-text-secondary: #5f6672;
+  --color-text-muted: #949aa5;
 
-  /* Border */
-  --color-border-default: #e0e0e0;
-  --color-border-light: #e8e8e8;
+  /* ── Border ── */
+  --color-border-default: #e1e4e8;
+  --color-border-light: #ebeef2;
 
-  /* Spacing */
+  /* ── Radius ── */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  /* ── Shadow ── */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+  --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.08);
+  --shadow-lg: 0 12px 32px -4px rgb(0 0 0 / 0.12);
+  --shadow-xl: 0 20px 48px -8px rgb(0 0 0 / 0.16);
+
+  /* ── Spacing ── */
   --spacing-panel: 240px;
 }
 
-/* Dark theme overrides */
+/* ═══════════════════════════════════════════════════════════════
+   Dark Theme
+   ═══════════════════════════════════════════════════════════════ */
+
+.dark {
+  --color-surface-0: #0d1117;
+  --color-surface-50: #131820;
+  --color-surface-100: #161c25;
+  --color-surface-200: #1c2330;
+  --color-surface-300: #252d3a;
+
+  --color-primary-50: #141d3d;
+  --color-primary-100: #1a2550;
+  --color-primary-200: #1f2f6b;
+  --color-primary-300: #2c3f8f;
+  --color-primary-400: #4f6ef7;
+  --color-primary-500: #6b84fa;
+  --color-primary-600: #8b9ef9;
+  --color-primary-700: #b9c5fc;
+  --color-primary-800: #dce2fe;
+  --color-primary-900: #eef1ff;
+  --color-primary-950: #f4f5ff;
+
+  --color-danger-50: #1f1215;
+  --color-danger-100: #2d151a;
+  --color-danger-400: #f87171;
+  --color-danger-500: #ef4444;
+  --color-danger-600: #dc2626;
+
+  --color-success-50: #0e1a12;
+  --color-success-100: #142316;
+  --color-success-500: #22c55e;
+  --color-success-600: #16a34a;
+
+  --color-warning-50: #1a160c;
+  --color-warning-100: #241f10;
+  --color-warning-500: #f59e0b;
+  --color-warning-600: #d97706;
+
+  --color-text-primary: #e6eaf0;
+  --color-text-secondary: #8b949e;
+  --color-text-muted: #5d6775;
+
+  --color-border-default: #21262d;
+  --color-border-light: #2a303c;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.2);
+  --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.3);
+  --shadow-lg: 0 12px 32px -4px rgb(0 0 0 / 0.4);
+  --shadow-xl: 0 20px 48px -8px rgb(0 0 0 / 0.5);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Animations
+   ═══════════════════════════════════════════════════════════════ */
+
 @keyframes slide-in {
   from { opacity: 0; transform: translateX(100%); }
   to { opacity: 1; transform: translateX(0); }
 }
 
-.animate-slide-in {
-  animation: slide-in 0.2s ease-out;
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-/* Tree component utilities */
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-slide-in { animation: slide-in 0.25s ease-out; }
+.animate-fade-in { animation: fade-in 0.2s ease-out; }
+.animate-scale-in { animation: scale-in 0.2s ease-out; }
+.animate-slide-up { animation: slide-up 0.2s ease-out; }
+
+/* ── Vue Transition classes ── */
+
+/* Fade */
+.fade-enter-active,
+.fade-leave-active { transition: opacity 0.15s ease; }
+.fade-enter-from,
+.fade-leave-to { opacity: 0; }
+
+/* Menu dropdown */
+.menu-dropdown-enter-active { transition: opacity 0.12s ease, transform 0.12s ease; }
+.menu-dropdown-leave-active { transition: opacity 0.1s ease, transform 0.1s ease; }
+.menu-dropdown-enter-from { opacity: 0; transform: translateY(-4px); }
+.menu-dropdown-leave-to { opacity: 0; transform: translateY(-4px); }
+
+/* Dialog */
+.dialog-enter-active { transition: opacity 0.2s ease; }
+.dialog-enter-active .dialog-panel { transition: transform 0.2s ease, opacity 0.2s ease; }
+.dialog-leave-active { transition: opacity 0.15s ease; }
+.dialog-leave-active .dialog-panel { transition: transform 0.15s ease, opacity 0.15s ease; }
+.dialog-enter-from { opacity: 0; }
+.dialog-enter-from .dialog-panel { transform: scale(0.96); opacity: 0; }
+.dialog-leave-to { opacity: 0; }
+.dialog-leave-to .dialog-panel { transform: scale(0.96); opacity: 0; }
+
+/* ═══════════════════════════════════════════════════════════════
+   Skeleton Loading
+   ═══════════════════════════════════════════════════════════════ */
+
+.skeleton {
+  background: linear-gradient(90deg,
+    var(--color-surface-100) 25%,
+    var(--color-surface-200) 50%,
+    var(--color-surface-100) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-sm);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Component Utilities
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Tree ── */
 .tree-item {
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 5px 12px 5px 8px;
+  padding: 4px 10px 4px 6px;
   cursor: pointer;
   user-select: none;
+  border-radius: var(--radius-sm);
   transition: background-color 0.12s;
+  margin: 0 4px;
 }
-.tree-item:hover {
-  background: var(--color-surface-100);
-}
-.dark .tree-item:hover {
-  background: var(--color-surface-100);
-}
+.tree-item:hover { background: var(--color-surface-100); }
+.dark .tree-item:hover { background: var(--color-surface-100); }
+
 .tree-chevron {
   width: 14px;
   height: 14px;
@@ -91,34 +256,16 @@
   transition: transform 0.15s;
   border-radius: 3px;
 }
-.tree-chevron:hover {
-  background: var(--color-surface-200);
-}
-.dark .tree-chevron:hover {
-  background: var(--color-surface-200);
-}
+.tree-chevron:hover { background: var(--color-surface-200); }
+.dark .tree-chevron:hover { background: var(--color-surface-200); }
+
 .tree-icon {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
 }
 
-.dark {
-  --color-surface-0: #1e1e1e;
-  --color-surface-50: #252525;
-  --color-surface-100: #2b2b2b;
-  --color-surface-200: #333333;
-  --color-surface-300: #3c3c3c;
-
-  --color-text-primary: #cccccc;
-  --color-text-secondary: #999999;
-  --color-text-muted: #666666;
-
-  --color-border-default: #3c3c3c;
-  --color-border-light: #444444;
-}
-
-/* Splitter pseudo-elements — extend clickable drag area beyond the 1px line */
+/* ── Splitter ── */
 .splitter::after {
   content: '';
   position: absolute;
@@ -130,11 +277,11 @@
 .vertical.splitter::after {
   left: 0; right: 0; top: -1px; bottom: -1px; height: 3px;
 }
-.horizontal.collapse-btn { left: -7px; }
-.vertical.collapse-btn { top: -7px; }
+.horizontal.collapse-btn { left: -8px; }
+.vertical.collapse-btn { top: -8px; }
 
-/* Vue <Transition> classes for menu dropdown */
-.menu-dropdown-enter-active,
-.menu-dropdown-leave-active { transition: opacity 0.15s ease; }
-.menu-dropdown-enter-from,
-.menu-dropdown-leave-to { opacity: 0; }
+/* ── Focus ring utility ── */
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-surface-0), 0 0 0 4px var(--color-primary-500);
+}

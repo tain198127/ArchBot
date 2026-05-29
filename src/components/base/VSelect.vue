@@ -24,10 +24,12 @@ const emit = defineEmits<{
   <div class="relative">
     <Select
       :class="[
-        'w-full px-3 py-2 pr-8 text-sm rounded border border-border-default bg-surface-0 text-text-primary',
-        'focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500',
-        'disabled:opacity-50 disabled:cursor-not-allowed',
-        'dark:bg-surface-50 dark:text-text-primary',
+        'w-full pl-3 pr-8 py-1.5 text-[13px] rounded-md border bg-surface-0 text-text-primary',
+        'border-border-default hover:border-primary-300',
+        'transition-all duration-150',
+        'focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20',
+        'disabled:opacity-40 disabled:cursor-not-allowed',
+        'dark:bg-surface-100 dark:text-text-primary',
       ]"
       :id="inputId"
       :model-value="modelValue"
@@ -40,7 +42,7 @@ const emit = defineEmits<{
     />
     <ChevronDown
       :size="14"
-      class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted"
+      class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted transition-transform duration-150"
     />
   </div>
 </template>

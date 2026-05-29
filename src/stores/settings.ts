@@ -21,10 +21,10 @@ export interface AppSettings {
 
 function getDefaults(): AppSettings {
   return {
-    locale: 'zh-CN',
-    fontSize: 14,
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    theme: 'light',
+    locale: 'en-US',
+    fontSize: 13,
+    fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    theme: 'dark',
     aiLanguage: 'auto',
     proxy: {
       enabled: false,

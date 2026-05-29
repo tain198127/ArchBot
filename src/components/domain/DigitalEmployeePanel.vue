@@ -8,9 +8,13 @@ import VTextarea from '../base/VTextarea.vue'
 import VCheckbox from '../base/VCheckbox.vue'
 import { useToast } from '../../composables/useToast'
 import { useI18n } from '../../i18n'
+import { useProject } from '../../stores/project'
+import { useScenario } from '../../composables/useScenario'
 
-const { t } = useI18n()
+const { t, tt } = useI18n()
 const toast = useToast()
+const { currentProject } = useProject()
+const { preset, effectiveDimension } = useScenario()
 const de = computed(() => t.value.digitalEmployee as Record<string, string>)
 
 const DB_TYPE = 'local'
@@ -47,6 +51,14 @@ const transferModeOptions = [
   { value: 'delegate', label: '委托' },
 ]
 
+const scenarioRoles = computed<string[]>(() => {
+  return effectiveDimension.value?.digitalEmployees || []
+})
+
+function isScenarioRole(code: string): boolean {
+  return scenarioRoles.value.includes(code)
+}
+
 const filteredEmployees = computed(() => {
   const q = searchText.value.toLowerCase()
   if (!q) return employees.value
@@ -71,7 +83,7 @@ function toJsonArray(arr: string[]): string {
 async function loadEmployees() {
   loading.value = true
   try {
-    await invoke('de_init', { dbType: DB_TYPE })
+    await invoke('de_init', { dbType: DB_TYPE, projectPath: currentProject.value?.path || '' })
     employees.value = await invoke<any[]>('de_list', { dbType: DB_TYPE })
   } catch (e) {
     toast.error(String(e))
@@ -203,6 +215,14 @@ onMounted(async () => { await loadEmployees(); await loadLookups() })
   <div class="flex flex-col h-full bg-surface-50 dark:bg-surface-50 p-4 overflow-y-auto">
     <!-- List View -->
     <template v-if="editMode === 'list'">
+      <!-- Scenario info bar -->
+      <div v-if="preset" class="flex items-center gap-2 mb-3 px-3 py-2 bg-primary-50 dark:bg-primary-950 border border-primary-200 dark:border-primary-800 rounded-lg text-xs">
+        <span class="font-medium text-primary-600">{{ t.scenario.title }}: {{ preset ? tt(preset.nameKey) : '' }}</span>
+        <span class="text-text-muted">|</span>
+        <span class="text-text-secondary">{{ t.scenario.dimension.digitalEmployees }}:</span>
+        <span v-for="role in scenarioRoles" :key="role" class="px-1.5 py-0.5 bg-primary-100 dark:bg-primary-900 text-primary-700 rounded font-mono">{{ role }}</span>
+        <span v-if="scenarioRoles.length === 0" class="text-text-muted">—</span>
+      </div>
       <div class="flex gap-2 mb-3 items-center">
         <div class="flex-1 max-w-[240px]">
           <VInput v-model="searchText" :placeholder="de.searchPlaceholder || '查找员工...'" />
@@ -230,8 +250,14 @@ onMounted(async () => { await loadEmployees(); await loadLookups() })
             @dblclick="handleRowClick(row)"
           >
             <td class="px-3 py-2 border-b border-border-default">{{ idx + 1 }}</td>
-            <td class="px-3 py-2 border-b border-border-default text-primary-500 cursor-pointer" @click="handleRowClick(row)">{{ row.name }}</td>
-            <td class="px-3 py-2 border-b border-border-default">{{ row.code }}</td>
+            <td class="px-3 py-2 border-b border-border-default text-primary-500 cursor-pointer" @click="handleRowClick(row)">
+              {{ row.name }}
+              <span v-if="isScenarioRole(row.code)" class="ml-1 text-[10px] text-success-500" title="Scenario recommended">&#9679;</span>
+            </td>
+            <td class="px-3 py-2 border-b border-border-default">
+              {{ row.code }}
+              <span v-if="isScenarioRole(row.code)" class="ml-1 px-1 py-0.5 text-[10px] bg-success-100 dark:bg-success-900 text-success-700 rounded">scenario</span>
+            </td>
             <td class="px-3 py-2 border-b border-border-default">{{ parseJsonArray(row.personality_tags).join('·') }}</td>
             <td class="px-3 py-2 border-b border-border-default">{{ row.is_builtin ? (de.builtin || '内置') : (de.custom || '自定义') }}</td>
             <td class="px-3 py-2 border-b border-border-default">{{ parseJsonArray(row.focus_areas).join('+') }}</td>
