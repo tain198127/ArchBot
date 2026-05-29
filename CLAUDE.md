@@ -4,6 +4,7 @@
 
 - **i18n-sync** (`.claude/skills/i18n-sync.md`) — All UI text must use the i18n system. When modifying any `.vue` or UI config file, always update both `src/i18n/zh-CN.ts` and `src/i18n/en-US.ts`. No hardcoded user-visible strings allowed.
 - **prd-sync** (`.claude/skills/prd-sync.md`) — When adding/removing/changing product-level features (menu items, panels, config options, modes), update `prd.yml` to match. Bug fixes, refactoring, and style tweaks do NOT require updates.
+- **function-map-sync** (`function-map.yml`) — When modifying code, check `function-map.yml` first. If aligned, proceed. If deviation is reasonable, update function-map.yml alongside the code. If unreasonable, raise concern with alternatives.
 - **function-comments** (`.claude/skills/function-comments.md`) — When creating/modifying functions, sync comments. Functions > 20 lines or complexity > 5 (McCabe) MUST have comments. Use `node .claude/scripts/check-complexity.cjs <file>` to check.
 
 ## Tech Stack

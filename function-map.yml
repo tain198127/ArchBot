@@ -1,0 +1,1615 @@
+# ============================================================================
+# 功能地图 (Function Map) — ArchBot 需求模块
+# ============================================================================
+#
+# 格式说明:
+#   - 节点层级: panel → group → item，以缩进表达父子关系
+#   - 每个节点可挂 actions（右键菜单项），每个 action 定义 target、数据流转
+#   - @xxx 为交叉引用 ID，可跨文件 grep 追溯
+#   - 数据上下文 (data_contexts) 定义共享数据结构，action 通过 @ctx.xxx 引用
+#   - 底部 transitions 表为全部跳转的扁平汇总，方便评审时逐条检查
+#
+# 阅读顺序:
+#   1. 先看 tree 了解整体层级
+#   2. 再看 data_contexts 了解数据结构
+#   3. 展开具体 action 看 target + carry
+#   4. 最后看 transitions 表做全局核对
+# ============================================================================
+
+function_map:
+  meta:
+    schema: "function-map-v1"
+    module: "requirements"
+    description: "需求模块功能地图 — 面板树 + 右键操作 + 页面跳转 + 数据流转"
+    updated: "2026-05-29"
+
+# ============================================================================
+# 数据上下文 — 功能间传递的数据结构定义
+# ============================================================================
+data_contexts:
+
+  ctx.project:
+    description: "项目基础信息，贯穿全部上下文"
+    fields:
+      - { name: project_id,    type: string,  desc: "项目唯一标识" }
+      - { name: project_name,  type: string,  desc: "项目名称" }
+      - { name: project_path,  type: string,  desc: "项目文件路径" }
+      - { name: version,       type: string,  desc: "当前版本号" }
+
+  # ── L1 业务上下文交付物 ──
+  ctx.business_objectives:
+    description: "业务目标与范围文档"
+    fields:
+      - { name: doc_id,       type: string,  desc: "文档ID" }
+      - { name: kpis,         type: list,    desc: "量化KPI列表 [{name,formula,baseline,target,deadline}]" }
+      - { name: vision,       type: string,  desc: "愿景描述" }
+      - { name: scope_moscow, type: map,     desc: "MoSCoW 矩阵 {must:[],should:[],could:[],wont:[]}" }
+      - { name: seal_status,  type: enum,    desc: "封板状态: draft|reviewed|sealed" }
+
+  ctx.stakeholder_register:
+    description: "干系人登记册与角色权限矩阵"
+    fields:
+      - { name: doc_id,         type: string, desc: "文档ID" }
+      - { name: stakeholders,   type: list,   desc: "[{name,role,power,interest,strategy,contact}]" }
+      - { name: role_crud,      type: map,    desc: "角色×资源×操作 CRUD 矩阵" }
+      - { name: data_perm,      type: map,    desc: "数据权限维度定义" }
+      - { name: seal_status,    type: enum,   desc: "封板状态" }
+
+  ctx.business_process:
+    description: "业务流程图 (BPMN)"
+    fields:
+      - { name: doc_id,        type: string, desc: "文档ID" }
+      - { name: bpmn_xml,      type: string, desc: "BPMN 2.0 XML" }
+      - { name: as_is_nodes,   type: list,   desc: "AS-IS 节点 [{id,activity,role,duration,wait_time}]" }
+      - { name: to_be_nodes,   type: list,   desc: "TO-BE 节点 [{id,activity,role,duration,improvement}]" }
+      - { name: seal_status,   type: enum,   desc: "封板状态" }
+
+  ctx.business_rules:
+    description: "业务规则目录"
+    derived_from:
+      - { source: ctx.business_process, type: generates, rule: "流程决策网关(BPMN Gateway)→约束/计算/决策规则，每个 Gateway 分支条件→一条 BR" }
+    fields:
+      - { name: doc_id,        type: string, desc: "文档ID" }
+      - { name: rules,         type: list,   desc: "[{id:BR-xxx,type:constraint|calc|decision,desc,condition,action,source,priority}]" }
+      - { name: seal_status,   type: enum,   desc: "封板状态" }
+
+  # ── L1 用户故事交付物 ──
+  ctx.story_map:
+    description: "用户故事地图"
+    derived_from:
+      - { source: ctx.business_process, type: generates, rule: "TO-BE流程节点(活动)→用户活动骨架→Story，1个流程节点→N个Story" }
+      - { source: ctx.business_rules,   type: constrains, rule: "BR决策规则→Story验收标准(AC)的Given-When-Then条件" }
+    fields:
+      - { name: doc_id,        type: string, desc: "文档ID" }
+      - { name: activities,    type: list,   desc: "用户活动骨架 [{name,steps:[]}]" }
+      - { name: stories,       type: list,   desc: "[{id:US-xxx,title,as_a,want,so_that,activity,priority,story_points}]" }
+      - { name: mvp_slice,     type: string, desc: "MVP 切片边界标注" }
+      - { name: seal_status,   type: enum,   desc: "封板状态" }
+
+  ctx.backlog:
+    description: "迭代待办列表"
+    fields:
+      - { name: doc_id,        type: string, desc: "文档ID" }
+      - { name: epics,         type: list,   desc: "[{id:EP-xxx,name,goal,stories:[@US-xxx]}]" }
+      - { name: sprints,       type: list,   desc: "[{name,goal,stories:[@US-xxx],start_date,end_date}]" }
+      - { name: seal_status,   type: enum,   desc: "封板状态" }
+
+  # ── 字段规范 (可复用 schema，data_model.entities[].columns[] 和 data_dictionary.fields[] 共用) ──
+  schemas.column_spec:
+    description: "字段级完整规格 —— 所有字段定义的基准模板"
+    fields:
+      - { name: name_cn,         type: string,  desc: "字段中文名" }
+      - { name: name_en,         type: string,  desc: "字段英文名 (snake_case)" }
+      - { name: data_format,     type: enum,    desc: "数据格式: text|integer|decimal|date|datetime|time|timestamp|phone|email|password|url|uuid|json|binary|boolean" }
+      - { name: precision,       type: map,     desc: "精度子字段 {date_precision:year|month|day, time_precision:hour|minute|second|millisecond, integer_digits:N, decimal_digits:N, max_length:N} —— 按 data_format 选填相关项" }
+      - { name: is_unique,       type: boolean, desc: "是否唯一" }
+      - { name: value_range,     type: map,     desc: "值域 {min_value, max_value, start_time, end_time, enum_ref: @codelist_code}" }
+      - { name: default_value,   type: string,  desc: "默认值 (字面量或表达式如 CURRENT_TIMESTAMP)" }
+      - { name: nullable,        type: boolean, desc: "是否可空" }
+      - { name: is_pk,           type: boolean, desc: "是否主键" }
+      - { name: is_fk,           type: boolean, desc: "是否外键" }
+      - { name: fk_reference,    type: string,  desc: "外键引用 entity.column (仅 is_fk=true)" }
+      - { name: encryption,      type: map,     desc: "加密策略 {transit:none|TLS|mTLS, storage:none|AES256|SM4|custom}" }
+      - { name: desensitization, type: map,     desc: "脱敏策略 {enabled:bool, rule:mask_prefix|mask_suffix|mask_middle|hash|replace, pattern:'保留前3后4中间*'}" }
+      - { name: charset,         type: enum,    desc: "字符集: UTF8|UTF8MB4|GBK|LATIN1|ASCII (仅文本类字段)" }
+      - { name: timezone,        type: string,  desc: "时区策略: UTC|Asia/Shanghai|local|none (仅时间类字段)" }
+      - { name: currency_unit,   type: enum,    desc: "货币单位: CNY|USD|EUR|JPY|none (仅金额类字段)" }
+      - { name: display_widget,  type: enum,    desc: "默认控件: textbox|textarea|dropdown|datepicker|datetimepicker|switch|search_selector|list_selector|number|password|phone|email|file_upload|rich_text" }
+
+  # ── L2 数据标准交付物 ──
+  ctx.data_model:
+    description: "数据模型（概念/逻辑/物理统一），每张表=一个实体，每列=一个字段规格"
+    derived_from:
+      - { source: ctx.business_process, type: generates, rule: "流程节点中的业务名词→候选实体，泳道角色→实体Owner" }
+      - { source: ctx.business_rules,   type: constrains, rule: "BR约束规则→字段值域/唯一性/默认值" }
+    fields:
+      - { name: doc_id,        type: string, desc: "文档ID" }
+      - { name: entities,      type: list,   desc: "[{name_cn, name_en, definition, table_name, columns:[@schemas.column_spec], indexes:[{name,columns,type:unique|normal|fulltext}], partitions:[{type,key,count}]}]" }
+      - { name: relationships, type: list,   desc: "[{from_entity, from_column, to_entity, to_column, type:1:1|1:N|M:N, on_delete:RESTRICT|CASCADE|SET_NULL}]" }
+      - { name: physical_ddl,  type: string, desc: "物理 DDL 脚本 (由 entities+relationships 编译生成)" }
+      - { name: seal_status,   type: enum,   desc: "封板状态" }
+
+  ctx.data_dictionary:
+    description: "数据字典 —— 全系统字段级标准定义，字段定义遵循 @schemas.column_spec"
+    fields:
+      - { name: doc_id,        type: string, desc: "文档ID" }
+      - { name: fields,        type: list,   desc: "[@schemas.column_spec + {entity_name, field_order, business_meaning, source_system}]" }
+      - { name: codelists,     type: list,   desc: "码表 [{code, name, values:[{key, value, status:active|deprecated, description}]}]" }
+      - { name: seal_status,   type: enum,   desc: "封板状态" }
+
+  ctx.data_flow:
+    description: "数据流向与血缘"
+    fields:
+      - { name: doc_id,        type: string, desc: "文档ID" }
+      - { name: flows,         type: list,   desc: "[{id,from_sys,to_sys,content,protocol,freq,volume,pii}]" }
+      - { name: lineages,      type: list,   desc: "[{target_field,source_sys,source_field,transform,owner}]" }
+      - { name: seal_status,   type: enum,   desc: "封板状态" }
+
+  ctx.data_classification:
+    description: "数据分类分级"
+    fields:
+      - { name: doc_id,        type: string, desc: "文档ID" }
+      - { name: classifications, type: list, desc: "[{field,cia_level,grade,compliance_tag,mask_rule,retention,owner}]" }
+      - { name: seal_status,   type: enum,   desc: "封板状态" }
+
+  # ── L3 功能定义交付物 ──
+  ctx.function_tree:
+    description: "系统功能树"
+    derived_from:
+      - { source: ctx.story_map,       type: generates,  rule: "Story→功能节点，角色权限矩阵→菜单可见性，1个Story→1个或多个按钮操作点" }
+      - { source: ctx.business_process, type: references, rule: "流程泳道角色→功能节点触发角色" }
+    fields:
+      - { name: doc_id,        type: string, desc: "文档ID" }
+      - { name: nodes,         type: list,   desc: "[{id:SYS-SUB-MOD-MENU-BTN,parent_id,name,crud,role,precondition}]" }
+      - { name: seal_status,   type: enum,   desc: "封板状态" }
+
+  ctx.prototype:
+    description: "界面原型（HTML组件树）"
+    derived_from:
+      - { source: ctx.function_tree, type: generates, rule: "功能树菜单节点→原型页面，按钮操作点→页面内组件，1个菜单→1个页面路由" }
+      - { source: ctx.story_map,     type: references, rule: "Story验收标准→页面交互规格(组件状态矩阵)" }
+    fields:
+      - { name: doc_id,        type: string, desc: "文档ID" }
+      - { name: pages,         type: list,   desc: "[{route,title,components:[{id,type,states,props,events}]}]" }
+      - { name: design_tokens, type: map,    desc: "{colors:[],fonts:[],spacing:[]}" }
+      - { name: html_bundle,   type: string, desc: "可独立预览的 HTML 包路径" }
+      - { name: seal_status,   type: enum,   desc: "封板状态" }
+
+  ctx.api_contract:
+    description: "接口契约 (OpenAPI)"
+    derived_from:
+      - { source: ctx.data_model,    type: generates,   rule: "实体→REST资源，attributes→请求/响应字段，relationships→嵌套/关联资源" }
+      - { source: ctx.function_tree, type: generates,   rule: "功能节点CRUD类型→HTTP方法(GET/POST/PUT/DELETE)" }
+      - { source: ctx.business_rules, type: constrains, rule: "BR约束/计算规则→API业务校验逻辑和错误码" }
+    fields:
+      - { name: doc_id,        type: string, desc: "文档ID" }
+      - { name: openapi_spec,  type: string, desc: "OpenAPI 3.0 YAML/JSON" }
+      - { name: endpoints,     type: list,   desc: "[{id,method,path,auth,ratelimit,req_schema,resp_schema,errors}]" }
+      - { name: seal_status,   type: enum,   desc: "封板状态" }
+
+  ctx.integration:
+    description: "集成关系与外部接口"
+    derived_from:
+      - { source: ctx.data_flow,     type: refines,  rule: "数据流向图中的系统间数据传递点→集成拓扑图的边" }
+      - { source: ctx.api_contract,  type: refines,  rule: "内部API→对外暴露接口需经防腐层适配(外部接口定义)" }
+    fields:
+      - { name: doc_id,        type: string, desc: "文档ID" }
+      - { name: topology,      type: map,    desc: "系统间调用拓扑 {nodes:[],edges:[]}" }
+      - { name: sequences,     type: list,   desc: "关键场景时序图 [{name,mermaid}]" }
+      - { name: external_apis, type: list,   desc: "[{id,third_party,protocol,adaptor,error_handling}]" }
+      - { name: seal_status,   type: enum,   desc: "封板状态" }
+
+  ctx.functional_rules:
+    description: "功能规则（联动/校验/状态机）"
+    derived_from:
+      - { source: ctx.business_rules, type: references, rule: "BR规则编号(BR-xxx)→FR规则中ref_br字段引用，不做重复定义" }
+      - { source: ctx.prototype,      type: refines,    rule: "原型组件状态矩阵→状态机states/transitions，BR约束→UI校验规则" }
+    fields:
+      - { name: doc_id,        type: string, desc: "文档ID" }
+      - { name: rules,         type: list,   desc: "[{id:FR-xxx,ref_br:BR-xxx,page,trigger,action,type:linkage|validation|state}]" }
+      - { name: state_machines, type: list,  desc: "[{entity,states:[],transitions:[{from,to,trigger,guard}]}]" }
+      - { name: seal_status,   type: enum,   desc: "封板状态" }
+
+  # ── L4 质量属性交付物 ──
+  ctx.performance:
+    description: "性能需求指标"
+    derived_from:
+      - { source: ctx.function_tree,     type: generates,  rule: "高频功能节点→压测场景，并发用户数→TPS目标" }
+      - { source: ctx.data_model,        type: constrains, rule: "实体数据量级估算→查询性能基线，大表→索引和分区策略" }
+    fields:
+      - { name: doc_id,        type: string, desc: "文档ID" }
+      - { name: metrics,       type: list,   desc: "[{scenario,metric,p50,p95,p99,concurrency,target_date}]" }
+      - { name: seal_status,   type: enum,   desc: "封板状态" }
+
+  ctx.security:
+    description: "安全需求与合规"
+    derived_from:
+      - { source: ctx.data_classification, type: constrains, rule: "数据分级→安全控制级别，PII字段→加密/脱敏强度要求" }
+      - { source: ctx.integration,         type: constrains, rule: "外部接口→STRIDE威胁建模输入，集成链路→认证链路审查" }
+    fields:
+      - { name: doc_id,        type: string, desc: "文档ID" }
+      - { name: stride_model,  type: map,    desc: "STRIDE 威胁模型 {spoofing:[],tampering:[],repudiation:[],disclosure:[],dos:[],elevation:[]}" }
+      - { name: compliance_map, type: list,  desc: "[{regulation,clause,requirement,control,owner,deadline}]" }
+      - { name: audit_log_spec, type: map,   desc: "审计日志规范" }
+      - { name: seal_status,   type: enum,   desc: "封板状态" }
+
+  ctx.availability:
+    description: "可用性 SLA 与扩展方案"
+    derived_from:
+      - { source: ctx.business_objectives, type: constrains, rule: "业务KPI→停机成本→SLA等级(99.9/99.99/99.999)，业务重要性→子系统分级" }
+      - { source: ctx.function_tree,       type: constrains, rule: "功能依赖链→可用性依赖链，关键功能→优先保障" }
+    fields:
+      - { name: doc_id,        type: string, desc: "文档ID" }
+      - { name: sla_matrix,    type: list,   desc: "[{subsystem,sla,rto,rpo,degradation,circuit_breaker}]" }
+      - { name: scale_plan,    type: map,    desc: "扩展方案 {services:[{name,current,max,trigger,cooldown}]}" }
+      - { name: seal_status,   type: enum,   desc: "封板状态" }
+
+  ctx.migration:
+    description: "迁移与运维方案"
+    derived_from:
+      - { source: ctx.data_model, type: generates, rule: "新旧数据模型差异→迁移步骤，实体关系→数据迁移顺序(先主表后从表)" }
+      - { source: ctx.availability, type: constrains, rule: "RTO/RPO→迁移窗口和回滚时间约束" }
+    fields:
+      - { name: doc_id,        type: string, desc: "文档ID" }
+      - { name: phases,        type: list,   desc: "[{phase,timeline,action,owner,risk,rollback,verification}]" }
+      - { name: deploy_topology, type: map,  desc: "部署拓扑 {nodes:[],networks:[],volumes:[]}" }
+      - { name: runbooks,      type: list,   desc: "[{alert,level,trigger,channel,sla,runbook}]" }
+      - { name: seal_status,   type: enum,   desc: "封板状态" }
+
+  # ── 跨面板产物 ──
+  ctx.analysis_report:
+    description: "数字员工分析报告（通用）"
+    fields:
+      - { name: report_id,     type: string, desc: "报告ID" }
+      - { name: target_doc,    type: string, desc: "被分析的交付物 @doc_id" }
+      - { name: findings,      type: list,   desc: "[{severity,title,detail,suggestion}]" }
+      - { name: employee,      type: string, desc: "执行的数字员工名称" }
+
+  ctx.review_report:
+    description: "数字员工评审报告（通用）"
+    fields:
+      - { name: report_id,     type: string, desc: "报告ID" }
+      - { name: target_doc,    type: string, desc: "被评审的交付物 @doc_id" }
+      - { name: checklist,     type: list,   desc: "[{item,pass,comment}]" }
+      - { name: score,         type: int,    desc: "评分 0-100" }
+
+  ctx.brainstorm_session:
+    description: "头脑风暴会话"
+    fields:
+      - { name: session_id,    type: string, desc: "会话ID" }
+      - { name: topic,         type: string, desc: "讨论主题" }
+      - { name: participants,  type: list,   desc: "参与的数字员工 [{name,role}]" }
+      - { name: transcript,    type: list,   desc: "[{speaker,timestamp,message,artifacts}]" }
+      - { name: conclusion,    type: string, desc: "主席汇总结论" }
+
+  ctx.srs_document:
+    description: "需求规格说明书（最终产出物）"
+    fields:
+      - { name: doc_id,        type: string, desc: "文档ID" }
+      - { name: sections,      type: list,   desc: "章节 [{title,source_docs:[@ctx.xxx]}]" }
+      - { name: traceability,  type: map,    desc: "追溯矩阵" }
+      - { name: format,        type: enum,   desc: "输出格式: word|pdf|markdown" }
+      - { name: seal_status,   type: enum,   desc: "封板状态" }
+
+  ctx.prototype_bundle:
+    description: "原型 HTML 包（最终产出物）"
+    fields:
+      - { name: bundle_id,     type: string, desc: "包ID" }
+      - { name: pages,         type: list,   desc: "[{route,html_file,title}]" }
+      - { name: assets,        type: list,   desc: "静态资源清单" }
+      - { name: index_html,    type: string, desc: "入口文件路径" }
+
+# ============================================================================
+# 外部系统 / 文件格式
+# ============================================================================
+external_sources:
+  bpmn_file:    { desc: "BPMN 2.0 XML 文件",          ext: ".bpmn" }
+  excel_file:   { desc: "Excel 工作簿",               ext: ".xlsx" }
+  ddl_file:     { desc: "SQL DDL 建表语句文件",        ext: ".sql" }
+  database:     { desc: "数据库连接 (JDBC URL + 凭证)", ext: null }
+  java_code:    { desc: "Java Mapper/Entity 源码目录", ext: ".java" }
+  openapi_file: { desc: "OpenAPI 3.0 规范文件",        ext: ".yaml/.json" }
+  figma_file:   { desc: "Figma 标注链接",              ext: null }
+  html_file:    { desc: "HTML 原型文件",               ext: ".html" }
+  sla_template: { desc: "企业 SLA 模板文件",            ext: ".xlsx/.yaml" }
+  word_file:    { desc: "Word 需求文档",               ext: ".docx" }
+
+# ============================================================================
+# 目标页面 / 编辑器
+# ============================================================================
+targets:
+  editor.business_objectives: { desc: "业务目标与范围编辑器",     type: editor }
+  editor.stakeholder:         { desc: "干系人与角色编辑器",       type: editor }
+  editor.bpmn:                { desc: "BPMN 流程编辑器",         type: editor }
+  editor.business_rules:      { desc: "业务规则决策表编辑器",     type: editor }
+  editor.story_map:           { desc: "故事地图编辑器",           type: editor }
+  editor.backlog:             { desc: "迭代待办看板",             type: editor }
+  editor.data_model:          { desc: "数据模型编辑器 (ER图+DDL)", type: editor }
+  editor.data_dictionary:     { desc: "数据字典编辑器",           type: editor }
+  editor.data_flow:           { desc: "数据流向与血缘编辑器",     type: editor }
+  editor.data_classification: { desc: "数据分级编辑器",           type: editor }
+  editor.function_tree:       { desc: "系统功能树编辑器",         type: editor }
+  editor.prototype:           { desc: "界面原型设计器",           type: editor }
+  editor.api_contract:        { desc: "接口契约编辑器 (OpenAPI)", type: editor }
+  editor.integration:         { desc: "集成关系拓扑编辑器",       type: editor }
+  editor.functional_rules:    { desc: "功能规则编辑器",           type: editor }
+  editor.performance:         { desc: "性能需求指标编辑器",       type: editor }
+  editor.security:            { desc: "安全需求编辑器",           type: editor }
+  editor.availability:        { desc: "可用性与扩展编辑器",       type: editor }
+  editor.migration:           { desc: "迁移与运维方案编辑器",     type: editor }
+  view.brainstorm:            { desc: "头脑风暴会话视图",         type: view }
+  view.prototype_preview:     { desc: "原型 HTML 浏览器预览",     type: view }
+  view.analysis_report:       { desc: "分析报告视图",             type: view }
+  view.review_report:         { desc: "评审报告视图",             type: view }
+  view.srs_preview:           { desc: "需求规格说明书预览",       type: view }
+
+# ============================================================================
+# 功能树 — 面板层级 + 每个节点的右键操作 + 跳转目标 + 数据流转
+# ============================================================================
+tree:
+
+  # ──────────────────────────────────────────────
+  # 顶层: 需求
+  # ──────────────────────────────────────────────
+  panel.req.root:
+    label: "需求"
+    label_en: "Requirements"
+    type: category
+    icon: folder
+    children: [group.req.business, group.req.stories, group.req.data, group.req.functional, group.req.quality]
+    actions:
+      - id: act.req.brainstorm
+        label: "头脑风暴"
+        category: collaborate
+        employee: multi
+        trigger: right_click
+        target: "@target:view.brainstorm"
+        input:  ["@ctx.project", "@ctx.business_objectives", "@ctx.stakeholder_register"]
+        carry:  ["project_id", "session_topic=需求方向探索", "context_docs=[业务目标,干系人]"]
+        output: ["@ctx.brainstorm_session"]
+        desc: "多数字员工围绕需求方向展开头脑风暴，主席汇总结论"
+
+      - id: act.req.generate_srs
+        label: "生成需求规格说明书"
+        category: generate
+        employee: solo
+        trigger: right_click
+        target: "@target:view.srs_preview"
+        input:  ["@ctx.project", "全部已封板交付物 (5组)"]
+        carry:  ["project_id", "source_docs=all_sealed"]
+        output: ["@ctx.srs_document"]
+        desc: "汇总全部5组交付物，编译为完整需求规格说明书"
+
+      - id: act.req.export_html_bundle
+        label: "导出原型 HTML"
+        category: export
+        employee: none
+        trigger: right_click
+        target: null  # 文件系统保存对话框
+        input:  ["@ctx.prototype"]
+        carry:  ["project_id", "html_bundle_path"]
+        output: ["@ctx.prototype_bundle"]
+        desc: "将功能定义-界面原型编译为可独立运行的 HTML 包"
+
+      - id: act.req.seal_all
+        label: "全部封板"
+        category: seal
+        employee: none
+        trigger: right_click
+        target: null  # 确认对话框
+        input:  ["@ctx.project", "全部5组交付物"]
+        carry:  ["project_id"]
+        output: ["全部交付物 seal_status → sealed", "版本基线快照"]
+        desc: "锁定全部5组需求基线，生成版本快照"
+
+      - id: act.req.import_project
+        label: "导入项目需求"
+        category: import
+        employee: solo
+        trigger: right_click
+        target: null  # 文件选择对话框
+        input:  ["@external:word_file"]
+        carry:  ["project_id", "parsed_sections"]
+        output: ["分发到各 ctx 交付物"]
+        desc: "从 Word/Markdown 整体导入，数字员工解析后分发到5组"
+
+      - id: act.req.export_package
+        label: "导出需求包"
+        category: export
+        employee: none
+        trigger: right_click
+        target: null  # 文件系统保存对话框
+        input:  ["全部 ctx 交付物"]
+        carry:  ["project_id"]
+        output: ["需求包 (zip/tar)"]
+        desc: "全部交付物及其附件打包导出"
+
+  # ──────────────────────────────────────────────
+  # 分组1: 业务上下文
+  # ──────────────────────────────────────────────
+  group.req.business:
+    label: "业务上下文"
+    label_en: "Business Context"
+    type: group
+    icon: briefcase
+    parent: panel.req.root
+    children:
+      - item.req.biz.goals          # 业务目标与范围
+      - item.req.biz.stakeholders   # 干系人与角色
+      - item.req.biz.process        # 业务流程
+      - item.req.biz.rules          # 业务规则
+    actions:
+
+      # ── 分析 ──
+      - id: act.biz.analyze_goals
+        label: "分析目标合理性"
+        category: analyze
+        employee: solo
+        trigger: right_click
+        target: "@target:view.analysis_report"
+        input:  ["@ctx.business_objectives", "@ctx.project"]
+        carry:  ["project_id", "target_doc=business_objectives", "analysis_type=feasibility"]
+        output: ["@ctx.analysis_report {findings:[KPI可达性,市场对照,基线合理性]}"]
+
+      - id: act.biz.analyze_stakeholders
+        label: "分析干系人覆盖度"
+        category: analyze
+        employee: solo
+        trigger: right_click
+        target: "@target:view.analysis_report"
+        input:  ["@ctx.stakeholder_register", "@ctx.project"]
+        carry:  ["project_id", "target_doc=stakeholder_register", "analysis_type=coverage"]
+        output: ["@ctx.analysis_report {findings:[遗漏干系人,影响力评估偏差,参与策略不当]}"]
+
+      - id: act.biz.analyze_process_bottleneck
+        label: "分析流程瓶颈"
+        category: analyze
+        employee: solo
+        trigger: right_click
+        target: "@target:view.analysis_report"
+        input:  ["@ctx.business_process"]
+        carry:  ["project_id", "target_doc=business_process", "analysis_type=bottleneck"]
+        output: ["@ctx.analysis_report {findings:[等待节点,返工节点,耗时异常]}"]
+
+      # ── 评审 ──
+      - id: act.biz.review_rules_consistency
+        label: "评审业务规则一致性"
+        category: review
+        employee: solo
+        trigger: right_click
+        target: "@target:view.review_report"
+        input:  ["@ctx.business_rules"]
+        carry:  ["project_id", "target_doc=business_rules", "check=consistency"]
+        output: ["@ctx.review_report {checklist:[冲突检测,冗余检测,完整性]}"]
+
+      - id: act.biz.review_scope
+        label: "评审范围边界"
+        category: review
+        employee: solo
+        trigger: right_click
+        target: "@target:view.review_report"
+        input:  ["@ctx.business_objectives"]
+        carry:  ["project_id", "target_doc=business_objectives.scope_moscow", "check=scope"]
+        output: ["@ctx.review_report {checklist:[MoSCoW合理性,边界遗漏,过度范围]}"]
+
+      # ── 编写 ──
+      - id: act.biz.write_goals
+        label: "编写业务目标与范围"
+        category: write
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.business_objectives"
+        input:  ["@ctx.project", "@ctx.business_objectives(可空)"]
+        carry:  ["project_id", "doc_id", "mode=generate"]
+        output: ["@ctx.business_objectives (填充: kpis,vision,scope_moscow)"]
+
+      - id: act.biz.write_stakeholders
+        label: "编写干系人与角色"
+        category: write
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.stakeholder"
+        input:  ["@ctx.project", "@ctx.stakeholder_register(可空)", "@ctx.business_process(可选)"]
+        carry:  ["project_id", "doc_id", "mode=generate"]
+        output: ["@ctx.stakeholder_register (填充: stakeholders,role_crud,data_perm)"]
+
+      - id: act.biz.write_process
+        label: "编写业务流程"
+        category: write
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.bpmn"
+        input:  ["@ctx.project", "@ctx.business_process(可空)", "@ctx.business_objectives(可选)"]
+        carry:  ["project_id", "doc_id", "mode=generate"]
+        output: ["@ctx.business_process (填充: bpmn_xml,to_be_nodes)"]
+
+      - id: act.biz.write_rules
+        label: "编写业务规则"
+        category: write
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.business_rules"
+        input:  ["@ctx.project", "@ctx.business_rules(可空)", "@ctx.business_process"]
+        carry:  ["project_id", "doc_id", "mode=generate", "source_process=@business_process"]
+        output: ["@ctx.business_rules (填充: rules 从流程决策点提取)"]
+
+      # ── 协作 ──
+      - id: act.biz.brainstorm
+        label: "头脑风暴"
+        category: collaborate
+        employee: multi
+        trigger: right_click
+        target: "@target:view.brainstorm"
+        input:  ["@ctx.project", "@ctx.business_objectives", "@ctx.stakeholder_register"]
+        carry:  ["project_id", "session_topic=业务方向讨论", "context_docs=[业务目标,干系人]"]
+        output: ["@ctx.brainstorm_session"]
+        desc: "多数字员工围绕业务目标和干系人展开讨论"
+
+      # ── 封板 ──
+      - id: act.biz.seal
+        label: "封板"
+        category: seal
+        employee: none
+        trigger: right_click
+        target: null  # 确认对话框
+        input:  ["@ctx.business_objectives", "@ctx.stakeholder_register", "@ctx.business_process", "@ctx.business_rules"]
+        carry:  ["project_id", "group=business_context"]
+        output: ["业务上下文全部4项 seal_status → sealed"]
+
+      # ── 导入 ──
+      - id: act.biz.import_bpmn
+        label: "从 BPMN 导入"
+        category: import
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.bpmn"
+        input:  ["@external:bpmn_file"]
+        carry:  ["project_id", "parsed_bpmn_xml"]
+        output: ["@ctx.business_process (bpmn_xml填充)"]
+
+      - id: act.biz.import_stakeholders
+        label: "从 Excel 导入干系人"
+        category: import
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.stakeholder"
+        input:  ["@external:excel_file"]
+        carry:  ["project_id", "parsed_rows"]
+        output: ["@ctx.stakeholder_register (stakeholders填充)"]
+
+      # ── 导出 ──
+      - id: act.biz.export_doc
+        label: "导出业务文档"
+        category: export
+        employee: none
+        trigger: right_click
+        target: null
+        input:  ["@ctx.business_objectives", "@ctx.stakeholder_register", "@ctx.business_rules"]
+        carry:  ["project_id"]
+        output: ["Word/PDF 业务文档"]
+
+      - id: act.biz.export_bpmn
+        label: "导出流程图"
+        category: export
+        employee: none
+        trigger: right_click
+        target: null
+        input:  ["@ctx.business_process"]
+        carry:  ["project_id"]
+        output: ["BPMN XML / SVG"]
+
+  # ──────────────────────────────────────────────
+  # 分组2: 用户故事
+  # ──────────────────────────────────────────────
+  group.req.stories:
+    label: "用户故事"
+    label_en: "User Stories"
+    type: group
+    icon: book
+    parent: panel.req.root
+    children:
+      - item.req.stories.map       # 故事地图
+      - item.req.stories.epics     # 史诗列表
+      - item.req.stories.backlog   # 迭代待办
+    actions:
+
+      # ── 分析 ──
+      - id: act.story.analyze_coverage
+        label: "分析故事覆盖度"
+        category: analyze
+        employee: solo
+        trigger: right_click
+        target: "@target:view.analysis_report"
+        input:  ["@ctx.story_map", "@ctx.business_process"]
+        carry:  ["project_id", "target_doc=story_map", "ref=business_process"]
+        output: ["@ctx.analysis_report {findings:[未覆盖的流程节点,过度覆盖,故事粒度不均]}"]
+
+      - id: act.story.analyze_dependencies
+        label: "分析依赖关系"
+        category: analyze
+        employee: solo
+        trigger: right_click
+        target: "@target:view.analysis_report"
+        input:  ["@ctx.backlog"]
+        carry:  ["project_id", "target_doc=backlog", "analysis_type=dependency"]
+        output: ["@ctx.analysis_report {findings:[阻塞链,循环依赖,关键路径]}"]
+
+      - id: act.story.analyze_priority
+        label: "分析优先级合理性"
+        category: analyze
+        employee: solo
+        trigger: right_click
+        target: "@target:view.analysis_report"
+        input:  ["@ctx.backlog", "@ctx.business_objectives"]
+        carry:  ["project_id", "target_doc=backlog", "ref=business_objectives.kpis"]
+        output: ["@ctx.analysis_report {findings:[优先级与业务目标对齐度]}"]
+
+      # ── 评审 ──
+      - id: act.story.review_invest
+        label: "评审 INVEST 合规"
+        category: review
+        employee: solo
+        trigger: right_click
+        target: "@target:view.review_report"
+        input:  ["@ctx.story_map"]
+        carry:  ["project_id", "target_doc=story_map", "check=INVEST"]
+        output: ["@ctx.review_report {checklist:[Independent,Negotiable,Valuable,Estimable,Small,Testable]}"]
+
+      - id: act.story.review_ac
+        label: "评审验收标准完整性"
+        category: review
+        employee: solo
+        trigger: right_click
+        target: "@target:view.review_report"
+        input:  ["@ctx.story_map", "@ctx.business_rules"]
+        carry:  ["project_id", "target_doc=story_map", "check=acceptance_criteria"]
+        output: ["@ctx.review_report {checklist:[HappyPath覆盖,异常路径覆盖,边界条件]}"]
+
+      # ── 编写 ──
+      - id: act.story.write_stories
+        label: "编写用户故事"
+        category: write
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.story_map"
+        input:  ["@ctx.project", "@ctx.business_process", "@ctx.business_rules"]
+        carry:  ["project_id", "source=@business_process", "mode=generate"]
+        output: ["@ctx.story_map (stories 从流程节点生成)"]
+
+      - id: act.story.write_ac
+        label: "编写验收标准"
+        category: write
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.story_map"
+        input:  ["@ctx.story_map", "@ctx.business_rules"]
+        carry:  ["project_id", "target_story=selected", "mode=generate_ac"]
+        output: ["@ctx.story_map (stories[].acceptance_criteria 填充 Given-When-Then)"]
+
+      - id: act.story.split_epic
+        label: "拆分史诗"
+        category: write
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.backlog"
+        input:  ["@ctx.backlog", "@ctx.story_map"]
+        carry:  ["project_id", "target_epic=selected", "mode=split"]
+        output: ["@ctx.backlog (epics[].stories 展开)"]
+
+      # ── 封板 ──
+      - id: act.story.seal
+        label: "封板"
+        category: seal
+        employee: none
+        trigger: right_click
+        target: null
+        input:  ["@ctx.story_map", "@ctx.backlog"]
+        carry:  ["project_id", "group=user_stories"]
+        output: ["用户故事全部3项 seal_status → sealed"]
+
+      # ── 导入 ──
+      - id: act.story.import_excel
+        label: "从 Excel 导入"
+        category: import
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.backlog"
+        input:  ["@external:excel_file"]
+        carry:  ["project_id", "parsed_rows"]
+        output: ["@ctx.backlog (epics,sprints 填充)"]
+
+      # ── 导出 ──
+      - id: act.story.export_map
+        label: "导出 Story Map"
+        category: export
+        employee: none
+        trigger: right_click
+        target: null
+        input:  ["@ctx.story_map"]
+        carry:  ["project_id"]
+        output: ["图片/PDF"]
+
+      - id: act.story.export_backlog
+        label: "导出 Backlog"
+        category: export
+        employee: none
+        trigger: right_click
+        target: null
+        input:  ["@ctx.backlog"]
+        carry:  ["project_id"]
+        output: ["Excel/CSV"]
+
+  # ──────────────────────────────────────────────
+  # 分组3: 数据标准
+  # ──────────────────────────────────────────────
+  group.req.data:
+    label: "数据标准"
+    label_en: "Data Standard"
+    type: group
+    icon: database
+    parent: panel.req.root
+    children:
+      - item.req.data.model          # 数据模型
+      - item.req.data.dictionary     # 数据字典
+      - item.req.data.flow           # 数据流向与血缘
+      - item.req.data.classification # 数据分类分级
+    actions:
+
+      # ── 分析 ──
+      - id: act.data.analyze_normal_form
+        label: "分析范式合规"
+        category: analyze
+        employee: solo
+        trigger: right_click
+        target: "@target:view.analysis_report"
+        input:  ["@ctx.data_model"]
+        carry:  ["project_id", "target_doc=data_model", "analysis_type=normal_form"]
+        output: ["@ctx.analysis_report {findings:[范式违规点,反范式化建议]}"]
+
+      - id: act.data.analyze_field_redundancy
+        label: "分析字段冗余"
+        category: analyze
+        employee: solo
+        trigger: right_click
+        target: "@target:view.analysis_report"
+        input:  ["@ctx.data_model", "@ctx.data_dictionary"]
+        carry:  ["project_id", "target_doc=data_model+data_dictionary", "analysis_type=redundancy"]
+        output: ["@ctx.analysis_report {findings:[同义不同名字段,重复存储,可合并实体]}"]
+
+      - id: act.data.analyze_index
+        label: "分析索引合理性"
+        category: analyze
+        employee: solo
+        trigger: right_click
+        target: "@target:view.analysis_report"
+        input:  ["@ctx.data_model"]
+        carry:  ["project_id", "target_doc=data_model.physical_ddl", "analysis_type=index"]
+        output: ["@ctx.analysis_report {findings:[缺失索引,冗余索引,索引选择性评估]}"]
+
+      # ── 评审 ──
+      - id: act.data.review_naming
+        label: "评审命名规范"
+        category: review
+        employee: solo
+        trigger: right_click
+        target: "@target:view.review_report"
+        input:  ["@ctx.data_model", "@ctx.data_dictionary"]
+        carry:  ["project_id", "target_doc=data_model+data_dictionary", "check=naming_convention"]
+        output: ["@ctx.review_report {checklist:[表命名,字段命名,索引命名,约束命名]}"]
+
+      - id: act.data.review_dictionary
+        label: "评审数据字典完整性"
+        category: review
+        employee: solo
+        trigger: right_click
+        target: "@target:view.review_report"
+        input:  ["@ctx.data_dictionary", "@ctx.data_model"]
+        carry:  ["project_id", "target_doc=data_dictionary", "check=completeness"]
+        output: ["@ctx.review_report {checklist:[未定义枚举,缺失码表,字段描述缺失]}"]
+
+      # ── 编写 ──
+      - id: act.data.write_model
+        label: "从描述生成模型"
+        category: write
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.data_model"
+        input:  ["@ctx.project", "@ctx.business_process", "@ctx.business_rules"]
+        carry:  ["project_id", "source=@business_process+@business_rules", "mode=generate"]
+        output: ["@ctx.data_model (entities,relationships 从业务描述生成)"]
+
+      - id: act.data.write_dictionary
+        label: "编写数据字典"
+        category: write
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.data_dictionary"
+        input:  ["@ctx.project", "@ctx.data_model"]
+        carry:  ["project_id", "source=@data_model", "mode=generate"]
+        output: ["@ctx.data_dictionary (fields 从模型属性生成)"]
+
+      - id: act.data.write_classification
+        label: "编写数据分级"
+        category: write
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.data_classification"
+        input:  ["@ctx.project", "@ctx.data_dictionary"]
+        carry:  ["project_id", "source=@data_dictionary", "mode=generate"]
+        output: ["@ctx.data_classification (classifications 从字段类型推荐)"]
+
+      # ── 逆向（数据标准专属）──
+      - id: act.data.reverse_ddl
+        label: "从 DDL 逆向"
+        category: reverse
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.data_model"
+        input:  ["@external:ddl_file"]
+        carry:  ["project_id", "parsed_ddl", "mode=reverse"]
+        output: ["@ctx.data_model (entities,relationships,physical_ddl 从DDL解析)"]
+
+      - id: act.data.reverse_db
+        label: "从数据库逆向"
+        category: reverse
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.data_model"
+        input:  ["@external:database"]
+        carry:  ["project_id", "db_schema", "mode=reverse"]
+        output: ["@ctx.data_model (完整模型从数据库反向工程)"]
+
+      - id: act.data.reverse_code
+        label: "从代码逆向"
+        category: reverse
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.data_model"
+        input:  ["@external:java_code"]
+        carry:  ["project_id", "parsed_entities", "mode=reverse"]
+        output: ["@ctx.data_model (entities,relationships 从 Mapper/Entity 提取)"]
+        desc: "解析 Java Mapper (MyBatis XML / JPA Entity / MyBatis-Plus) → 提取表结构和字段映射"
+
+      # ── 封板 ──
+      - id: act.data.seal
+        label: "封板"
+        category: seal
+        employee: none
+        trigger: right_click
+        target: null
+        input:  ["@ctx.data_model", "@ctx.data_dictionary", "@ctx.data_flow", "@ctx.data_classification"]
+        carry:  ["project_id", "group=data_standard"]
+        output: ["数据标准全部4项 seal_status → sealed"]
+
+      # ── 导入 ──
+      - id: act.data.import_ddl
+        label: "导入 DDL 文件"
+        category: import
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.data_model"
+        input:  ["@external:ddl_file"]
+        carry:  ["project_id", "parsed_ddl"]
+        output: ["@ctx.data_model (physical_ddl 填充)"]
+
+      # ── 导出 ──
+      - id: act.data.export_ddl
+        label: "生成 DDL"
+        category: export
+        employee: solo
+        trigger: right_click
+        target: null
+        input:  ["@ctx.data_model"]
+        carry:  ["project_id"]
+        output: ["DDL SQL 文件 (CREATE TABLE/INDEX/PARTITION)"]
+
+      - id: act.data.export_dictionary
+        label: "导出数据字典"
+        category: export
+        employee: none
+        trigger: right_click
+        target: null
+        input:  ["@ctx.data_dictionary"]
+        carry:  ["project_id"]
+        output: ["Excel/Markdown 数据字典文档"]
+
+      - id: act.data.export_er
+        label: "导出 ER 图"
+        category: export
+        employee: none
+        trigger: right_click
+        target: null
+        input:  ["@ctx.data_model"]
+        carry:  ["project_id"]
+        output: ["SVG/PNG ER 图"]
+
+      - id: act.data.export_classification
+        label: "导出数据分级报告"
+        category: export
+        employee: none
+        trigger: right_click
+        target: null
+        input:  ["@ctx.data_classification"]
+        carry:  ["project_id"]
+        output: ["PDF 数据分级报告"]
+
+  # ──────────────────────────────────────────────
+  # 分组4: 功能定义
+  # ──────────────────────────────────────────────
+  group.req.functional:
+    label: "功能定义"
+    label_en: "Functional Spec"
+    type: group
+    icon: layout
+    parent: panel.req.root
+    children:
+      - item.req.func.tree         # 系统功能树
+      - item.req.func.prototype    # 界面原型
+      - item.req.func.api          # 接口契约
+      - item.req.func.integration  # 集成关系
+    actions:
+
+      # ── 分析 ──
+      - id: act.func.analyze_coverage
+        label: "分析功能覆盖率"
+        category: analyze
+        employee: solo
+        trigger: right_click
+        target: "@target:view.analysis_report"
+        input:  ["@ctx.function_tree", "@ctx.story_map"]
+        carry:  ["project_id", "target_doc=function_tree", "ref=story_map"]
+        output: ["@ctx.analysis_report {findings:[未覆盖Story,无Story对应的功能,粒度偏差]}"]
+
+      - id: act.func.analyze_api_consistency
+        label: "分析接口一致性"
+        category: analyze
+        employee: solo
+        trigger: right_click
+        target: "@target:view.analysis_report"
+        input:  ["@ctx.api_contract", "@ctx.data_dictionary"]
+        carry:  ["project_id", "target_doc=api_contract", "ref=data_dictionary"]
+        output: ["@ctx.analysis_report {findings:[字段名不一致,类型不匹配,缺失字段]}"]
+
+      - id: act.func.analyze_coupling
+        label: "分析集成耦合度"
+        category: analyze
+        employee: solo
+        trigger: right_click
+        target: "@target:view.analysis_report"
+        input:  ["@ctx.integration"]
+        carry:  ["project_id", "target_doc=integration", "analysis_type=coupling"]
+        output: ["@ctx.analysis_report {findings:[循环依赖,过长调用链,SPOF]}"]
+
+      # ── 评审 ──
+      - id: act.func.review_api
+        label: "评审接口契约"
+        category: review
+        employee: solo
+        trigger: right_click
+        target: "@target:view.review_report"
+        input:  ["@ctx.api_contract"]
+        carry:  ["project_id", "target_doc=api_contract", "check=RESTful"]
+        output: ["@ctx.review_report {checklist:[命名规范,状态码使用,版本策略,错误处理]}"]
+
+      - id: act.func.review_rules_conflict
+        label: "评审功能规则冲突"
+        category: review
+        employee: solo
+        trigger: right_click
+        target: "@target:view.review_report"
+        input:  ["@ctx.functional_rules"]
+        carry:  ["project_id", "target_doc=functional_rules", "check=conflict"]
+        output: ["@ctx.review_report {checklist:[联动死循环,状态机死锁,校验规则矛盾]}"]
+
+      - id: act.func.review_ui_compliance
+        label: "评审 UI 规范合规"
+        category: review
+        employee: solo
+        trigger: right_click
+        target: "@target:view.review_report"
+        input:  ["@ctx.prototype"]
+        carry:  ["project_id", "target_doc=prototype", "check=design_system"]
+        output: ["@ctx.review_report {checklist:[颜色Token,字体层级,间距系统,WCAG对比度]}"]
+
+      # ── 编写 ──
+      - id: act.func.write_function_tree
+        label: "编写系统功能树"
+        category: write
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.function_tree"
+        input:  ["@ctx.project", "@ctx.story_map", "@ctx.business_process"]
+        carry:  ["project_id", "source=@story_map+@business_process", "mode=generate"]
+        output: ["@ctx.function_tree (nodes 从Story Map+流程生成)"]
+
+      - id: act.func.write_api
+        label: "编写接口契约"
+        category: write
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.api_contract"
+        input:  ["@ctx.project", "@ctx.data_model", "@ctx.function_tree"]
+        carry:  ["project_id", "source=@data_model+@function_tree", "mode=generate"]
+        output: ["@ctx.api_contract (endpoints 从数据模型+功能树生成CRUD API)"]
+
+      - id: act.func.generate_prototype
+        label: "生成原型页面"
+        category: write
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.prototype"
+        input:  ["@ctx.project", "@ctx.function_tree", "@ctx.story_map"]
+        carry:  ["project_id", "source=@function_tree+@story_map", "mode=generate_html"]
+        output: ["@ctx.prototype (pages,components,html_bundle 从功能描述生成)"]
+
+      - id: act.func.write_rules
+        label: "编写功能规则"
+        category: write
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.functional_rules"
+        input:  ["@ctx.project", "@ctx.business_rules", "@ctx.prototype"]
+        carry:  ["project_id", "source=@business_rules+@prototype", "mode=generate"]
+        output: ["@ctx.functional_rules (rules 引用业务规则并UI化,state_machines从流程状态提取)"]
+
+      # ── 预览（功能定义专属）──
+      - id: act.func.preview_prototype
+        label: "预览原型"
+        category: preview
+        employee: none
+        trigger: right_click
+        target: "@target:view.prototype_preview"
+        input:  ["@ctx.prototype"]
+        carry:  ["project_id", "html_bundle_path", "page=current_or_index"]
+        output: []  # 纯预览，不产生新数据
+
+      # ── 封板 ──
+      - id: act.func.seal
+        label: "封板"
+        category: seal
+        employee: none
+        trigger: right_click
+        target: null
+        input:  ["@ctx.function_tree", "@ctx.prototype", "@ctx.api_contract", "@ctx.integration"]
+        carry:  ["project_id", "group=functional_spec"]
+        output: ["功能定义全部4项 seal_status → sealed"]
+
+      # ── 导入 ──
+      - id: act.func.import_openapi
+        label: "导入 OpenAPI"
+        category: import
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.api_contract"
+        input:  ["@external:openapi_file"]
+        carry:  ["project_id", "parsed_openapi_spec"]
+        output: ["@ctx.api_contract (openapi_spec,endpoints 填充)"]
+
+      - id: act.func.import_figma
+        label: "导入 Figma"
+        category: import
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.prototype"
+        input:  ["@external:figma_file"]
+        carry:  ["project_id", "figma_link", "mode=import"]
+        output: ["@ctx.prototype (pages,design_tokens 从Figma标注提取)"]
+
+      - id: act.func.import_html
+        label: "导入 HTML"
+        category: import
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.prototype"
+        input:  ["@external:html_file"]
+        carry:  ["project_id", "parsed_html", "mode=import"]
+        output: ["@ctx.prototype (pages,components 从HTML DOM解析)"]
+
+      # ── 导出 ──
+      - id: act.func.export_api_doc
+        label: "导出接口文档"
+        category: export
+        employee: none
+        trigger: right_click
+        target: null
+        input:  ["@ctx.api_contract"]
+        carry:  ["project_id"]
+        output: ["OpenAPI YAML/JSON / Swagger HTML"]
+
+      - id: act.func.export_prototype_html
+        label: "导出原型 HTML"
+        category: export
+        employee: none
+        trigger: right_click
+        target: null
+        input:  ["@ctx.prototype"]
+        carry:  ["project_id"]
+        output: ["可独立运行的 HTML 原型包 (zip)"]
+
+      - id: act.func.export_function_tree
+        label: "导出功能树"
+        category: export
+        employee: none
+        trigger: right_click
+        target: null
+        input:  ["@ctx.function_tree"]
+        carry:  ["project_id"]
+        output: ["思维导图/Excel"]
+
+  # ──────────────────────────────────────────────
+  # 分组5: 质量属性
+  # ──────────────────────────────────────────────
+  group.req.quality:
+    label: "质量属性"
+    label_en: "Quality Attributes"
+    type: group
+    icon: shield
+    parent: panel.req.root
+    children:
+      - item.req.quality.performance  # 性能指标
+      - item.req.quality.security     # 安全需求
+      - item.req.quality.availability # 可用性与扩展
+      - item.req.quality.migration    # 迁移与运维
+    actions:
+
+      # ── 分析 ──
+      - id: act.qual.analyze_performance_risk
+        label: "分析性能瓶颈风险"
+        category: analyze
+        employee: solo
+        trigger: right_click
+        target: "@target:view.analysis_report"
+        input:  ["@ctx.performance", "@ctx.function_tree", "@ctx.data_model"]
+        carry:  ["project_id", "target_doc=performance", "ref=function_tree+data_model"]
+        output: ["@ctx.analysis_report {findings:[高负载场景,大表查询,未优化API]}"]
+
+      - id: act.qual.analyze_threat_model
+        label: "威胁建模分析"
+        category: analyze
+        employee: solo
+        trigger: right_click
+        target: "@target:view.analysis_report"
+        input:  ["@ctx.security", "@ctx.integration", "@ctx.data_classification"]
+        carry:  ["project_id", "target_doc=security", "method=STRIDE"]
+        output: ["@ctx.analysis_report {findings:[STRIDE六类威胁场景]}"]
+
+      - id: act.qual.analyze_spof
+        label: "分析单点故障"
+        category: analyze
+        employee: solo
+        trigger: right_click
+        target: "@target:view.analysis_report"
+        input:  ["@ctx.availability", "@ctx.integration"]
+        carry:  ["project_id", "target_doc=availability", "analysis_type=spof"]
+        output: ["@ctx.analysis_report {findings:[SPOF节点,级联故障风险]}"]
+
+      # ── 评审 ──
+      - id: act.qual.review_sla
+        label: "评审 SLA 合理性"
+        category: review
+        employee: solo
+        trigger: right_click
+        target: "@target:view.review_report"
+        input:  ["@ctx.availability", "@ctx.business_objectives"]
+        carry:  ["project_id", "target_doc=availability", "ref=business_objectives"]
+        output: ["@ctx.review_report {checklist:[SLA与业务损失匹配度,RTO/RPO可达性]}"]
+
+      - id: act.qual.review_security
+        label: "评审安全措施充分性"
+        category: review
+        employee: solo
+        trigger: right_click
+        target: "@target:view.review_report"
+        input:  ["@ctx.security", "@ctx.data_classification"]
+        carry:  ["project_id", "target_doc=security", "check=OWASP_Top10"]
+        output: ["@ctx.review_report {checklist:[OWASP Top10逐项检查,加密强度,认证健壮性]}"]
+
+      - id: act.qual.review_migration
+        label: "评审迁移方案"
+        category: review
+        employee: solo
+        trigger: right_click
+        target: "@target:view.review_report"
+        input:  ["@ctx.migration"]
+        carry:  ["project_id", "target_doc=migration", "check=completeness"]
+        output: ["@ctx.review_report {checklist:[回滚方案完整性,数据校验覆盖,并行期一致性]}"]
+
+      # ── 编写 ──
+      - id: act.qual.write_performance
+        label: "编写性能指标"
+        category: write
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.performance"
+        input:  ["@ctx.project", "@ctx.function_tree", "@ctx.data_model"]
+        carry:  ["project_id", "source=@function_tree+@data_model", "mode=generate"]
+        output: ["@ctx.performance (metrics 从功能+数据预估生成)"]
+
+      - id: act.qual.write_security
+        label: "编写安全需求"
+        category: write
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.security"
+        input:  ["@ctx.project", "@ctx.data_classification", "@ctx.integration"]
+        carry:  ["project_id", "source=@data_classification+@integration", "mode=generate"]
+        output: ["@ctx.security (stride_model,compliance_map 从数据分级+集成拓扑生成)"]
+
+      - id: act.qual.write_sla
+        label: "编写可用性 SLA"
+        category: write
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.availability"
+        input:  ["@ctx.project", "@ctx.business_objectives", "@ctx.function_tree"]
+        carry:  ["project_id", "source=@business_objectives+@function_tree", "mode=generate"]
+        output: ["@ctx.availability (sla_matrix 从业务重要性分级生成)"]
+
+      - id: act.qual.write_migration
+        label: "编写迁移方案"
+        category: write
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.migration"
+        input:  ["@ctx.project", "@ctx.data_model"]
+        carry:  ["project_id", "source=@data_model", "mode=generate"]
+        output: ["@ctx.migration (phases,runbooks 从数据模型差异生成)"]
+
+      # ── 封板 ──
+      - id: act.qual.seal
+        label: "封板"
+        category: seal
+        employee: none
+        trigger: right_click
+        target: null
+        input:  ["@ctx.performance", "@ctx.security", "@ctx.availability", "@ctx.migration"]
+        carry:  ["project_id", "group=quality_attributes"]
+        output: ["质量属性全部4项 seal_status → sealed"]
+
+      # ── 导入 ──
+      - id: act.qual.import_sla_template
+        label: "导入 SLA 模板"
+        category: import
+        employee: solo
+        trigger: right_click
+        target: "@target:editor.availability"
+        input:  ["@external:sla_template"]
+        carry:  ["project_id", "parsed_template"]
+        output: ["@ctx.availability (sla_matrix 从模板填充)"]
+
+      # ── 导出 ──
+      - id: act.qual.export_tech_spec
+        label: "导出技术规格"
+        category: export
+        employee: none
+        trigger: right_click
+        target: null
+        input:  ["@ctx.performance", "@ctx.security", "@ctx.availability", "@ctx.migration"]
+        carry:  ["project_id"]
+        output: ["PDF 技术需求文档"]
+
+      - id: act.qual.export_security_checklist
+        label: "导出安全审计清单"
+        category: export
+        employee: none
+        trigger: right_click
+        target: null
+        input:  ["@ctx.security"]
+        carry:  ["project_id"]
+        output: ["Excel 安全审计清单"]
+
+# ============================================================================
+# 跳转汇总表 — 全部 action → target 扁平列表，方便逐条评审
+# ============================================================================
+transitions_summary:
+
+  # 格式: { from: action_id, to: target_id, carry: [关键上下文], employee: solo|multi|none }
+
+  # ── 顶层 ──
+  - { from: act.req.brainstorm,              to: view.brainstorm,          carry: [project_id, topic, context_docs],         employee: multi }
+  - { from: act.req.generate_srs,            to: view.srs_preview,        carry: [project_id, all_sealed_docs],             employee: solo }
+  - { from: act.req.export_html_bundle,      to: null,                    carry: [project_id, html_bundle_path],            employee: none }
+  - { from: act.req.seal_all,                to: null,                    carry: [project_id],                              employee: none }
+  - { from: act.req.import_project,          to: null,                    carry: [project_id, parsed_sections],             employee: solo }
+  - { from: act.req.export_package,          to: null,                    carry: [project_id],                              employee: none }
+
+  # ── 业务上下文 ──
+  - { from: act.biz.analyze_goals,           to: view.analysis_report,    carry: [target=business_objectives],              employee: solo }
+  - { from: act.biz.analyze_stakeholders,    to: view.analysis_report,    carry: [target=stakeholder_register],             employee: solo }
+  - { from: act.biz.analyze_process_bottleneck, to: view.analysis_report, carry: [target=business_process],                  employee: solo }
+  - { from: act.biz.review_rules_consistency, to: view.review_report,     carry: [target=business_rules],                   employee: solo }
+  - { from: act.biz.review_scope,            to: view.review_report,      carry: [target=scope_moscow],                     employee: solo }
+  - { from: act.biz.write_goals,             to: editor.business_objectives, carry: [project_id, mode=generate],            employee: solo }
+  - { from: act.biz.write_stakeholders,      to: editor.stakeholder,      carry: [project_id, mode=generate],               employee: solo }
+  - { from: act.biz.write_process,           to: editor.bpmn,             carry: [project_id, mode=generate],               employee: solo }
+  - { from: act.biz.write_rules,             to: editor.business_rules,   carry: [project_id, mode=generate, source_process], employee: solo }
+  - { from: act.biz.brainstorm,              to: view.brainstorm,         carry: [project_id, topic=业务方向],               employee: multi }
+  - { from: act.biz.seal,                    to: null,                    carry: [project_id, group=business_context],      employee: none }
+  - { from: act.biz.import_bpmn,             to: editor.bpmn,             carry: [project_id, parsed_bpmn_xml],             employee: solo }
+  - { from: act.biz.import_stakeholders,     to: editor.stakeholder,      carry: [project_id, parsed_rows],                 employee: solo }
+  - { from: act.biz.export_doc,              to: null,                    carry: [project_id],                              employee: none }
+  - { from: act.biz.export_bpmn,             to: null,                    carry: [project_id],                              employee: none }
+
+  # ── 用户故事 ──
+  - { from: act.story.analyze_coverage,      to: view.analysis_report,    carry: [target=story_map, ref=business_process],  employee: solo }
+  - { from: act.story.analyze_dependencies,  to: view.analysis_report,    carry: [target=backlog],                          employee: solo }
+  - { from: act.story.analyze_priority,      to: view.analysis_report,    carry: [target=backlog, ref=business_objectives], employee: solo }
+  - { from: act.story.review_invest,         to: view.review_report,      carry: [target=story_map, check=INVEST],          employee: solo }
+  - { from: act.story.review_ac,             to: view.review_report,      carry: [target=story_map, check=AC],              employee: solo }
+  - { from: act.story.write_stories,         to: editor.story_map,        carry: [project_id, mode=generate],               employee: solo }
+  - { from: act.story.write_ac,              to: editor.story_map,        carry: [project_id, target_story, mode=generate_ac], employee: solo }
+  - { from: act.story.split_epic,            to: editor.backlog,          carry: [project_id, target_epic, mode=split],     employee: solo }
+  - { from: act.story.seal,                  to: null,                    carry: [project_id, group=user_stories],          employee: none }
+  - { from: act.story.import_excel,          to: editor.backlog,          carry: [project_id, parsed_rows],                 employee: solo }
+  - { from: act.story.export_map,            to: null,                    carry: [project_id],                              employee: none }
+  - { from: act.story.export_backlog,        to: null,                    carry: [project_id],                              employee: none }
+
+  # ── 数据标准 ──
+  - { from: act.data.analyze_normal_form,    to: view.analysis_report,    carry: [target=data_model],                       employee: solo }
+  - { from: act.data.analyze_field_redundancy, to: view.analysis_report,  carry: [target=data_model+data_dictionary],       employee: solo }
+  - { from: act.data.analyze_index,          to: view.analysis_report,    carry: [target=data_model.physical_ddl],          employee: solo }
+  - { from: act.data.review_naming,          to: view.review_report,      carry: [target=data_model+data_dictionary],       employee: solo }
+  - { from: act.data.review_dictionary,      to: view.review_report,      carry: [target=data_dictionary],                  employee: solo }
+  - { from: act.data.write_model,            to: editor.data_model,       carry: [project_id, mode=generate],               employee: solo }
+  - { from: act.data.write_dictionary,       to: editor.data_dictionary,  carry: [project_id, mode=generate],               employee: solo }
+  - { from: act.data.write_classification,   to: editor.data_classification, carry: [project_id, mode=generate],            employee: solo }
+  - { from: act.data.reverse_ddl,            to: editor.data_model,       carry: [project_id, parsed_ddl, mode=reverse],    employee: solo }
+  - { from: act.data.reverse_db,             to: editor.data_model,       carry: [project_id, db_schema, mode=reverse],     employee: solo }
+  - { from: act.data.reverse_code,           to: editor.data_model,       carry: [project_id, parsed_entities, mode=reverse], employee: solo }
+  - { from: act.data.seal,                   to: null,                    carry: [project_id, group=data_standard],         employee: none }
+  - { from: act.data.import_ddl,             to: editor.data_model,       carry: [project_id, parsed_ddl],                  employee: solo }
+  - { from: act.data.export_ddl,             to: null,                    carry: [project_id],                              employee: solo }
+  - { from: act.data.export_dictionary,      to: null,                    carry: [project_id],                              employee: none }
+  - { from: act.data.export_er,              to: null,                    carry: [project_id],                              employee: none }
+  - { from: act.data.export_classification,  to: null,                    carry: [project_id],                              employee: none }
+
+  # ── 功能定义 ──
+  - { from: act.func.analyze_coverage,       to: view.analysis_report,    carry: [target=function_tree, ref=story_map],     employee: solo }
+  - { from: act.func.analyze_api_consistency, to: view.analysis_report,   carry: [target=api_contract, ref=data_dictionary], employee: solo }
+  - { from: act.func.analyze_coupling,       to: view.analysis_report,    carry: [target=integration],                      employee: solo }
+  - { from: act.func.review_api,             to: view.review_report,      carry: [target=api_contract, check=RESTful],      employee: solo }
+  - { from: act.func.review_rules_conflict,  to: view.review_report,      carry: [target=functional_rules, check=conflict], employee: solo }
+  - { from: act.func.review_ui_compliance,   to: view.review_report,      carry: [target=prototype, check=design_system],   employee: solo }
+  - { from: act.func.write_function_tree,    to: editor.function_tree,    carry: [project_id, mode=generate],               employee: solo }
+  - { from: act.func.write_api,              to: editor.api_contract,     carry: [project_id, mode=generate],               employee: solo }
+  - { from: act.func.generate_prototype,     to: editor.prototype,        carry: [project_id, mode=generate_html],          employee: solo }
+  - { from: act.func.write_rules,            to: editor.functional_rules, carry: [project_id, mode=generate],               employee: solo }
+  - { from: act.func.preview_prototype,      to: view.prototype_preview,  carry: [project_id, html_bundle_path],            employee: none }
+  - { from: act.func.seal,                   to: null,                    carry: [project_id, group=functional_spec],       employee: none }
+  - { from: act.func.import_openapi,         to: editor.api_contract,     carry: [project_id, parsed_openapi_spec],         employee: solo }
+  - { from: act.func.import_figma,           to: editor.prototype,        carry: [project_id, figma_link, mode=import],     employee: solo }
+  - { from: act.func.import_html,            to: editor.prototype,        carry: [project_id, parsed_html, mode=import],    employee: solo }
+  - { from: act.func.export_api_doc,         to: null,                    carry: [project_id],                              employee: none }
+  - { from: act.func.export_prototype_html,  to: null,                    carry: [project_id],                              employee: none }
+  - { from: act.func.export_function_tree,   to: null,                    carry: [project_id],                              employee: none }
+
+  # ── 质量属性 ──
+  - { from: act.qual.analyze_performance_risk, to: view.analysis_report,  carry: [target=performance],                      employee: solo }
+  - { from: act.qual.analyze_threat_model,   to: view.analysis_report,    carry: [target=security, method=STRIDE],          employee: solo }
+  - { from: act.qual.analyze_spof,           to: view.analysis_report,    carry: [target=availability],                     employee: solo }
+  - { from: act.qual.review_sla,             to: view.review_report,      carry: [target=availability],                     employee: solo }
+  - { from: act.qual.review_security,        to: view.review_report,      carry: [target=security, check=OWASP_Top10],      employee: solo }
+  - { from: act.qual.review_migration,       to: view.review_report,      carry: [target=migration],                        employee: solo }
+  - { from: act.qual.write_performance,      to: editor.performance,      carry: [project_id, mode=generate],               employee: solo }
+  - { from: act.qual.write_security,         to: editor.security,         carry: [project_id, mode=generate],               employee: solo }
+  - { from: act.qual.write_sla,              to: editor.availability,     carry: [project_id, mode=generate],               employee: solo }
+  - { from: act.qual.write_migration,        to: editor.migration,        carry: [project_id, mode=generate],               employee: solo }
+  - { from: act.qual.seal,                   to: null,                    carry: [project_id, group=quality_attributes],    employee: none }
+  - { from: act.qual.import_sla_template,    to: editor.availability,     carry: [project_id, parsed_template],             employee: solo }
+  - { from: act.qual.export_tech_spec,       to: null,                    carry: [project_id],                              employee: none }
+  - { from: act.qual.export_security_checklist, to: null,                 carry: [project_id],                              employee: none }
+
+# ============================================================================
+# 依赖关系图 — 上下文之间的生成/引用/约束/细化关系
+# ============================================================================
+# 四种依赖类型:
+#   generates   — 上游驱动下游内容生成（上游变更→下游必须重新生成）
+#   references  — 下游通过ID指向上游（上游变更→下游引用可能失效）
+#   constrains  — 上游限制下游的合法值域（上游变更→下游约束需重新验证）
+#   refines     — 下游为上游概念增加技术细节（双向影响，不破坏上游独立性）
+#
+# 依赖方向: 上游(upstream) → 下游(downstream)
+# 变更影响: 上行变更自动标记下游为 stale，触发分析/评审提醒
+# ============================================================================
+dependency_graph:
+
+  # ── 节点清单 ──
+  nodes:
+    - { id: ctx.business_process,       layer: L1, group: 业务上下文, desc: "TO-BE业务流程图(BPMN)" }
+    - { id: ctx.business_rules,         layer: L1, group: 业务上下文, desc: "业务规则目录(BR-xxx)" }
+    - { id: ctx.business_objectives,    layer: L1, group: 业务上下文, desc: "业务目标与范围" }
+    - { id: ctx.stakeholder_register,   layer: L1, group: 业务上下文, desc: "干系人与角色" }
+    - { id: ctx.story_map,              layer: L1, group: 用户故事,   desc: "故事地图" }
+    - { id: ctx.backlog,                layer: L1, group: 用户故事,   desc: "迭代待办" }
+    - { id: ctx.data_model,             layer: L2, group: 数据标准,   desc: "数据模型(概念/逻辑/物理)" }
+    - { id: ctx.data_dictionary,        layer: L2, group: 数据标准,   desc: "数据字典" }
+    - { id: ctx.data_flow,              layer: L2, group: 数据标准,   desc: "数据流向与血缘" }
+    - { id: ctx.data_classification,    layer: L2, group: 数据标准,   desc: "数据分类分级" }
+    - { id: ctx.function_tree,          layer: L3, group: 功能定义,   desc: "系统功能树" }
+    - { id: ctx.prototype,              layer: L3, group: 功能定义,   desc: "界面原型" }
+    - { id: ctx.api_contract,           layer: L3, group: 功能定义,   desc: "接口契约" }
+    - { id: ctx.integration,            layer: L3, group: 功能定义,   desc: "集成关系与外部接口" }
+    - { id: ctx.functional_rules,       layer: L3, group: 功能定义,   desc: "功能规则(联动/校验/状态机)" }
+    - { id: ctx.performance,            layer: L4, group: 质量属性,   desc: "性能需求指标" }
+    - { id: ctx.security,               layer: L4, group: 质量属性,   desc: "安全需求与合规" }
+    - { id: ctx.availability,           layer: L4, group: 质量属性,   desc: "可用性SLA与扩展" }
+    - { id: ctx.migration,              layer: L4, group: 质量属性,   desc: "迁移与运维方案" }
+
+  # ── 依赖边 ──
+  # 格式: { upstream, downstream, type, cardinality, mapping_rule, change_impact }
+  edges:
+
+    # ═══ L1 内部依赖 ═══
+    - { upstream: ctx.business_process,    downstream: ctx.business_rules,    type: generates,  cardinality: "1个Gateway → 1条或多条BR",
+        mapping: "BPMN决策网关(ExclusiveGateway/InclusiveGateway)→BR规则目录，网关分支条件→规则条件子句",
+        impact:   "流程变更：新增/删除决策网关→BR规则需重新生成；网关条件修改→关联BR规则标记stale" }
+
+    - { upstream: ctx.business_process,    downstream: ctx.story_map,         type: generates,  cardinality: "1个流程活动 → N个Story",
+        mapping: "BPMN泳道活动→Story Map用户活动骨架，活动→Epic，子步骤→Story",
+        impact:   "流程变更：活动新增/删除/重排→Story Map需重新生成；活动角色变更→Story的as_a字段更新" }
+
+    - { upstream: ctx.business_rules,      downstream: ctx.story_map,         type: constrains, cardinality: "1条BR → 0条或多条AC",
+        mapping: "BR决策规则→Story验收标准(AC)的Given-When-Then条件子句",
+        impact:   "规则变更：BR条件修改→关联AC的Given子句标记stale；BR删除→AC可能不完整" }
+
+    - { upstream: ctx.business_objectives, downstream: ctx.backlog,           type: constrains, cardinality: "1个KPI → 多个Story优先级",
+        mapping: "KPI目标值→Story优先级权重，业务范围MoSCoW→Backlog排序依据",
+        impact:   "目标变更：KPI调整→Backlog优先级需重排；范围变更→Won't项可能激活" }
+
+    - { upstream: ctx.story_map,           downstream: ctx.backlog,           type: generates,  cardinality: "1个Story → 1个Backlog条目",
+        mapping: "Story Map中的Story→Backlog条目，Story优先级和SP→Sprint分配依据",
+        impact:   "Story变更：新增Story→Backlog追加；Story拆分/合并→Backlog条目同步" }
+
+    # ═══ L1 → L2 跨层依赖 ═══
+    - { upstream: ctx.business_process,    downstream: ctx.data_model,        type: generates,  cardinality: "1个流程节点 → 0个或多个实体",
+        mapping: "流程中的业务名词/表单字段→候选实体和属性，泳道角色→实体Owner",
+        impact:   "流程变更：新增业务名词→新实体候选；表单字段变更→属性调整" }
+
+    - { upstream: ctx.business_rules,      downstream: ctx.data_model,        type: constrains, cardinality: "1条约束规则 → 1个字段约束",
+        mapping: "BR约束规则(值域/唯一性/必填)→字段value_range/is_unique/nullable，BR计算规则→字段default_value/公式",
+        impact:   "规则变更：BR值域修改→字段value_range更新；BR新增必填约束→字段nullable变更(需评估数据迁移)" }
+
+    - { upstream: ctx.data_model,          downstream: ctx.data_dictionary,   type: generates,  cardinality: "1个entity.column → 1条字典记录",
+        mapping: "entity.attributes[].@schemas.column_spec→data_dictionary.fields[]，实体关系和码表→字典codelists",
+        impact:   "模型变更：字段新增/删除/类型变更→字典同步；字段重命名→字典需人工确认" }
+
+    - { upstream: ctx.integration,         downstream: ctx.data_flow,         type: refines,   cardinality: "1个集成点 → 1条数据流",
+        mapping: "集成拓扑的系统间连接→数据流向图的边，接口协议/频率→数据流属性",
+        impact:   "集成变更：新增系统间接口→新数据流；协议变更→数据流属性更新" }
+
+    - { upstream: ctx.data_model,          downstream: ctx.data_flow,         type: refines,   cardinality: "1个实体 → 0条或多个血缘路径",
+        mapping: "entity→数据血缘的源/目标节点，attributes→血缘字段映射",
+        impact:   "模型变更：字段来源变更→血缘路径更新" }
+
+    - { upstream: ctx.data_dictionary,     downstream: ctx.data_classification, type: generates, cardinality: "1个字段 → 1条分级记录",
+        mapping: "字段类型/业务含义→敏感级别推荐，字段所属实体→数据Owner",
+        impact:   "字典变更：新增PII字段→触发DPIA；字段类型变更→重新定级" }
+
+    # ═══ L1+L2 → L3 跨层依赖 ═══
+    - { upstream: ctx.story_map,           downstream: ctx.function_tree,     type: generates,  cardinality: "1个Story → 1个或多个功能节点",
+        mapping: "Story标题→功能节点名称，Story对应的用户活动→菜单项，Story验收标准→按钮操作点",
+        impact:   "Story变更：Story新增/删除→功能树节点同步；Story重命名→功能节点名称更新" }
+
+    - { upstream: ctx.business_process,    downstream: ctx.function_tree,     type: references, cardinality: "1个泳道角色 → N个功能节点",
+        mapping: "BPMN泳道角色→功能节点的触发角色(authorized_roles)，流程活动顺序→菜单排序",
+        impact:   "流程变更：角色调整→功能节点授权更新" }
+
+    - { upstream: ctx.function_tree,       downstream: ctx.prototype,         type: generates,  cardinality: "1个菜单→1个页面，N个按钮→N个组件",
+        mapping: "功能树菜单节点→原型页面路由，按钮操作点→页面内组件，角色权限→组件可见性",
+        impact:   "功能树变更：新增菜单→新原型页面；按钮增删→页面组件调整" }
+
+    - { upstream: ctx.story_map,           downstream: ctx.prototype,         type: references, cardinality: "1条AC → 多个组件状态",
+        mapping: "Story验收标准(AC)→交互规格中的组件状态矩阵(正常/异常/空/加载/边界)",
+        impact:   "AC变更：AC修改→组件状态定义需更新" }
+
+    - { upstream: ctx.data_model,          downstream: ctx.api_contract,      type: generates,  cardinality: "1个实体→1个REST资源，N个属性→N个字段",
+        mapping: "entity→REST资源路径(/api/{entity})，attributes→request/response schema字段，relationships→嵌套/关联资源",
+        impact:   "模型变更：实体新增/删除→API端点同步；字段类型变更→schema类型更新" }
+
+    - { upstream: ctx.function_tree,       downstream: ctx.api_contract,      type: generates,  cardinality: "1个按钮→0个或1个API",
+        mapping: "CRUD按钮(Create/Read/Update/Delete)→HTTP方法(POST/GET/PUT/DELETE)，按钮前置条件→API鉴权要求",
+        impact:   "功能树变更：新按钮→可能需要新API；按钮CRUD类型变更→HTTP方法变更(不兼容变更!)" }
+
+    - { upstream: ctx.business_rules,      downstream: ctx.api_contract,      type: constrains, cardinality: "1条BR→0条或多条API校验",
+        mapping: "BR约束规则→API请求校验逻辑和400错误码，BR计算规则→API响应字段计算逻辑",
+        impact:   "规则变更：BR约束变更→API校验逻辑更新；新增计算规则→响应字段可能增加" }
+
+    - { upstream: ctx.business_rules,      downstream: ctx.functional_rules,  type: references, cardinality: "1条BR→1条或多条FR(引用关系)",
+        mapping: "BR编号(BR-xxx)→FR.ref_br字段，BR决策条件→FR触发条件，BR动作→FR执行动作",
+        impact:   "规则变更：BR条件修改→引用该BR的FR需重新验证；BR删除→悬空引用告警" }
+
+    - { upstream: ctx.prototype,           downstream: ctx.functional_rules,  type: refines,    cardinality: "1个组件→1组联动/校验/状态定义",
+        mapping: "原型组件状态矩阵→FR状态机states/transitions，组件联动行为→FR联动规则",
+        impact:   "原型变更：组件新增状态→状态机需追加transition；组件删除→关联FR标记stale" }
+
+    - { upstream: ctx.data_flow,           downstream: ctx.integration,       type: refines,    cardinality: "1条数据流→1个集成点",
+        mapping: "数据流图(DFD)的系统间数据传递→集成拓扑的边，数据协议→集成协议",
+        impact:   "数据流变更：新增系统间数据流→集成拓扑加边；协议变更→集成方式可能变化" }
+
+    - { upstream: ctx.api_contract,        downstream: ctx.integration,       type: refines,    cardinality: "1组内部API→1个或多个外部接口",
+        mapping: "内部API endpoint→需对外暴露时经防腐层适配为外部接口，鉴权方式→外部接口认证",
+        impact:   "API变更：内部API不兼容变更→外部接口需同步或版本化" }
+
+    # ═══ L1+L2+L3 → L4 跨层依赖 ═══
+    - { upstream: ctx.function_tree,       downstream: ctx.performance,       type: generates,  cardinality: "1个高频功能→1个压测场景",
+        mapping: "功能节点中的高频操作→性能测试场景，并发角色数→并发用户数基线",
+        impact:   "功能变更：新增高频功能→新性能场景；功能流程变更→场景步骤更新" }
+
+    - { upstream: ctx.data_model,          downstream: ctx.performance,       type: constrains, cardinality: "1张大表→1组查询性能指标",
+        mapping: "entity数据量级估算(行数/存储量)→查询性能基线(P50/P95/P99)，索引设计→查询优化目标",
+        impact:   "模型变更：数据量级上调→性能基线需重新评估；表结构变更→查询模式可能变化" }
+
+    - { upstream: ctx.data_classification, downstream: ctx.security,          type: constrains, cardinality: "1个敏感字段→1组安全控制",
+        mapping: "字段分级(L1-L4)→加密强度(AES256/SM4/TLS)，PII标签→脱敏规则和审计日志级别",
+        impact:   "分级变更：字段升级→安全控制加强(可能影响性能)；降级需合规审批" }
+
+    - { upstream: ctx.integration,         downstream: ctx.security,          type: constrains, cardinality: "1个外部接口→1组STRIDE威胁",
+        mapping: "外部接口(第三方API/消息队列)→STRIDE威胁建模输入，集成链路→认证和加密审查路径",
+        impact:   "集成变更：新外部依赖→新威胁场景；协议变更→安全控制需重新评估" }
+
+    - { upstream: ctx.business_objectives, downstream: ctx.availability,      type: constrains, cardinality: "1个KPI→1个SLA等级",
+        mapping: "业务KPI(收入/客诉)→停机成本推算→SLA等级(99.9/99.99/99.999)，业务重要性→子系统分级",
+        impact:   "目标变更：KPI上调→SLA可能需升级(成本增加)；业务范围变更→子系统分级调整" }
+
+    - { upstream: ctx.function_tree,       downstream: ctx.availability,      type: constrains, cardinality: "N个功能→1组可用性依赖链",
+        mapping: "功能依赖关系→可用性依赖链(failure propagation)，关键功能→优先保障降级豁免",
+        impact:   "功能变更：新增依赖→可用性依赖链延长；功能降级→故障传播路径变化" }
+
+    - { upstream: ctx.data_model,          downstream: ctx.migration,         type: generates,  cardinality: "1个实体→1组迁移步骤",
+        mapping: "新旧数据模型差异→迁移步骤(DDL变更/数据转换/校验)，实体关系→迁移顺序(先主表后从表)",
+        impact:   "模型变更：新增实体→DDL迁移步骤；字段类型变更→数据转换脚本" }
+
+    - { upstream: ctx.availability,        downstream: ctx.migration,         type: constrains, cardinality: "1个RTO→1个迁移窗口上限",
+        mapping: "RTO→迁移总时长上限(数据迁移+校验+回滚演练)，RPO→增量同步间隔",
+        impact:   "SLA变更：RTO缩短→迁移窗口更紧(可能需在线迁移方案)；RPO缩短→增量同步频率增加" }
+
+# ============================================================================
+# 变更影响链 — 当上游变更时，下游自动标记 stale
+# ============================================================================
+change_propagation:
+
+  # 格式: { trigger: "上游节点变更", cascade: ["受影响的下游节点"], severity: critical|major|minor }
+
+  - { trigger: "业务流程节点增删改", cascade: [ctx.business_rules, ctx.story_map, ctx.data_model, ctx.function_tree], severity: critical }
+  - { trigger: "业务规则条件修改",   cascade: [ctx.story_map, ctx.data_model, ctx.api_contract, ctx.functional_rules], severity: critical }
+  - { trigger: "业务目标KPI调整",    cascade: [ctx.backlog, ctx.availability], severity: major }
+  - { trigger: "Story新增/拆分",     cascade: [ctx.backlog, ctx.function_tree, ctx.prototype], severity: major }
+  - { trigger: "数据模型实体变更",   cascade: [ctx.data_dictionary, ctx.data_flow, ctx.api_contract, ctx.performance, ctx.migration], severity: critical }
+  - { trigger: "字段类型/约束变更",  cascade: [ctx.data_dictionary, ctx.data_classification, ctx.api_contract], severity: major }
+  - { trigger: "功能树节点增删",     cascade: [ctx.prototype, ctx.api_contract, ctx.performance, ctx.availability], severity: major }
+  - { trigger: "API不兼容变更",      cascade: [ctx.integration], severity: critical }
+  - { trigger: "数据分级上调",       cascade: [ctx.security], severity: major }
+  - { trigger: "集成拓扑加边",       cascade: [ctx.data_flow, ctx.security], severity: minor }
+
+# ============================================================================
+# 追溯链 — 关键端到端数据流的叙事描述
+# ============================================================================
+traceability_chains:
+
+  - name: "业务→故事→功能→原型"
+    path: ctx.business_process → ctx.story_map → ctx.function_tree → ctx.prototype
+    desc: "流程节点→用户活动→Story→功能节点→原型页面，L1→L3 的主价值流"
+
+  - name: "业务→规则→模型→接口"
+    path: ctx.business_process → ctx.business_rules → ctx.data_model → ctx.api_contract
+    desc: "流程名词+决策规则→实体模型+约束→API契约，L1→L2→L3 的数据流"
+
+  - name: "模型→字典→分级→安全"
+    path: ctx.data_model → ctx.data_dictionary → ctx.data_classification → ctx.security
+    desc: "实体属性→字段定义→分类定级→安全控制，L2→L4 的合规流"
+
+  - name: "功能→性能+可用性"
+    path: ctx.function_tree → { ctx.performance, ctx.availability }
+    desc: "高频功能+关键路径→性能基线+SLA分级，L3→L4 的质量流"
+
+  - name: "全部封板→需规说明书"
+    path: all_sealed_docs → ctx.srs_document
+    desc: "5组封板交付物→数字员工汇编→需求规格说明书(最终产出物)"
+
+  - name: "原型页面→HTML打包"
+    path: ctx.prototype → ctx.prototype_bundle
+    desc: "功能定义-界面原型→编译打包→可独立运行HTML原型包(最终产出物)"
+
+  - name: "逆向工程→数据模型"
+    path: external(ddl|database|java_code) → ctx.data_model
+    desc: "DDL文件/数据库连接/Java Mapper→数字员工解析→实体关系模型(反向工程流)"

@@ -1,0 +1,1 @@
+- [Function Map Sync](feedback_function_map_sync.md) — Before/after code changes, verify consistency with function-map.yml; update map if deviation is reasonable, raise concern if not

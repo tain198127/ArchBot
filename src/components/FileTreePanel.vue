@@ -22,14 +22,16 @@ const domains = ref<DomainInfo[]>([])
 const domainEntities = ref<Record<string, EntityDef[]>>({})
 const domainEnums = ref<Record<string, EnumDef[]>>({})
 const expandedCategories = ref<Set<string>>(new Set())
-const expandedDirs = ref<Set<string>>(new Set())
+const expandedGroups = ref<Set<string>>(new Set())
 const expandedDomains = ref<Set<string>>(new Set())
 const selectedNode = ref('')
 
 const contextMenuVisible = ref(false)
 const contextMenuPos = ref({ x: 0, y: 0 })
-const contextMenuType = ref<'dataStandard' | 'domain'>('dataStandard')
+const contextMenuType = ref<'dataStandard' | 'domain' | 'category' | 'group' | 'item'>('dataStandard')
 const contextMenuDomain = ref('')
+const contextMenuGroupKey = ref('')
+const contextMenuItemKey = ref('')
 
 const showNewDomainDialog = ref(false)
 const showNewEntityDialog = ref(false)
@@ -83,7 +85,7 @@ watch(() => currentProject.value, () => {
   domainEntities.value = {}
   domainEnums.value = {}
   expandedCategories.value = new Set()
-  expandedDirs.value = new Set()
+  expandedGroups.value = new Set()
   expandedDomains.value = new Set()
   if (currentProject.value) loadDomains()
 }, { immediate: true })
@@ -99,11 +101,25 @@ function isCategoryExpanded(key: string): boolean {
   return expandedCategories.value.has(key)
 }
 
-function toggleDir(dirKey: string) {
-  const next = new Set(expandedDirs.value)
-  if (next.has(dirKey)) next.delete(dirKey)
-  else next.add(dirKey)
-  expandedDirs.value = next
+function toggleGroup(groupKey: string) {
+  const next = new Set(expandedGroups.value)
+  if (next.has(groupKey)) next.delete(groupKey)
+  else next.add(groupKey)
+  expandedGroups.value = next
+}
+
+function isGroupExpanded(groupKey: string): boolean {
+  return expandedGroups.value.has(groupKey)
+}
+
+function handleGroupClick(group: { key: string; labelKey: string }) {
+  toggleGroup(group.key)
+  selectedNode.value = `group.${group.key}`
+}
+
+function handleGroupChildClick(child: { key: string; labelKey: string }) {
+  selectedNode.value = `item.${child.key}`
+  emitMenuAction(`open.${child.key}`)
 }
 
 function toggleDomain(code: string) {
@@ -113,18 +129,11 @@ function toggleDomain(code: string) {
   expandedDomains.value = next
 }
 
-function isExpanded(dirKey: string): boolean {
-  return expandedDirs.value.has(dirKey)
-}
-
 function isDomainExpanded(code: string): boolean {
   return expandedDomains.value.has(code)
 }
 
 function handleDirClick(child: ProjectDirChild) {
-  if (child.key === 'dataStandard') {
-    toggleDir('dataStandard')
-  }
   selectedNode.value = `dir.${child.key}`
   emitMenuAction(`open.${child.key}`)
 }
@@ -173,6 +182,43 @@ function handleDomainContextMenu(event: MouseEvent, domainCode: string) {
   event.stopPropagation()
   contextMenuType.value = 'domain'
   contextMenuDomain.value = domainCode
+  contextMenuPos.value = { x: event.clientX, y: event.clientY }
+  contextMenuVisible.value = true
+  nextTick(() => {
+    document.addEventListener('click', closeContextMenu, { once: true })
+  })
+}
+
+function handleGroupContextMenu(event: MouseEvent, groupKey: string) {
+  event.preventDefault()
+  event.stopPropagation()
+  contextMenuType.value = 'group'
+  contextMenuGroupKey.value = groupKey
+  contextMenuPos.value = { x: event.clientX, y: event.clientY }
+  contextMenuVisible.value = true
+  nextTick(() => {
+    document.addEventListener('click', closeContextMenu, { once: true })
+  })
+}
+
+function handleCategoryContextMenu(event: MouseEvent, catKey: string) {
+  event.preventDefault()
+  event.stopPropagation()
+  contextMenuType.value = 'category'
+  contextMenuGroupKey.value = catKey
+  contextMenuPos.value = { x: event.clientX, y: event.clientY }
+  contextMenuVisible.value = true
+  nextTick(() => {
+    document.addEventListener('click', closeContextMenu, { once: true })
+  })
+}
+
+function handleItemContextMenu(event: MouseEvent, itemKey: string, groupKey: string) {
+  event.preventDefault()
+  event.stopPropagation()
+  contextMenuType.value = 'item'
+  contextMenuItemKey.value = itemKey
+  contextMenuGroupKey.value = groupKey
   contextMenuPos.value = { x: event.clientX, y: event.clientY }
   contextMenuVisible.value = true
   nextTick(() => {
@@ -255,6 +301,32 @@ function handleReverseDdl() {
   ElMessage.info(ctx.reverseDdlHint)
 }
 
+function handleReverseCode() {
+  closeContextMenu()
+  emitMenuAction({ action: 'open.dataModel', payload: { mode: 'reverse', source: 'code' } })
+}
+
+function handleGroupAction(actionType: string) {
+  closeContextMenu()
+  const groupKey = contextMenuGroupKey.value
+  emitMenuAction({ action: `ctxmenu.${actionType}`, payload: { groupKey } })
+  ElMessage.info(`${ctx[actionType as keyof typeof ctx] || actionType}: ${getDirLabel(groupKey)}`)
+}
+
+function handleCategoryAction(actionType: string) {
+  closeContextMenu()
+  emitMenuAction({ action: `ctxmenu.${actionType}`, payload: { categoryKey: contextMenuGroupKey.value } })
+  ElMessage.info(`${ctx[actionType as keyof typeof ctx] || actionType}`)
+}
+
+function handleItemAction(actionType: string) {
+  closeContextMenu()
+  const itemKey = contextMenuItemKey.value
+  const groupKey = contextMenuGroupKey.value
+  emitMenuAction({ action: `ctxmenu.${actionType}`, payload: { groupKey, itemKey } })
+  ElMessage.info(`${ctx[actionType as keyof typeof ctx] || actionType}: ${getDirLabel(itemKey)}`)
+}
+
 // ── dialogs ──
 
 async function createDomain() {
@@ -271,7 +343,7 @@ async function createDomain() {
     showNewDomainDialog.value = false
     newDomainForm.value = { name: '', code: '', owner: '', description: '' }
     await loadDomains()
-    expandedDirs.value = new Set([...expandedDirs.value, 'dataStandard'])
+    expandedGroups.value = new Set([...expandedGroups.value, 'dataStandard'])
   } catch (e) {
     ElMessage.error(String(e))
   }
@@ -351,6 +423,7 @@ function enumCount(domainCode: string): number {
               class="dir-item"
               :class="{ active: selectedNode === `cat.${cat.key}` }"
               @click="handleCategoryClick(cat.key)"
+              @contextmenu="handleCategoryContextMenu($event, cat.key)"
             >
               <svg
                 class="expand-chevron"
@@ -365,105 +438,140 @@ function enumCount(domainCode: string): number {
               <span class="dir-label">{{ getDirLabel(cat.labelKey) }}</span>
             </div>
 
-            <!-- category children -->
+            <!-- category children: groups (sub-grouped) or flat -->
             <div v-if="isCategoryExpanded(cat.key)" class="dir-children">
-              <template v-for="child in cat.children" :key="child.key">
-                <!-- dataStandard: expandable domain tree -->
-                <template v-if="child.key === 'dataStandard'">
+
+              <!-- GROUPS: categories with sub-groups (e.g. 需求) -->
+              <template v-if="cat.groups">
+                <template v-for="group in cat.groups" :key="group.key">
+                  <!-- group header -->
                   <div
                     class="dir-item"
-                    :class="{ active: selectedNode === 'dir.dataStandard' }"
-                    @click="handleDirClick(child)"
-                    @contextmenu="handleContextMenu($event, child)"
+                    :class="{ active: selectedNode === `group.${group.key}` }"
+                    @click="handleGroupClick(group)"
+                    @contextmenu="handleGroupContextMenu($event, group.key)"
                   >
                     <svg
                       class="expand-chevron"
-                      :class="{ expanded: isExpanded('dataStandard') }"
+                      :class="{ expanded: isGroupExpanded(group.key) }"
                       viewBox="0 0 24 24"
-                      @click.stop="toggleDir('dataStandard')"
+                      @click.stop="toggleGroup(group.key)"
                     >
                       <path fill="currentColor" d="M8 5l8 7-8 7z"/>
                     </svg>
+                    <svg class="dir-icon" viewBox="0 0 24 24" :style="{ color: group.color }">
+                      <path fill="currentColor" d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+                    </svg>
+                    <span class="dir-label">{{ getDirLabel(group.labelKey) }}</span>
+                  </div>
+
+                  <!-- group children -->
+                  <div v-if="isGroupExpanded(group.key)" class="dir-children">
+                    <!-- dataStandard: 先渲染 4 个交付物子项，再渲染域管理树 -->
+                    <template v-if="group.key === 'dataStandard'">
+                      <div
+                        v-for="child in group.children"
+                        :key="child.key"
+                        class="dir-item"
+                        :class="{ active: selectedNode === `item.${child.key}` }"
+                        @click="handleGroupChildClick(child)"
+                        @contextmenu="handleItemContextMenu($event, child.key, group.key)"
+                      >
+                        <svg class="dir-icon-placeholder" viewBox="0 0 24 24" />
+                        <svg class="dir-icon" viewBox="0 0 24 24" :style="{ color: child.color }">
+                          <path fill="currentColor" d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+                        </svg>
+                        <span class="dir-label">{{ getDirLabel(child.labelKey) }}</span>
+                      </div>
+                      <div class="tree-separator" />
+                      <template v-for="domain in domains" :key="domain.code">
+                        <div class="domain-tree">
+                          <div
+                            class="dir-item domain-item"
+                            :class="{ active: selectedNode === `domain.${domain.code}` }"
+                            @click="handleDomainClick(domain.code)"
+                            @contextmenu="handleDomainContextMenu($event, domain.code)"
+                          >
+                            <svg
+                              class="expand-chevron"
+                              :class="{ expanded: isDomainExpanded(domain.code) }"
+                              viewBox="0 0 24 24"
+                              @click.stop="toggleDomain(domain.code)"
+                            >
+                              <path fill="currentColor" d="M8 5l8 7-8 7z"/>
+                            </svg>
+                            <svg class="dir-icon" viewBox="0 0 24 24" style="color: #a0cfff">
+                              <path fill="currentColor" d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+                            </svg>
+                            <span class="dir-label">{{ domain.name || domain.code }}</span>
+                          </div>
+                          <div v-if="isDomainExpanded(domain.code)" class="domain-children">
+                            <div
+                              class="dir-item group-item"
+                              :class="{ active: selectedNode === `entity.${domain.code}` }"
+                              @click="handleEntityGroupClick(domain.code)"
+                            >
+                              <svg class="dir-icon" viewBox="0 0 24 24" style="color: #67c23a">
+                                <path fill="currentColor" d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
+                              </svg>
+                              <span class="dir-label">{{ ds.entityGroup }}</span>
+                              <span class="group-count">{{ entityCount(domain.code) }}</span>
+                            </div>
+                            <div
+                              class="dir-item group-item"
+                              :class="{ active: selectedNode === `enum.${domain.code}` }"
+                              @click="handleDictGroupClick(domain.code)"
+                            >
+                              <svg class="dir-icon" viewBox="0 0 24 24" style="color: #e6a23c">
+                                <path fill="currentColor" d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/>
+                              </svg>
+                              <span class="dir-label">{{ ds.dictGroup }}</span>
+                              <span class="group-count">{{ enumCount(domain.code) }}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </template>
+                      <div v-if="domains.length === 0" class="tree-hint">
+                        {{ ds.defaultDomain }}
+                      </div>
+                    </template>
+                    <!-- regular group children -->
+                    <template v-else>
+                      <div
+                        v-for="child in group.children"
+                        :key="child.key"
+                        class="dir-item"
+                        :class="{ active: selectedNode === `item.${child.key}` }"
+                        @click="handleGroupChildClick(child)"
+                        @contextmenu="handleItemContextMenu($event, child.key, group.key)"
+                      >
+                        <svg class="dir-icon-placeholder" viewBox="0 0 24 24" />
+                        <svg class="dir-icon" viewBox="0 0 24 24" :style="{ color: child.color }">
+                          <path fill="currentColor" d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+                        </svg>
+                        <span class="dir-label">{{ getDirLabel(child.labelKey) }}</span>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+              </template>
+
+              <!-- FLAT: categories without groups (e.g. 设计/开发/测试/部署) -->
+              <template v-else-if="cat.children">
+                <template v-for="child in cat.children" :key="child.key">
+                  <div
+                    class="dir-item"
+                    :class="{ active: selectedNode === `dir.${child.key}` }"
+                    @click="handleDirClick(child)"
+                    @contextmenu="handleContextMenu($event, child)"
+                  >
+                    <svg class="dir-icon-placeholder" viewBox="0 0 24 24" />
                     <svg class="dir-icon" viewBox="0 0 24 24" :style="{ color: child.color }">
                       <path fill="currentColor" d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
                     </svg>
                     <span class="dir-label">{{ getDirLabel(child.labelKey) }}</span>
                   </div>
-
-                  <!-- domain children -->
-                  <div v-if="isExpanded('dataStandard')" class="dir-children">
-                    <div
-                      v-for="domain in domains"
-                      :key="domain.code"
-                      class="domain-tree"
-                    >
-                      <div
-                        class="dir-item domain-item"
-                        :class="{ active: selectedNode === `domain.${domain.code}` }"
-                        @click="handleDomainClick(domain.code)"
-                        @contextmenu="handleDomainContextMenu($event, domain.code)"
-                      >
-                        <svg
-                          class="expand-chevron"
-                          :class="{ expanded: isDomainExpanded(domain.code) }"
-                          viewBox="0 0 24 24"
-                          @click.stop="toggleDomain(domain.code)"
-                        >
-                          <path fill="currentColor" d="M8 5l8 7-8 7z"/>
-                        </svg>
-                        <svg class="dir-icon" viewBox="0 0 24 24" style="color: #a0cfff">
-                          <path fill="currentColor" d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
-                        </svg>
-                        <span class="dir-label">{{ domain.name || domain.code }}</span>
-                      </div>
-
-                      <!-- entity & dict groups under domain -->
-                      <div v-if="isDomainExpanded(domain.code)" class="domain-children">
-                        <div
-                          class="dir-item group-item"
-                          :class="{ active: selectedNode === `entity.${domain.code}` }"
-                          @click="handleEntityGroupClick(domain.code)"
-                        >
-                          <svg class="dir-icon" viewBox="0 0 24 24" style="color: #67c23a">
-                            <path fill="currentColor" d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
-                          </svg>
-                          <span class="dir-label">{{ ds.entityGroup }}</span>
-                          <span class="group-count">{{ entityCount(domain.code) }}</span>
-                        </div>
-                        <div
-                          class="dir-item group-item"
-                          :class="{ active: selectedNode === `enum.${domain.code}` }"
-                          @click="handleDictGroupClick(domain.code)"
-                        >
-                          <svg class="dir-icon" viewBox="0 0 24 24" style="color: #e6a23c">
-                            <path fill="currentColor" d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/>
-                          </svg>
-                          <span class="dir-label">{{ ds.dictGroup }}</span>
-                          <span class="group-count">{{ enumCount(domain.code) }}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div v-if="domains.length === 0" class="tree-hint">
-                      {{ ds.defaultDomain }}
-                    </div>
-                  </div>
                 </template>
-
-                <!-- regular child -->
-                <div
-                  v-else
-                  class="dir-item"
-                  :class="{ active: selectedNode === `dir.${child.key}` }"
-                  @click="handleDirClick(child)"
-                  @contextmenu="handleContextMenu($event, child)"
-                >
-                  <svg class="dir-icon-placeholder" viewBox="0 0 24 24" />
-                  <svg class="dir-icon" viewBox="0 0 24 24" :style="{ color: child.color }">
-                    <path fill="currentColor" d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
-                  </svg>
-                  <span class="dir-label">{{ getDirLabel(child.labelKey) }}</span>
-                </div>
               </template>
             </div>
           </template>
@@ -481,6 +589,7 @@ function enumCount(domainCode: string): number {
         class="context-menu"
         :style="{ left: contextMenuPos.x + 'px', top: contextMenuPos.y + 'px' }"
       >
+        <!-- dataStandard group context menu (built-in domain tree right-click) -->
         <template v-if="contextMenuType === 'dataStandard'">
           <div class="context-menu-item" @click="handleNewDomain">{{ ctx.newDomain }}</div>
           <div class="context-menu-item" @click="handleNewEntity">{{ ctx.newEntity }}</div>
@@ -489,10 +598,60 @@ function enumCount(domainCode: string): number {
           <div class="context-menu-item" @click="handleImportFile">{{ ctx.importFile }}</div>
           <div class="context-menu-item" @click="handleReverseDb">{{ ctx.reverseDb }}</div>
           <div class="context-menu-item" @click="handleReverseDdl">{{ ctx.reverseDdl }}</div>
+          <div class="context-menu-item" @click="handleReverseCode">{{ ctx.reverseCode }}</div>
         </template>
-        <template v-else>
+
+        <!-- domain context menu -->
+        <template v-else-if="contextMenuType === 'domain'">
           <div class="context-menu-item" @click="handleNewEntity">{{ ctx.newEntity }}</div>
           <div class="context-menu-item" @click="handleNewDict">{{ ctx.newDictionary }}</div>
+        </template>
+
+        <!-- category context menu (e.g. 需求顶层) -->
+        <template v-else-if="contextMenuType === 'category'">
+          <div class="context-menu-item" @click="handleCategoryAction('brainstorm')">{{ ctx.brainstorm }}</div>
+          <div class="context-menu-item" @click="handleCategoryAction('generateSRS')">{{ ctx.generateSRS }}</div>
+          <div class="context-menu-item" @click="handleCategoryAction('exportHTML')">{{ ctx.exportHTML }}</div>
+          <div class="context-menu-separator" />
+          <div class="context-menu-item" @click="handleCategoryAction('sealAll')">{{ ctx.sealAll }}</div>
+          <div class="context-menu-separator" />
+          <div class="context-menu-item" @click="handleCategoryAction('importProject')">{{ ctx.importProject }}</div>
+          <div class="context-menu-item" @click="handleCategoryAction('exportPackage')">{{ ctx.exportPackage }}</div>
+        </template>
+
+        <!-- group context menu (通用: 分析/评审/编写/封板/导入/导出 + 专属项) -->
+        <template v-else-if="contextMenuType === 'group'">
+          <div class="context-menu-item" @click="handleGroupAction('analyze')">{{ ctx.analyze }}</div>
+          <div class="context-menu-item" @click="handleGroupAction('review')">{{ ctx.review }}</div>
+          <div class="context-menu-item" @click="handleGroupAction('write')">{{ ctx.write }}</div>
+          <div class="context-menu-separator" />
+          <!-- group-specific items -->
+          <template v-if="contextMenuGroupKey === 'bizContext'">
+            <div class="context-menu-item" @click="handleGroupAction('brainstorm')">{{ ctx.brainstorm }}</div>
+          </template>
+          <template v-else-if="contextMenuGroupKey === 'dataStandard'">
+            <div class="context-menu-item" @click="handleGroupAction('reverse')">{{ ctx.reverseDb }}</div>
+          </template>
+          <template v-else-if="contextMenuGroupKey === 'funcSpec'">
+            <div class="context-menu-item" @click="handleGroupAction('preview')">{{ ctx.preview }}</div>
+          </template>
+          <div class="context-menu-separator" />
+          <div class="context-menu-item" @click="handleGroupAction('seal')">{{ ctx.seal }}</div>
+          <div class="context-menu-separator" />
+          <div class="context-menu-item" @click="handleGroupAction('import')">{{ ctx.import }}</div>
+          <div class="context-menu-item" @click="handleGroupAction('export')">{{ ctx.export }}</div>
+        </template>
+
+        <!-- item context menu (单个交付物: 分析/评审/编写/导入/导出/封板) -->
+        <template v-else-if="contextMenuType === 'item'">
+          <div class="context-menu-item" @click="handleItemAction('analyze')">{{ ctx.analyze }}</div>
+          <div class="context-menu-item" @click="handleItemAction('review')">{{ ctx.review }}</div>
+          <div class="context-menu-item" @click="handleItemAction('write')">{{ ctx.write }}</div>
+          <div class="context-menu-separator" />
+          <div class="context-menu-item" @click="handleItemAction('seal')">{{ ctx.seal }}</div>
+          <div class="context-menu-separator" />
+          <div class="context-menu-item" @click="handleItemAction('import')">{{ ctx.import }}</div>
+          <div class="context-menu-item" @click="handleItemAction('export')">{{ ctx.export }}</div>
         </template>
       </div>
     </Teleport>
@@ -695,6 +854,12 @@ function enumCount(domainCode: string): number {
   font-size: 12px;
   color: var(--text-muted);
   font-style: italic;
+}
+
+.tree-separator {
+  height: 1px;
+  margin: 4px 12px 4px 16px;
+  background: var(--border-color);
 }
 
 .tree-placeholder {

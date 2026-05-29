@@ -4,6 +4,7 @@ import { useI18n } from '../i18n'
 import { useMenuAction, getAction, getPayload } from '../composables/useMenuAction'
 import SettingsPanel from './SettingsPanel.vue'
 import DataStandardEditor from './DataStandardEditor.vue'
+import DigitalEmployeePanel from './DigitalEmployeePanel.vue'
 
 const { t } = useI18n()
 
@@ -12,7 +13,7 @@ const { on } = useMenuAction()
 interface EditorTab {
   id: string
   label: string
-  type: 'welcome' | 'settings' | 'dataStandard'
+  type: 'welcome' | 'settings' | 'dataStandard' | 'digital-employee'
   closable: boolean
   pinned: boolean
   domainCode: string
@@ -135,6 +136,8 @@ onMounted(() => {
 
     if (action === 'config.system') {
       openTab('settings', t.value.settings.title, 'settings')
+    } else if (action === 'config.digitalEmployee') {
+      openTab('digital-employee', (t.value.digitalEmployee as Record<string, string>).title || '数字员工', 'digital-employee')
     } else if (action === 'open.dataStandard') {
       const dc = payload?.domainCode || ''
       const dn = payload?.domainName || ''
@@ -196,6 +199,7 @@ onUnmounted(() => {
         <p class="hint">{{ t.editor.startHint }}</p>
       </div>
       <SettingsPanel v-else-if="activeTabData()?.type === 'settings'" />
+      <DigitalEmployeePanel v-else-if="activeTabData()?.type === 'digital-employee'" />
       <DataStandardEditor
         v-else-if="activeTabData()?.type === 'dataStandard'"
         :key="activeTab"
