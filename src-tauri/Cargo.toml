@@ -35,7 +35,9 @@ arrow-array = "53"
 arrow-schema = "53"
 futures = "0.3"
 async-trait = "0.1"
-tokio = { version = "1", features = ["sync"] }
+tokio = { version = "1", features = ["full"] }
+axum = "0.8"
+tower-http = { version = "0.6", features = ["cors"] }
 sea-orm = { version = "1", features = ["sqlx-sqlite", "runtime-tokio", "macros"] }
 reqwest = { version = "0.12", features = ["json"] }
 dirs = "5"

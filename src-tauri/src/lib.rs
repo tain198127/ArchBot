@@ -3,10 +3,12 @@ mod data_standard;
 mod db;
 mod digital_employee;
 mod fs;
+mod handlers;
 mod lancedb_store;
 mod license;
 mod resource;
 mod scenario;
+mod server;
 mod vector;
 
 /// 获取当前 ISO 8601 格式 UTC 时间戳
@@ -14,6 +16,25 @@ mod vector;
 /// 供 `fs` 模块的 `create_project` 和 `data_standard` 的文件元信息使用。
 pub(crate) fn now_iso() -> String {
     chrono::Utc::now().to_rfc3339()
+}
+
+/// Read HTTP server configuration from `~/.ArchBot/settings.json`.
+///
+/// Defaults to disabled on localhost:1421 when the file is missing or
+/// the `httpServer` key is absent.
+fn load_http_config() -> server::HttpConfig {
+    let path = dirs::home_dir()
+        .unwrap_or_default()
+        .join(".ArchBot")
+        .join("settings.json");
+    match std::fs::read_to_string(&path) {
+        Ok(content) => serde_json::from_str::<serde_json::Value>(&content)
+            .ok()
+            .and_then(|v| v.get("httpServer").cloned())
+            .and_then(|hs| serde_json::from_value::<server::HttpConfig>(hs).ok())
+            .unwrap_or_default(),
+        Err(_) => server::HttpConfig::default(),
+    }
 }
 
 /// 应用入口：初始化 Tauri 运行时并注册所有插件和命令
@@ -33,6 +54,14 @@ pub fn run() {
 
     // 启动时从 ~/.ArchBot/license.dat 加载注册状态
     license::check_license_on_startup();
+
+    // HTTP server: read config from settings and conditionally start
+    let http_config = load_http_config();
+    if http_config.enabled {
+        tauri::async_runtime::spawn(async move {
+            server::start(http_config).await;
+        });
+    }
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())

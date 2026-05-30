@@ -10,6 +10,12 @@ export interface ProxyConfig {
   protocol: 'http' | 'https' | 'socks5'
 }
 
+export interface HttpServerConfig {
+  enabled: boolean
+  port: number
+  bindLan: boolean
+}
+
 export interface AppSettings {
   locale: Locale
   fontSize: number
@@ -17,6 +23,7 @@ export interface AppSettings {
   theme: 'light' | 'dark'
   aiLanguage: 'zh-CN' | 'en-US' | 'auto'
   proxy: ProxyConfig
+  httpServer: HttpServerConfig
 }
 
 function getDefaults(): AppSettings {
@@ -31,6 +38,11 @@ function getDefaults(): AppSettings {
       address: '',
       port: '',
       protocol: 'http'
+    },
+    httpServer: {
+      enabled: false,
+      port: 1421,
+      bindLan: false
     }
   }
 }
@@ -82,6 +94,10 @@ export function useSettings() {
   })
 
   watch(() => state.proxy, () => {
+    persistSettings()
+  }, { deep: true })
+
+  watch(() => state.httpServer, () => {
     persistSettings()
   }, { deep: true })
 

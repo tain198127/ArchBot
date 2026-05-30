@@ -87,6 +87,26 @@ async function handleReset() {
       </div>
     </section>
 
+    <!-- HTTP Server -->
+    <section class="mb-7 pb-5 border-b border-border-default">
+      <h3 class="text-sm font-semibold text-text-primary mb-3">{{ t.settings.httpServer }}</h3>
+      <div class="flex flex-col gap-4">
+        <label class="inline-flex items-center gap-2 text-sm text-text-primary cursor-pointer">
+          <VSwitch v-model="settings.httpServer.enabled" />
+          <span>{{ t.settings.httpServerEnable }}</span>
+        </label>
+        <div v-if="settings.httpServer.enabled" class="pl-1">
+          <VFormItem :label="t.settings.httpServerPort">
+            <VInput :model-value="String(settings.httpServer.port)" @update:model-value="settings.httpServer.port = Number($event)" type="number" placeholder="1421" class="!w-[140px]" />
+          </VFormItem>
+          <label class="inline-flex items-center gap-2 text-sm text-text-primary cursor-pointer">
+            <VSwitch v-model="settings.httpServer.bindLan" />
+            <span>{{ t.settings.httpServerBindLan }}</span>
+          </label>
+        </div>
+      </div>
+    </section>
+
     <!-- Proxy -->
     <section class="mb-7 pb-5 border-b border-border-default">
       <h3 class="text-sm font-semibold text-text-primary mb-3">{{ t.settings.proxy }}</h3>
