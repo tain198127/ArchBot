@@ -1,7 +1,10 @@
 export type RuntimeEnv = 'tauri' | 'browser'
 
 export function detectEnv(): RuntimeEnv {
-  if (typeof window !== 'undefined' && '__TAURI__' in window) {
+  // Tauri v2 injects __TAURI_INTERNALS__; v1 uses __TAURI__. Check both.
+  if (typeof window !== 'undefined' && (
+    '__TAURI_INTERNALS__' in window || '__TAURI__' in window
+  )) {
     return 'tauri'
   }
   return 'browser'

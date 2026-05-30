@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useToast } from '../../composables/useToast'
-import { isTauri } from '../../api/env'
 import { openProject as apiOpenProject } from '../../api'
 import { useMenuConfig, getPlatformShortcut } from '../../config/menu'
 import { useI18n } from '../../i18n'
@@ -22,32 +22,20 @@ let submenuTimer: ReturnType<typeof setTimeout> | null = null
 let hideSubmenuTimer: ReturnType<typeof setTimeout> | null = null
 
 async function startDrag(event: MouseEvent) {
-  if (!isTauri) return
-  const { getCurrentWindow } = await import('@tauri-apps/api/window')
   const target = event.target as HTMLElement
   if (target.closest('.menu-items') || target.closest('.window-controls')) return
   await getCurrentWindow().startDragging()
 }
 
 async function toggleMaximize() {
-  if (!isTauri) return
-  const { getCurrentWindow } = await import('@tauri-apps/api/window')
   const win = getCurrentWindow()
   const maximized = await win.isMaximized()
   if (maximized) await win.unmaximize()
   else await win.maximize()
 }
 
-async function minimizeWindow() {
-  if (!isTauri) return
-  const { getCurrentWindow } = await import('@tauri-apps/api/window')
-  await getCurrentWindow().minimize()
-}
-async function closeWindow() {
-  if (!isTauri) return
-  const { getCurrentWindow } = await import('@tauri-apps/api/window')
-  await getCurrentWindow().close()
-}
+async function minimizeWindow() { await getCurrentWindow().minimize() }
+async function closeWindow() { await getCurrentWindow().close() }
 
 function handleMenuClick(category: MenuCategory) {
   if (category.disabled) return
