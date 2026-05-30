@@ -59,7 +59,7 @@ async function browserOpenFile(filters: FileFilter[]): Promise<string | null> {
       input.onchange = () => {
         const file = input.files?.[0]
         if (!file) { done(null); return }
-        const path: string = (file as any).path ?? file.webkitRelativePath ?? file.name
+        const path: string = (file as any).path || file.webkitRelativePath || file.name
         done(path || null)
       }
 
@@ -77,6 +77,67 @@ async function browserOpenFile(filters: FileFilter[]): Promise<string | null> {
     })
   } catch (e) {
     pushLog('error', 'filePicker', `File dialog error: ${e}`)
+    return null
+  }
+}
+
+/**
+ * Browser-only: open a project file and read its content.
+ * Returns the parsed project name, the filename, and the raw file content.
+ * Backend path-based open_project won't work in browsers (no absolute paths),
+ * so we read the file directly via FileReader.
+ */
+export async function browserOpenProjectFile(
+  filters: FileFilter[],
+): Promise<{ name: string; path: string; content: string } | null> {
+  const accept = filters.flatMap((f) => f.extensions.map((e) => `.${e}`)).join(',')
+  pushLog('info', 'filePicker', `Browser project file dialog opened (accept="${accept}")`)
+
+  try {
+    return await new Promise((resolve) => {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = accept
+      input.style.display = 'none'
+
+      let settled = false
+      const done = (value: { name: string; path: string; content: string } | null) => {
+        if (settled) return
+        settled = true
+        input.remove()
+        pushLog('info', 'filePicker', `Project file selected: ${value?.path ?? '(cancelled)'}`)
+        resolve(value)
+      }
+
+      input.onchange = () => {
+        const file = input.files?.[0]
+        if (!file) { done(null); return }
+        const filename = file.name
+        const reader = new FileReader()
+        reader.onload = () => {
+          const content = reader.result as string
+          const nameMatch = content.match(/^name:\s*(.+)$/m)
+          const projectName = nameMatch ? nameMatch[1].trim() : filename.replace(/\.ab$/i, '')
+          done({ name: projectName, path: filename, content })
+        }
+        reader.onerror = () => {
+          pushLog('error', 'filePicker', `Failed to read file: ${filename}`)
+          done(null)
+        }
+        reader.readAsText(file)
+      }
+
+      window.addEventListener('focus', () => {
+        setTimeout(() => { if (input.parentNode) done(null) }, 500)
+      }, { once: true })
+
+      setTimeout(() => done(null), 300_000)
+
+      document.body.appendChild(input)
+      input.click()
+    })
+  } catch (e) {
+    pushLog('error', 'filePicker', `Project file dialog error: ${e}`)
     return null
   }
 }

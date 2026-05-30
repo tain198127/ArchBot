@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { openProject as apiOpenProject, initArchbotDir, ensureGitignore, dbDisconnect } from './api'
-import { openFileDialog } from './api/filePicker'
+import { openFileDialog, browserOpenProjectFile } from './api/filePicker'
 import { pushLog } from './stores/log'
 import { isTauri } from './api/env'
 import { useToast } from './composables/useToast'
@@ -32,33 +32,44 @@ onMounted(() => {
 })
 
 async function handleOpenProject() {
-  let selected: string | null = null
-  try {
-    selected = await openFileDialog([
-      { name: t.value.openProject.filterName, extensions: ['ab'] }
-    ])
-  } catch (e) {
-    toast.error(`${t.value.openProject.failed}: ${e}`)
-    return
-  }
-  if (!selected) return
+  const filter = [{ name: t.value.openProject.filterName, extensions: ['ab'] }]
 
-  pushLog('info', 'app', `Opening project: ${selected} (mode: ${isTauri ? 'tauri' : 'browser'})`)
+  if (isTauri) {
+    // Desktop: get absolute path from native dialog, have backend read the file
+    let selected: string | null = null
+    try {
+      selected = await openFileDialog(filter)
+    } catch (e) {
+      toast.error(`${t.value.openProject.failed}: ${e}`)
+      return
+    }
+    if (!selected) return
 
-  // In browser mode, the file picker may only return a filename (no full path).
-  // The backend needs an absolute path to read the file.
-  if (!isTauri && !selected.includes('/') && !selected.includes('\\')) {
-    pushLog('warn', 'app', `Browser returned filename-only: "${selected}". Backend may fail.`)
-  }
+    pushLog('info', 'app', `Opening project: ${selected} (mode: tauri)`)
+    try {
+      const result = await apiOpenProject(selected)
+      pushLog('info', 'app', `Project opened: ${result.name}`)
+      setProject({ name: result.name, path: selected, content: result.content })
+      await initProjectDir(selected)
+      toast.success(t.value.openProject.success)
+    } catch (e) {
+      toast.error(`${t.value.openProject.failed}: ${e}`)
+    }
+  } else {
+    // Browser: no absolute paths available — read file content directly via FileReader
+    let result: { name: string; path: string; content: string } | null = null
+    try {
+      result = await browserOpenProjectFile(filter)
+    } catch (e) {
+      toast.error(`${t.value.openProject.failed}: ${e}`)
+      return
+    }
+    if (!result) return
 
-  try {
-    const result = await apiOpenProject(selected)
-    pushLog('info', 'app', `Project opened: ${result.name}`)
-    setProject({ name: result.name, path: selected, content: result.content })
-    await initProjectDir(selected)
+    pushLog('info', 'app', `Opening project: ${result.path} (mode: browser, content-read locally)`)
+    setProject({ name: result.name, path: result.path, content: result.content })
     toast.success(t.value.openProject.success)
-  } catch (e) {
-    toast.error(`${t.value.openProject.failed}: ${e}`)
+    // initProjectDir is skipped — no filesystem access in browser mode
   }
 }
 
