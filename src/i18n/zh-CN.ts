@@ -85,6 +85,7 @@ export default {
     log: '日志',
     terminal: '终端',
     analysis: '分析内容',
+    clear: '清空',
     logPlaceholder: '日志输出将显示在这里',
     terminalPlaceholder: '终端将在这里运行',
     analysisPlaceholder: '分析内容将显示在这里'

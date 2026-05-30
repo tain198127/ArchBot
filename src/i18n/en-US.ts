@@ -85,6 +85,7 @@ export default {
     log: 'Log',
     terminal: 'Terminal',
     analysis: 'Analysis',
+    clear: 'Clear',
     logPlaceholder: 'Log output will appear here',
     terminalPlaceholder: 'Terminal will run here',
     analysisPlaceholder: 'Analysis content will appear here'
