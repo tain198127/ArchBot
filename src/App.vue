@@ -30,16 +30,23 @@ onMounted(() => {
 })
 
 async function handleOpenProject() {
-  const selected = await open({
-    multiple: false,
-    filters: [{ name: t.value.openProject.filterName, extensions: ['ab'] }]
-  })
+  let selected: string | null = null
+  try {
+    const result = await open({
+      multiple: false,
+      filters: [{ name: t.value.openProject.filterName, extensions: ['ab'] }]
+    })
+    selected = result as string | null
+  } catch (e) {
+    toast.error(`${t.value.openProject.failed}: ${e}`)
+    return
+  }
   if (!selected) return
 
   try {
     const result = await invoke<{ name: string; content: string }>('open_project', { path: selected })
-    setProject({ name: result.name, path: selected as string, content: result.content })
-    await initProjectDir(selected as string)
+    setProject({ name: result.name, path: selected, content: result.content })
+    await initProjectDir(selected)
     toast.success(t.value.openProject.success)
   } catch (e) {
     toast.error(`${t.value.openProject.failed}: ${e}`)
@@ -70,7 +77,7 @@ async function handleCloseProject() {
     await invoke('db_disconnect')
   } catch { /* ignore */ }
   closeProject()
-  toast.success('Project closed')
+  toast.success(t.value.menuFile.closeProject)
 }
 
 function handleClearCache() {

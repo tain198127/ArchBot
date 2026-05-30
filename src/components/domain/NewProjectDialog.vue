@@ -30,9 +30,13 @@ function show() {
 }
 
 async function selectDirectory() {
-  const selected = await open({ directory: true })
-  if (selected) {
-    form.location = selected as string
+  try {
+    const selected = await open({ directory: true })
+    if (selected) {
+      form.location = selected as string
+    }
+  } catch (e) {
+    toast.error(String(e))
   }
 }
 

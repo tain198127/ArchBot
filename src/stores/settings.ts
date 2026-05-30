@@ -21,7 +21,7 @@ export interface AppSettings {
 
 function getDefaults(): AppSettings {
   return {
-    locale: 'en-US',
+    locale: 'zh-CN',
     fontSize: 13,
     fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     theme: 'dark',
@@ -38,7 +38,6 @@ function getDefaults(): AppSettings {
 const state = reactive<AppSettings>(getDefaults())
 
 function applyTheme(theme: 'light' | 'dark') {
-  document.documentElement.setAttribute('data-theme', theme)
   document.documentElement.classList.toggle('dark', theme === 'dark')
 }
 

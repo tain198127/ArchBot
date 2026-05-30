@@ -14,7 +14,7 @@ const { on } = useMenuAction()
 
 interface EditorTab {
   id: string
-  label: string
+  labelKey: string
   type: string
   domainCode?: string
   focus?: string
@@ -23,11 +23,11 @@ interface EditorTab {
 }
 
 const tabs = ref<EditorTab[]>([
-  { id: 'welcome', label: t.value.editor.appName, type: 'welcome', closable: false, pinned: true }
+  { id: 'welcome', labelKey: 'editor.appName', type: 'welcome', closable: false, pinned: true }
 ])
 
 const activeTab = ref('welcome')
-const tm = t.value.tabMenu as Record<string, string>
+const tm = computed(() => t.value.tabMenu as Record<string, string>)
 
 const tabCtxVisible = ref(false)
 const tabCtxPos = ref({ x: 0, y: 0 })
@@ -43,17 +43,24 @@ const sortedTabs = computed(() => {
   return arr
 })
 
+function getTabLabel(tab: EditorTab): string {
+  if (tab.labelKey.includes(' / ')) {
+    return tab.labelKey.split(' / ').map(k => tt(k.trim()) || k.trim()).join(' / ')
+  }
+  return tt(tab.labelKey) || tab.labelKey
+}
+
 function activeTabData() {
   return tabs.value.find(t => t.id === activeTab.value)
 }
 
-function openTab(id: string, label: string, type: string, domainCode?: string, focus?: string) {
+function openTab(id: string, labelKey: string, type: string, domainCode?: string, focus?: string) {
   const existing = tabs.value.find(t => t.id === id)
   if (existing) {
     activeTab.value = id
     return
   }
-  tabs.value.push({ id, label, type, domainCode, focus, closable: true, pinned: false })
+  tabs.value.push({ id, labelKey, type, domainCode, focus, closable: true, pinned: false })
   activeTab.value = id
 }
 
@@ -64,7 +71,7 @@ function closeTab(id: string) {
   if (activeTab.value === id) {
     activeTab.value = tabs.value.length > 0 ? tabs.value[Math.min(idx, tabs.value.length - 1)].id : 'welcome'
     if (tabs.value.length === 0) {
-      tabs.value.push({ id: 'welcome', label: t.value.editor.appName, type: 'welcome', closable: false, pinned: true })
+      tabs.value.push({ id: 'welcome', labelKey: 'editor.appName', type: 'welcome', closable: false, pinned: true })
       activeTab.value = 'welcome'
     }
   }
@@ -104,28 +111,25 @@ onMounted(() => {
     const payload = getPayload(rawAction)
 
     if (action === 'config.system') {
-      openTab('settings', t.value.settings.title, 'settings')
+      openTab('settings', 'settings.title', 'settings')
     } else if (action === 'config.contextEngineering') {
-      openTab('context-engineering', tt('context.title'), 'context-engineering')
+      openTab('context-engineering', 'context.title', 'context-engineering')
     } else if (action === 'config.scenario') {
-      openTab('scenario', tt('scenario.title'), 'scenario')
+      openTab('scenario', 'scenario.title', 'scenario')
     } else if (action === 'config.digitalEmployee') {
-      openTab('digital-employee', (t.value.digitalEmployee as Record<string, string>).title || '数字员工', 'digital-employee')
+      openTab('digital-employee', 'digitalEmployee.title', 'digital-employee')
     } else if (action === 'open.dataStandard') {
       const dc = payload?.domainCode || ''
       const dn = payload?.domainName || ''
       const focus = (payload?.focus as string) || ''
-      const dsLabel = (t.value.dataStandard as Record<string, string>).title || 'Data Standard'
-      const entityLabel = (t.value.dataStandard as Record<string, string>).entityGroup || 'Entity'
-      const dictLabel = (t.value.dataStandard as Record<string, string>).dictGroup || 'Dict'
 
-      let id: string; let label: string
+      let id: string; let labelKey: string
 
-      if (focus === 'entity') { id = `ds-entity-${dc}`; label = `${dsLabel} / ${dn || dc} / ${entityLabel}` }
-      else if (focus === 'enum') { id = `ds-enum-${dc}`; label = `${dsLabel} / ${dn || dc} / ${dictLabel}` }
-      else if (dc) { id = `ds-domain-${dc}`; label = `${dsLabel} / ${dn || dc}` }
-      else { id = 'dataStandard'; label = dsLabel }
-      openTab(id, label, 'dataStandard', dc, focus)
+      if (focus === 'entity') { id = `ds-entity-${dc}`; labelKey = `dataStandard.title / ${dn || dc} / dataStandard.entityGroup` }
+      else if (focus === 'enum') { id = `ds-enum-${dc}`; labelKey = `dataStandard.title / ${dn || dc} / dataStandard.dictGroup` }
+      else if (dc) { id = `ds-domain-${dc}`; labelKey = `dataStandard.title / ${dn || dc}` }
+      else { id = 'dataStandard'; labelKey = 'dataStandard.title' }
+      openTab(id, labelKey, 'dataStandard', dc, focus)
     }
   })
 })
@@ -147,7 +151,7 @@ onUnmounted(() => { unsubscribe?.() })
         @contextmenu="handleTabContextMenu($event, tab.id)"
       >
         <span v-if="tab.pinned && tab.id !== 'welcome'" class="text-xs" title="pinned">&#128204;</span>
-        <span>{{ tab.label }}</span>
+        <span>{{ getTabLabel(tab) }}</span>
         <span
           v-if="tab.closable && !tab.pinned"
           class="text-sm text-text-muted rounded px-0.5 hover:bg-surface-200 dark:hover:bg-surface-200 hover:text-text-primary"

@@ -14,6 +14,8 @@
     font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
     font-size: 13px;
     line-height: 1.5;
+    color: var(--color-text-primary);
+    background-color: var(--color-surface-0);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -284,4 +286,53 @@
 .focus-ring:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--color-surface-0), 0 0 0 4px var(--color-primary-500);
+}
+
+/* ── PrimeVue Select overlay (teleported, needs global styles) ── */
+.p-select-overlay {
+  background: var(--color-surface-0);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 4px 0;
+  min-width: 100%;
+  z-index: 2000;
+}
+.dark .p-select-overlay {
+  background: var(--color-surface-50);
+}
+.p-select-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.p-select-option {
+  padding: 4px 12px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+.p-select-option:hover {
+  background: var(--color-surface-50);
+}
+.dark .p-select-option:hover {
+  background: var(--color-surface-100);
+}
+.p-select-option-selected {
+  background: var(--color-primary-50);
+  color: var(--color-primary-600);
+}
+.dark .p-select-option-selected {
+  background: var(--color-primary-50);
+  color: var(--color-primary-400);
+}
+.p-select-option.p-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.p-select-empty-message {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--color-text-muted);
 }

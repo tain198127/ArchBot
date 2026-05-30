@@ -18,6 +18,7 @@ defineProps<Props>()
 const emit = defineEmits<{
   'update:modelValue': [value: string | number]
 }>()
+
 </script>
 
 <template>
@@ -31,6 +32,13 @@ const emit = defineEmits<{
         'disabled:opacity-40 disabled:cursor-not-allowed',
         'dark:bg-surface-100 dark:text-text-primary',
       ]"
+      :pt="{
+        overlay: { class: 'bg-surface-0 dark:bg-surface-50 border border-border-default rounded-lg shadow-lg py-1' },
+        list: { class: 'm-0 p-0 list-none' },
+        option: { class: 'px-3 py-1.5 text-[13px] text-text-primary cursor-pointer hover:bg-surface-50 dark:hover:bg-surface-100 transition-colors' },
+        optionGroup: { class: '' },
+        emptyMessage: { class: 'px-3 py-2 text-[12px] text-text-muted' },
+      }"
       :id="inputId"
       :model-value="modelValue"
       :options="options"

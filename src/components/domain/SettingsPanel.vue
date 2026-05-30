@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import VInput from '../base/VInput.vue'
 import VSelect from '../base/VSelect.vue'
 import VSlider from '../base/VSlider.vue'
@@ -14,14 +15,14 @@ const { t } = useI18n()
 const toast = useToast()
 const { settings, saveSettings, resetSettings } = useSettings()
 
-const fontFamilyOptions = [
-  { value: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', label: 'Inter (Default)' },
-  { value: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', label: 'System Default' },
-  { value: '"JetBrains Mono", monospace', label: 'JetBrains Mono' },
-  { value: '"Fira Code", monospace', label: 'Fira Code' },
-  { value: '"Cascadia Code", "Consolas", monospace', label: 'Cascadia Code' },
-  { value: '"Microsoft YaHei", "PingFang SC", sans-serif', label: 'Microsoft YaHei' }
-]
+const fontFamilyOptions = computed(() => [
+  { value: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', label: t.value.settings.fontInter },
+  { value: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', label: t.value.settings.fontSystem },
+  { value: '"JetBrains Mono", monospace', label: t.value.settings.fontJetBrains },
+  { value: '"Fira Code", monospace', label: t.value.settings.fontFiraCode },
+  { value: '"Cascadia Code", "Consolas", monospace', label: t.value.settings.fontCascadia },
+  { value: '"Microsoft YaHei", "PingFang SC", sans-serif', label: t.value.settings.fontYaHei },
+])
 
 const protocolOptions = [
   { value: 'http', label: 'HTTP' },

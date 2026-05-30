@@ -270,8 +270,8 @@ function enumCount(domainCode: string): number { return domainEnums.value[domain
               <span class="text-sm text-text-primary">{{ getDirLabel(cat.labelKey) }}</span>
             </div>
 
-            <!-- expanded children -->
-            <div v-if="isCategoryExpanded(cat.key)" class="pl-4 flex flex-col">
+            <!-- expanded children: each nesting level adds pl-5 (20px) -->
+            <div v-if="isCategoryExpanded(cat.key)" class="pl-5 flex flex-col">
               <!-- GROUPS -->
               <template v-if="cat.groups">
                 <template v-for="group in cat.groups" :key="group.key">
@@ -290,12 +290,12 @@ function enumCount(domainCode: string): number { return domainEnums.value[domain
                     <span class="text-sm text-text-primary">{{ getDirLabel(group.labelKey) }}</span>
                   </div>
 
-                  <div v-if="isGroupExpanded(group.key)" class="pl-3 flex flex-col">
+                  <div v-if="isGroupExpanded(group.key)" class="pl-5 flex flex-col">
                     <!-- dataStandard: children + domain tree -->
                     <template v-if="group.key === 'dataStandard'">
                       <div
                         v-for="child in group.children" :key="child.key"
-                        class="tree-item ml-4"
+                        class="tree-item"
                         :class="{ 'bg-surface-200 dark:bg-surface-200': selectedNode === `item.${child.key}` }"
                         @click="handleGroupChildClick(child)"
                         @contextmenu="showContextMenu($event, 'item', { groupKey: group.key, itemKey: child.key })"
@@ -323,9 +323,9 @@ function enumCount(domainCode: string): number { return domainEnums.value[domain
                             </svg>
                             <span class="text-sm text-text-primary">{{ domain.name || domain.code }}</span>
                           </div>
-                          <div v-if="isDomainExpanded(domain.code)" class="pl-3 flex flex-col">
+                          <div v-if="isDomainExpanded(domain.code)" class="pl-5 flex flex-col">
                             <div
-                              class="tree-item ml-4"
+                              class="tree-item"
                               :class="{ 'bg-surface-200 dark:bg-surface-200': selectedNode === `entity.${domain.code}` }"
                               @click="handleEntityGroupClick(domain.code)"
                             >
@@ -336,7 +336,7 @@ function enumCount(domainCode: string): number { return domainEnums.value[domain
                               <span class="ml-auto text-xs text-text-muted">{{ entityCount(domain.code) }}</span>
                             </div>
                             <div
-                              class="tree-item ml-4"
+                              class="tree-item"
                               :class="{ 'bg-surface-200 dark:bg-surface-200': selectedNode === `enum.${domain.code}` }"
                               @click="handleDictGroupClick(domain.code)"
                             >
@@ -349,14 +349,14 @@ function enumCount(domainCode: string): number { return domainEnums.value[domain
                           </div>
                         </div>
                       </template>
-                      <div v-if="domains.length === 0" class="py-1 pl-12 text-xs text-text-muted italic">{{ ds.defaultDomain }}</div>
+                      <div v-if="domains.length === 0" class="py-1 text-xs text-text-muted italic">{{ ds.defaultDomain }}</div>
                     </template>
 
                     <!-- regular group children -->
                     <template v-else>
                       <div
                         v-for="child in group.children" :key="child.key"
-                        class="tree-item ml-4"
+                        class="tree-item"
                         :class="{ 'bg-surface-200 dark:bg-surface-200': selectedNode === `item.${child.key}` }"
                         @click="handleGroupChildClick(child)"
                         @contextmenu="showContextMenu($event, 'item', { groupKey: group.key, itemKey: child.key })"
@@ -375,7 +375,7 @@ function enumCount(domainCode: string): number { return domainEnums.value[domain
               <template v-else-if="cat.children">
                 <div
                   v-for="child in cat.children" :key="child.key"
-                  class="tree-item ml-4"
+                  class="tree-item"
                   :class="{ 'bg-surface-200 dark:bg-surface-200': selectedNode === `dir.${child.key}` }"
                   @click="handleDirClick(child)"
                   @contextmenu="showContextMenu($event, 'dataStandard')"
