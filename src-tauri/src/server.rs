@@ -5,7 +5,7 @@ use tower_http::cors::Any;
 /// Configuration for the embedded HTTP server, deserialized from settings.json.
 #[derive(Deserialize)]
 pub struct HttpConfig {
-    #[serde(default)]
+    #[serde(default = "default_enabled")]
     pub enabled: bool,
     #[serde(default = "default_port")]
     pub port: u16,
@@ -14,11 +14,12 @@ pub struct HttpConfig {
     pub bind_lan: bool,
 }
 
+fn default_enabled() -> bool { true }
 fn default_port() -> u16 { 1421 }
 
 impl Default for HttpConfig {
     fn default() -> Self {
-        Self { enabled: false, port: 1421, bind_lan: false }
+        Self { enabled: true, port: 1421, bind_lan: false }
     }
 }
 

@@ -40,7 +40,7 @@ function getDefaults(): AppSettings {
       protocol: 'http'
     },
     httpServer: {
-      enabled: false,
+      enabled: true,
       port: 1421,
       bindLan: false
     }
