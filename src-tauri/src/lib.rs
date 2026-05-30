@@ -55,8 +55,14 @@ pub fn run() {
     // 启动时从 ~/.ArchBot/license.dat 加载注册状态
     license::check_license_on_startup();
 
-    // HTTP server: read config from settings and conditionally start
-    let http_config = load_http_config();
+    // HTTP server: read config from settings and conditionally start.
+    // In debug builds, force-enable so browser access works without
+    // requiring the user to toggle the setting first.
+    let mut http_config = load_http_config();
+    if cfg!(debug_assertions) {
+        http_config.enabled = true;
+    }
+
     if http_config.enabled {
         tauri::async_runtime::spawn(async move {
             server::start(http_config).await;
