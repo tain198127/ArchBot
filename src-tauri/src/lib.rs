@@ -1,4 +1,6 @@
+mod agent_runtime;
 mod context;
+mod secret;
 mod data_standard;
 mod db;
 mod digital_employee;
@@ -144,6 +146,14 @@ pub fn run() {
             vector::vec_delete,
             vector::vec_list_tables,
             vector::vec_table_info,
+            // agent_runtime
+            agent_runtime::turn_executor::agent_execute_turn,
+            agent_runtime::agent_config_handler::agent_get_status,
+            agent_runtime::agent_config_handler::agent_install,
+            agent_runtime::agent_config_handler::agent_update,
+            agent_runtime::agent_config_handler::agent_save_config,
+            agent_runtime::agent_config_handler::agent_save_secret,
+            agent_runtime::agent_config_handler::agent_validate,
             // lancedb (legacy)
             lancedb_store::lancedb_init,
             lancedb_store::lancedb_list_tables,

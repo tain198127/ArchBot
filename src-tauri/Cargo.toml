@@ -29,6 +29,8 @@ chrono = "0.4"
 sha2 = "0.10"
 rsa = "0.9"
 hex = "0.4"
+aes-gcm = "0.10"
+rand = "0.8"
 hostname = "0.4"
 lancedb = "0.17"
 arrow-array = "53"
@@ -41,4 +43,5 @@ tower-http = { version = "0.6", features = ["cors"] }
 sea-orm = { version = "1", features = ["sqlx-sqlite", "runtime-tokio", "macros"] }
 reqwest = { version = "0.12", features = ["json"] }
 dirs = "5"
+uuid = { version = "1", features = ["v4"] }
 

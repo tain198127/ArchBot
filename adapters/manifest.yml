@@ -1,0 +1,36 @@
+# Adapter 版本锁文件
+version: "1.0"
+last_updated: "2026-05-30"
+
+adapters:
+  archbot-adapter-claude-code:
+    version: "1.0.0"
+    rust_targets:
+      - aarch64-apple-darwin
+      - x86_64-apple-darwin
+      - x86_64-pc-windows-msvc
+      - x86_64-unknown-linux-gnu
+
+  archbot-adapter-hermes:
+    version: "1.0.0"
+    rust_targets:
+      - aarch64-apple-darwin
+      - x86_64-apple-darwin
+      - x86_64-pc-windows-msvc
+      - x86_64-unknown-linux-gnu
+
+  archbot-adapter-opencode:
+    version: "1.0.0"
+    rust_targets:
+      - aarch64-apple-darwin
+      - x86_64-apple-darwin
+      - x86_64-pc-windows-msvc
+      - x86_64-unknown-linux-gnu
+
+  archbot-adapter-openclaw:
+    version: "1.0.0"
+    rust_targets:
+      - aarch64-apple-darwin
+      - x86_64-apple-darwin
+      - x86_64-pc-windows-msvc
+      - x86_64-unknown-linux-gnu

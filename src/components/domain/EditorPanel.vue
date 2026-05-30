@@ -6,6 +6,7 @@ import SettingsPanel from './SettingsPanel.vue'
 import DataStandardEditor from './DataStandardEditor.vue'
 import DigitalEmployeePanel from './DigitalEmployeePanel.vue'
 import ScenarioPanel from './ScenarioPanel.vue'
+import AgentConfigPanel from './AgentConfigPanel.vue'
 import ContextEngineeringPanel from './ContextEngineeringPanel.vue'
 
 const { t, tt } = useI18n()
@@ -118,6 +119,8 @@ onMounted(() => {
       openTab('scenario', 'scenario.title', 'scenario')
     } else if (action === 'config.digitalEmployee') {
       openTab('digital-employee', 'digitalEmployee.title', 'digital-employee')
+    } else if (action === 'config.agentConfig') {
+      openTab('agent-config', 'menuConfig.agentConfig', 'agent-config')
     } else if (action === 'open.dataStandard') {
       const dc = payload?.domainCode || ''
       const dn = payload?.domainName || ''
@@ -181,6 +184,7 @@ onUnmounted(() => { unsubscribe?.() })
       <SettingsPanel v-else-if="activeTabData()?.type === 'settings'" />
       <ScenarioPanel v-else-if="activeTabData()?.type === 'scenario'" />
       <ContextEngineeringPanel v-else-if="activeTabData()?.type === 'context-engineering'" />
+      <AgentConfigPanel v-else-if="activeTabData()?.type === 'agent-config'" />
       <DigitalEmployeePanel v-else-if="activeTabData()?.type === 'digital-employee'" />
       <DataStandardEditor
         v-else-if="activeTabData()?.type === 'dataStandard'"

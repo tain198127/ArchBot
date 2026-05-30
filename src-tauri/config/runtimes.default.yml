@@ -1,0 +1,243 @@
+# ═══════════════════════════════════════════════════════════════
+# ArchBot Runtime 配置文件
+# 位置: ~/.archbot/config/runtimes.yml
+# 首次启动时从 src-tauri/config/runtimes.default.yml 复制
+# ═══════════════════════════════════════════════════════════════
+
+runtimes:
+  claude_code:
+    enabled: true
+    mode: managed
+    current_version: "2.1.128"
+    executable: "~/.archbot/runtimes/claude-code/current/claude"
+    adapter:
+      protocol: "http_sse"
+      host: "127.0.0.1"
+      port: "auto"
+      auth: "startup_token"
+
+    provider:
+      type: custom
+      protocol: anthropic-compatible
+      base_url: "https://api.anthropic.com"
+      auth:
+        type: bearer_token
+        token_ref: "secret://claude_code/api_token"
+
+    model:
+      default: "claude-sonnet-4-6"
+      small: "claude-haiku-4-5"
+      large: "claude-opus-4-7"
+
+    env:
+      CLAUDE_CONFIG_DIR: "~/.archbot/runtimes/claude-code/current/config"
+      DISABLE_AUTOUPDATER: "1"
+
+    args:
+      default:
+        - "--max-turns"
+        - "1"
+        - "--no-interactive"
+        - "--json-output"
+
+    execution:
+      default_timeout_seconds: 1800
+      max_concurrent_turns: 2
+      working_dir_policy: project_root
+      inherit_system_env: false
+
+      isolation:
+        mode: strict
+        isolated_home: "~/.archbot/runtimes/claude-code/home"
+        env_policy: whitelist
+        allowed_env_keys:
+          - CLAUDE_CONFIG_DIR
+          - ANTHROPIC_BASE_URL
+          - ANTHROPIC_AUTH_TOKEN
+          - ANTHROPIC_MODEL
+          - DISABLE_AUTOUPDATER
+          - PATH
+          - LANG
+        bridge:
+          git: true
+          ssh: false
+        audit:
+          enabled: true
+          severity_threshold: medium
+
+
+  hermes:
+    enabled: true
+    mode: managed
+    current_version: "0.14.0"
+    executable: "~/.archbot/runtimes/hermes/current/venv/bin/hermes"
+    adapter:
+      protocol: "http_sse"
+      host: "127.0.0.1"
+      port: "auto"
+      auth: "startup_token"
+
+    provider:
+      type: custom
+      protocol: openai-compatible
+      base_url: "https://api.openai.com/v1"
+      auth:
+        type: bearer_token
+        token_ref: "secret://hermes/api_token"
+
+    model:
+      default: "gpt-5.2"
+
+    env:
+      HERMES_HOME: "~/.archbot/runtimes/hermes/current"
+      HERMES_CONFIG_DIR: "~/.archbot/runtimes/hermes/current/config"
+      HERMES_MEMORY_DIR: "~/.archbot/runtimes/hermes/current/memory"
+      HERMES_PLUGIN_DIR: "~/.archbot/runtimes/hermes/current/plugins"
+      VIRTUAL_ENV: "~/.archbot/runtimes/hermes/current/venv"
+      PIP_CONFIG_FILE: "~/.archbot/runtimes/hermes/current/config/pip.conf"
+
+    args:
+      default:
+        - "--stream"
+        - "--json"
+
+    execution:
+      default_timeout_seconds: 1800
+      max_concurrent_turns: 2
+      working_dir_policy: project_root
+      inherit_system_env: false
+
+      isolation:
+        mode: strict
+        isolated_home: "~/.archbot/runtimes/hermes/home"
+        env_policy: whitelist
+        allowed_env_keys:
+          - HERMES_HOME
+          - HERMES_CONFIG_DIR
+          - HERMES_MEMORY_DIR
+          - HERMES_PLUGIN_DIR
+          - VIRTUAL_ENV
+          - PIP_CONFIG_FILE
+          - HERMES_MODEL_BASE_URL
+          - HERMES_MODEL_NAME
+          - HERMES_API_KEY
+          - PATH
+          - LANG
+        bridge:
+          git: true
+          ssh: false
+        audit:
+          enabled: true
+          severity_threshold: medium
+
+
+  opencode:
+    enabled: true
+    mode: managed
+    current_version: "1.15.10"
+    executable: "~/.archbot/runtimes/opencode/current/opencode"
+    adapter:
+      protocol: "http_sse"
+      host: "127.0.0.1"
+      port: "auto"
+      auth: "startup_token"
+
+    provider:
+      type: custom
+      protocol: openai-compatible
+      base_url: "https://api.openai.com/v1"
+      auth:
+        type: bearer_token
+        token_ref: "secret://opencode/api_token"
+
+    model:
+      default: "gpt-5.2"
+
+    env:
+      OPENCODE_HOME: "~/.archbot/runtimes/opencode/current"
+      OPENCODE_CONFIG_DIR: "~/.archbot/runtimes/opencode/current/config"
+
+    args:
+      default:
+        - "--mode"
+        - "agent"
+        - "--output-format"
+        - "json"
+
+    execution:
+      default_timeout_seconds: 1800
+      max_concurrent_turns: 2
+      working_dir_policy: project_root
+      inherit_system_env: false
+
+      isolation:
+        mode: strict
+        isolated_home: "~/.archbot/runtimes/opencode/home"
+        env_policy: whitelist
+        allowed_env_keys:
+          - OPENCODE_HOME
+          - OPENCODE_CONFIG_DIR
+          - PATH
+          - LANG
+        bridge:
+          git: true
+          ssh: false
+        audit:
+          enabled: true
+          severity_threshold: medium
+
+
+  openclaw:
+    enabled: true
+    mode: managed
+    current_version: "2026.3.13"
+    executable: "~/.archbot/runtimes/openclaw/current/bin/openclaw"
+    adapter:
+      protocol: "http_sse"
+      host: "127.0.0.1"
+      port: "auto"
+      auth: "startup_token"
+
+    provider:
+      type: custom
+      protocol: openai-compatible
+      base_url: "https://api.openai.com/v1"
+      auth:
+        type: bearer_token
+        token_ref: "secret://openclaw/api_token"
+
+    model:
+      default: "gpt-5.2"
+
+    env:
+      OPENCLAW_HOME: "~/.archbot/runtimes/openclaw/current"
+      OPENCLAW_CONFIG_DIR: "~/.archbot/runtimes/openclaw/current/config"
+
+    args:
+      default:
+        - "agent"
+        - "--json"
+        - "--timeout"
+        - "1800"
+
+    execution:
+      default_timeout_seconds: 1800
+      max_concurrent_turns: 2
+      working_dir_policy: project_root
+      inherit_system_env: false
+
+      isolation:
+        mode: strict
+        isolated_home: "~/.archbot/runtimes/openclaw/home"
+        env_policy: whitelist
+        allowed_env_keys:
+          - OPENCLAW_HOME
+          - OPENCLAW_CONFIG_DIR
+          - PATH
+          - LANG
+        bridge:
+          git: true
+          ssh: false
+        audit:
+          enabled: true
+          severity_threshold: medium

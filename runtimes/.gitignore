@@ -1,0 +1,5 @@
+# 忽略预打包缓存的二进制文件
+cache/**/*.tar.gz
+cache/**/*.zip
+cache/**/*.sha256
+cache/**/*.metadata.json

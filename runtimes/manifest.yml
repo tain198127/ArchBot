@@ -1,0 +1,61 @@
+# Runtime 版本锁文件
+# 此文件是预打包体系的唯一真相源。
+# prepare-*.sh 脚本读取此文件，下载对应平台的包到 cache/ 目录。
+
+version: "1.0"
+last_updated: "2026-05-30"
+
+runtimes:
+  claude_code:
+    current_version: "2.1.128"
+    download_strategy: npm_pack
+    platforms:
+      darwin-arm64:
+        npm_package: "@anthropic-ai/claude-code-darwin-arm64@2.1.128"
+      darwin-x64:
+        npm_package: "@anthropic-ai/claude-code-darwin-x64@2.1.128"
+      linux-x64:
+        npm_package: "@anthropic-ai/claude-code-linux-x64@2.1.128"
+      win32-x64:
+        npm_package: "@anthropic-ai/claude-code-win32-x64@2.1.128"
+
+  hermes:
+    current_version: "0.14.0"
+    download_strategy: pip_venv
+    python_version: "3.12"
+    platforms:
+      darwin-arm64:
+        pypi_package: "hermes-agent==0.14.0"
+      darwin-x64:
+        pypi_package: "hermes-agent==0.14.0"
+      linux-x64:
+        pypi_package: "hermes-agent==0.14.0"
+      win32-x64:
+        pypi_package: "hermes-agent==0.14.0"
+
+  opencode:
+    current_version: "1.15.10"
+    download_strategy: native_binary
+    platforms:
+      darwin-arm64:
+        download_url: "https://github.com/anomalyco/opencode/releases/download/v1.15.10/opencode-darwin-arm64.tar.gz"
+      darwin-x64:
+        download_url: "https://github.com/anomalyco/opencode/releases/download/v1.15.10/opencode-darwin-x64.tar.gz"
+      linux-x64:
+        download_url: "https://github.com/anomalyco/opencode/releases/download/v1.15.10/opencode-linux-x64.tar.gz"
+      win32-x64:
+        download_url: "https://github.com/anomalyco/opencode/releases/download/v1.15.10/opencode-win32-x64.zip"
+
+  openclaw:
+    current_version: "2026.3.13"
+    download_strategy: npm_bundle_with_node
+    node_version: "24.14.0"
+    platforms:
+      darwin-arm64:
+        npm_package: "openclaw@2026.3.13"
+      darwin-x64:
+        npm_package: "openclaw@2026.3.13"
+      linux-x64:
+        npm_package: "openclaw@2026.3.13"
+      win32-x64:
+        npm_package: "openclaw@2026.3.13"
