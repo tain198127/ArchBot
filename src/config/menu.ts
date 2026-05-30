@@ -39,6 +39,7 @@ const NO_PROJECT_ACTIONS = new Set([
   'file.closeProject',
 ])
 
+/** @deprecated Use ConfigLoader (src/orchestration/ConfigLoader.ts) + menus.yml instead. */
 export function useMenuConfig(currentProject: Ref<ProjectInfo | null>) {
   const { t } = useI18n()
 

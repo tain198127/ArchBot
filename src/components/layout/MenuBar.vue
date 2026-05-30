@@ -1,25 +1,76 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useToast } from '../../composables/useToast'
 import { openProject as apiOpenProject } from '../../api'
-import { useMenuConfig, getPlatformShortcut } from '../../config/menu'
-import { useI18n } from '../../i18n'
 import { useMenuAction } from '../../composables/useMenuAction'
-import { useProject } from '../../stores/project'
+import { getConfig } from '../../orchestration/ConfigLoader'
+import { evaluateExpression } from '../../orchestration/ExpressionEvaluator'
+import { createRuntimeState } from '../../orchestration/RuntimeContext'
+import { getActionRegistry } from '../../orchestration/ActionRegistry'
+import { getPlatformShortcut } from '../../config/menu'
 import type { MenuCategory } from '../../config/menu'
+import { useI18n } from '../../i18n'
+import { useProject } from '../../stores/project'
 import type { RecentProject } from '../../stores/project'
 
-const { t } = useI18n()
+const { t, tt } = useI18n()
 const toast = useToast()
-const { emit: emitMenuAction } = useMenuAction()
 const { recentProjects, setProject, clearRecentProjects, currentProject } = useProject()
-const { menuConfig } = useMenuConfig(currentProject)
+const { emit: emitMenuAction } = useMenuAction()
 const activeMenu = ref<string | null>(null)
 const menuBarActive = ref(false)
 const activeSubmenu = ref<string | null>(null)
 let submenuTimer: ReturnType<typeof setTimeout> | null = null
 let hideSubmenuTimer: ReturnType<typeof setTimeout> | null = null
+
+// YML-driven menu config — replaces useMenuConfig()
+const menuConfig = computed<MenuCategory[]>(() => {
+  const config = getConfig()
+  const state = createRuntimeState(currentProject.value)
+
+  return config.menus.menus.map(cat => {
+    const catDisabled = cat.disabledWhen ? evaluateExpression(cat.disabledWhen, state) === true : false
+    return {
+      name: tt(cat.label),
+      disabled: catDisabled,
+      groups: cat.groups.map(grp => ({
+        items: grp.items.map(it => ({
+          name: tt(it.label),
+          shortcut: it.shortcut ?? null,
+          action: it.action,
+          submenu: it.type === 'submenu',
+          disabled: it.enabledWhen ? !evaluateExpression(it.enabledWhen, state) : false,
+        })),
+      })),
+      note: cat.note ? tt(cat.note) : undefined,
+    }
+  })
+})
+
+function handleItemClick(action?: string) {
+  activeMenu.value = null; menuBarActive.value = false
+  if (!action) return
+
+  // Bridge: emit to legacy useMenuAction bus for EditorPanel / FileTreePanel
+  emitMenuAction(action)
+
+  // Also execute via ActionRegistry if registered
+  const registry = getActionRegistry()
+  if (registry.has(action)) {
+    registry.execute(action, {}, {
+      invoke: async () => {},
+      openFile: () => {},
+      toast: {
+        success: toast.success,
+        error: toast.error,
+        warning: toast.warning,
+      },
+      pushLog: () => {},
+      confirm: async () => false,
+    }).catch(e => toast.error(String(e)))
+  }
+}
 
 async function startDrag(event: MouseEvent) {
   const target = event.target as HTMLElement
@@ -46,11 +97,6 @@ function handleMenuClick(category: MenuCategory) {
 function handleMenuEnter(category: MenuCategory) {
   if (category.disabled) return
   if (menuBarActive.value) activeMenu.value = category.name
-}
-
-function handleItemClick(action?: string) {
-  activeMenu.value = null; menuBarActive.value = false
-  if (action) emitMenuAction(action)
 }
 
 function handleClickOutside() { activeMenu.value = null; menuBarActive.value = false; activeSubmenu.value = null }

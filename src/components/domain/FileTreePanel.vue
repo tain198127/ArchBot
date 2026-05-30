@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import FileTreeContextMenu from './FileTreeContextMenu.vue'
 import VDialog from '../base/VDialog.vue'
@@ -11,6 +11,7 @@ import { useI18n } from '../../i18n'
 import { useProject } from '../../stores/project'
 import { useMenuAction } from '../../composables/useMenuAction'
 import { useProjectDir } from '../../composables/useProjectDir'
+import { getActionRegistry } from '../../orchestration/ActionRegistry'
 import { projectCategories } from '../../config/projectDirs'
 import type { ProjectDirChild } from '../../config/projectDirs'
 import type { DomainInfo, EntityDef, EnumDef } from '../../types/dataStandard'
@@ -21,10 +22,81 @@ const { currentProject } = useProject()
 const { emit: emitMenuAction } = useMenuAction()
 const projectDir = useProjectDir()
 
+// Register context menu actions that need component refs
+onMounted(() => {
+  const registry = getActionRegistry()
+
+  registry.register('ds.newDomain', async () => {
+    ctxVisible.value = false
+    showNewDomain.value = true
+  })
+
+  registry.register('ds.newEntity', async (params: Record<string, unknown>) => {
+    ctxVisible.value = false
+    const code = (params.code as string) || ''
+    if (code) {
+      activeDomainCode.value = code
+    } else if (domains.value.length > 0) {
+      activeDomainCode.value = domains.value[0].code
+    } else {
+      // Auto-create default domain if none exists
+      const dir = projectDir()
+      if (!dir) return
+      try {
+        await invoke('ds_create_domain', {
+          projectDir: dir, code: 'default', name: ds.defaultDomain, owner: '', description: '',
+        })
+        await loadDomains()
+        activeDomainCode.value = 'default'
+      } catch (e) { toast.error(String(e)); return }
+    }
+    showNewEntity.value = true
+  })
+
+  registry.register('ds.newDict', async (params: Record<string, unknown>) => {
+    ctxVisible.value = false
+    const code = (params.code as string) || ''
+    if (code) {
+      activeDomainCode.value = code
+    } else if (domains.value.length > 0) {
+      activeDomainCode.value = domains.value[0].code
+    } else {
+      const dir = projectDir()
+      if (!dir) return
+      try {
+        await invoke('ds_create_domain', {
+          projectDir: dir, code: 'default', name: ds.defaultDomain, owner: '', description: '',
+        })
+        await loadDomains()
+        activeDomainCode.value = 'default'
+      } catch (e) { toast.error(String(e)); return }
+    }
+    showNewDict.value = true
+  })
+
+  registry.register('ds.importFile', async () => {
+    ctxVisible.value = false
+    toast.info(ctx.importFileHint as string)
+  })
+
+  registry.register('ds.reverseDb', async () => {
+    ctxVisible.value = false
+    toast.info(ctx.reverseDbHint as string)
+  })
+
+  registry.register('ds.reverseDdl', async () => {
+    ctxVisible.value = false
+    toast.info(ctx.reverseDdlHint as string)
+  })
+
+  registry.register('ds.reverseCode', async () => {
+    ctxVisible.value = false
+    emitMenuAction({ action: 'open.dataModel', payload: { mode: 'reverse', source: 'code' } })
+  })
+})
+
 const ds = t.value.dataStandard as Record<string, string>
 const ctx = t.value.contextMenu as Record<string, string>
-
-const DEFAULT_DOMAIN_CODE = 'default'
 
 const domains = ref<DomainInfo[]>([])
 const domainEntities = ref<Record<string, EntityDef[]>>({})
@@ -34,12 +106,11 @@ const expandedGroups = ref<Set<string>>(new Set())
 const expandedDomains = ref<Set<string>>(new Set())
 const selectedNode = ref('')
 
+import type { ContextObject } from '../../orchestration/RuntimeContext'
+
 const ctxVisible = ref(false)
 const ctxPos = ref({ x: 0, y: 0 })
-const ctxType = ref<'dataStandard' | 'domain' | 'category' | 'group' | 'item'>('dataStandard')
-const ctxDomain = ref('')
-const ctxGroupKey = ref('')
-const ctxItemKey = ref('')
+const ctxObject = ref<ContextObject | null>(null)
 
 const showNewDomain = ref(false)
 const showNewEntity = ref(false)
@@ -149,58 +220,20 @@ function handleDictGroupClick(domainCode: string) {
 }
 
 // ── context menu helpers ──
-function showContextMenu(event: MouseEvent, type: typeof ctxType.value, opts?: { domain?: string; groupKey?: string; itemKey?: string }) {
+function showContextMenu(
+  event: MouseEvent,
+  resourceType: ContextObject['resourceType'],
+  resource: Record<string, unknown> = {},
+) {
   event.preventDefault()
   event.stopPropagation()
-  ctxType.value = type
-  ctxDomain.value = opts?.domain || ''
-  ctxGroupKey.value = opts?.groupKey || ''
-  ctxItemKey.value = opts?.itemKey || ''
+  ctxObject.value = {
+    resourceType,
+    resource: { name: (resource.name as string) ?? '', ...resource },
+  }
   ctxPos.value = { x: event.clientX, y: event.clientY }
   ctxVisible.value = true
   nextTick(() => document.addEventListener('click', () => { ctxVisible.value = false }, { once: true }))
-}
-
-// ── context menu actions ──
-function onCtxNewDomain() { ctxVisible.value = false; showNewDomain.value = true }
-function onCtxNewEntity() {
-  ctxVisible.value = false
-  if (ctxDomain.value) { activeDomainCode.value = ctxDomain.value; showNewEntity.value = true }
-  else ensureDefaultDomain(() => { activeDomainCode.value = DEFAULT_DOMAIN_CODE; showNewEntity.value = true })
-}
-function onCtxNewDict() {
-  ctxVisible.value = false
-  if (ctxDomain.value) { activeDomainCode.value = ctxDomain.value; showNewDict.value = true }
-  else ensureDefaultDomain(() => { activeDomainCode.value = DEFAULT_DOMAIN_CODE; showNewDict.value = true })
-}
-function onCtxImportFile() { ctxVisible.value = false; toast.info(ctx.importFileHint) }
-function onCtxReverseDb() { ctxVisible.value = false; toast.info(ctx.reverseDbHint) }
-function onCtxReverseDdl() { ctxVisible.value = false; toast.info(ctx.reverseDdlHint) }
-function onCtxReverseCode() { ctxVisible.value = false; emitMenuAction({ action: 'open.dataModel', payload: { mode: 'reverse', source: 'code' } }) }
-
-function onCtxAction(actionType: string) {
-  ctxVisible.value = false
-  if (ctxType.value === 'group') {
-    emitMenuAction({ action: `ctxmenu.${actionType}`, payload: { groupKey: ctxGroupKey.value } })
-    toast.info(`${ctx[actionType as keyof typeof ctx] || actionType}: ${getDirLabel(ctxGroupKey.value)}`)
-  } else if (ctxType.value === 'category') {
-    emitMenuAction({ action: `ctxmenu.${actionType}`, payload: { categoryKey: ctxGroupKey.value } })
-    toast.info(`${ctx[actionType as keyof typeof ctx] || actionType}`)
-  } else if (ctxType.value === 'item') {
-    emitMenuAction({ action: `ctxmenu.${actionType}`, payload: { groupKey: ctxGroupKey.value, itemKey: ctxItemKey.value } })
-    toast.info(`${ctx[actionType as keyof typeof ctx] || actionType}: ${getDirLabel(ctxItemKey.value)}`)
-  }
-}
-
-async function ensureDefaultDomain(onDone: () => void) {
-  if (domains.value.length > 0) { activeDomainCode.value = domains.value[0].code; onDone(); return }
-  const dir = projectDir()
-  if (!dir) return
-  try {
-    await invoke('ds_create_domain', { projectDir: dir, code: DEFAULT_DOMAIN_CODE, name: ds.defaultDomain, owner: '', description: '' })
-    await loadDomains()
-    onDone()
-  } catch (e) { toast.error(String(e)) }
 }
 
 // ── dialogs ──
@@ -259,7 +292,7 @@ function enumCount(domainCode: string): number { return domainEnums.value[domain
               class="tree-item"
               :class="{ 'bg-surface-200 dark:bg-surface-200': selectedNode === `cat.${cat.key}` }"
               @click="handleCategoryClick(cat.key)"
-              @contextmenu="showContextMenu($event, 'category', { groupKey: cat.key })"
+              @contextmenu="showContextMenu($event, 'category', { name: getDirLabel(cat.labelKey) })"
             >
               <svg class="tree-chevron" :class="{ 'rotate-90': isCategoryExpanded(cat.key) }" viewBox="0 0 24 24">
                 <path fill="currentColor" d="M8 5l8 7-8 7z"/>
@@ -279,7 +312,7 @@ function enumCount(domainCode: string): number { return domainEnums.value[domain
                     class="tree-item"
                     :class="{ 'bg-surface-200 dark:bg-surface-200': selectedNode === `group.${group.key}` }"
                     @click="handleGroupClick(group)"
-                    @contextmenu="showContextMenu($event, 'group', { groupKey: group.key })"
+                    @contextmenu="showContextMenu($event, 'group', { name: getDirLabel(group.labelKey), groupKey: group.key })"
                   >
                     <svg class="tree-chevron" :class="{ 'rotate-90': isGroupExpanded(group.key) }" viewBox="0 0 24 24" @click.stop="toggleGroup(group.key)">
                       <path fill="currentColor" d="M8 5l8 7-8 7z"/>
@@ -298,7 +331,7 @@ function enumCount(domainCode: string): number { return domainEnums.value[domain
                         class="tree-item"
                         :class="{ 'bg-surface-200 dark:bg-surface-200': selectedNode === `item.${child.key}` }"
                         @click="handleGroupChildClick(child)"
-                        @contextmenu="showContextMenu($event, 'item', { groupKey: group.key, itemKey: child.key })"
+                        @contextmenu="showContextMenu($event, 'item', { name: getDirLabel(child.labelKey), groupKey: group.key, itemKey: child.key })"
                       >
                         <svg class="tree-icon" viewBox="0 0 24 24" :style="{ color: child.color }">
                           <path fill="currentColor" d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
@@ -313,7 +346,7 @@ function enumCount(domainCode: string): number { return domainEnums.value[domain
                             class="tree-item"
                             :class="{ 'bg-surface-200 dark:bg-surface-200': selectedNode === `domain.${domain.code}` }"
                             @click="handleDomainClick(domain.code)"
-                            @contextmenu="showContextMenu($event, 'domain', { domain: domain.code })"
+                            @contextmenu="showContextMenu($event, 'domain', { name: domain.name, code: domain.code })"
                           >
                             <svg class="tree-chevron" :class="{ 'rotate-90': isDomainExpanded(domain.code) }" viewBox="0 0 24 24" @click.stop="toggleDomain(domain.code)">
                               <path fill="currentColor" d="M8 5l8 7-8 7z"/>
@@ -359,7 +392,7 @@ function enumCount(domainCode: string): number { return domainEnums.value[domain
                         class="tree-item"
                         :class="{ 'bg-surface-200 dark:bg-surface-200': selectedNode === `item.${child.key}` }"
                         @click="handleGroupChildClick(child)"
-                        @contextmenu="showContextMenu($event, 'item', { groupKey: group.key, itemKey: child.key })"
+                        @contextmenu="showContextMenu($event, 'item', { name: getDirLabel(child.labelKey), groupKey: group.key, itemKey: child.key })"
                       >
                         <svg class="tree-icon" viewBox="0 0 24 24" :style="{ color: child.color }">
                           <path fill="currentColor" d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
@@ -400,18 +433,8 @@ function enumCount(domainCode: string): number { return domainEnums.value[domain
       :visible="ctxVisible"
       :x="ctxPos.x"
       :y="ctxPos.y"
-      :type="ctxType"
-      :domain="ctxDomain"
-      :group-key="ctxGroupKey"
-      :item-key="ctxItemKey"
-      @new-domain="onCtxNewDomain"
-      @new-entity="onCtxNewEntity"
-      @new-dict="onCtxNewDict"
-      @import-file="onCtxImportFile"
-      @reverse-db="onCtxReverseDb"
-      @reverse-ddl="onCtxReverseDdl"
-      @reverse-code="onCtxReverseCode"
-      @action="onCtxAction"
+      :context="ctxObject"
+      @close="ctxVisible = false"
     />
 
     <!-- new domain dialog -->

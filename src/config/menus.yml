@@ -1,0 +1,176 @@
+# ═══════════════════════════════════════════════════════════════
+# ArchBot 顶部菜单栏配置
+# label 字段均为 i18n key，渲染时通过 tt() 查询
+# ═══════════════════════════════════════════════════════════════
+version: "1.0"
+
+menus:
+  - id: file
+    label: menu.file
+    groups:
+      - items:
+          - id: file.newProject
+            label: menuFile.newProject
+            shortcut: Ctrl+Shift+N / Cmd+Shift+N
+            action: project.create
+          - id: file.openProject
+            label: menuFile.openProject
+            shortcut: Ctrl+O / Cmd+O
+            action: project.open
+          - id: file.openRecentProject
+            label: menuFile.openRecentProject
+            type: submenu
+            provider: recentProjects
+          - id: file.openRemoteProject
+            label: menuFile.openRemoteProject
+            action: project.openRemote
+      - items:
+          - id: file.saveProject
+            label: menuFile.saveProject
+            shortcut: Ctrl+S / Cmd+S
+            action: project.save
+            enabledWhen: project.loaded == true
+          - id: file.saveAsProject
+            label: menuFile.saveAsProject
+            shortcut: Ctrl+Shift+S / Cmd+Shift+S
+            action: project.saveAs
+            enabledWhen: project.loaded == true
+      - items:
+          - id: file.closeProject
+            label: menuFile.closeProject
+            shortcut: Ctrl+W / Cmd+W
+            action: project.close
+            enabledWhen: project.loaded == true
+      - items:
+          - id: file.clearCache
+            label: menuFile.clearCache
+            action: settings.clearCache
+
+  - id: edit
+    label: menu.edit
+    disabledWhen: project.loaded == false
+    groups:
+      - items:
+          - id: edit.find
+            label: menuEdit.find
+            shortcut: Ctrl+F / Cmd+F
+            action: editor.find
+          - id: edit.replace
+            label: menuEdit.replace
+            shortcut: Ctrl+R / Cmd+R
+            action: editor.replace
+          - id: edit.goTo
+            label: menuEdit.goTo
+            shortcut: Ctrl+G / Cmd+G
+            action: editor.goTo
+      - items:
+          - id: edit.cut
+            label: menuEdit.cut
+            shortcut: Ctrl+X / Cmd+X
+            action: editor.cut
+          - id: edit.copy
+            label: menuEdit.copy
+            shortcut: Ctrl+C / Cmd+C
+            action: editor.copy
+      - items:
+          - id: edit.format
+            label: menuEdit.format
+            shortcut: Ctrl+Alt+L / Cmd+Option+L
+            action: editor.format
+
+  - id: view
+    label: menu.view
+    disabledWhen: project.loaded == false
+    groups: []
+    note: menu.comingSoon
+
+  - id: config
+    label: menu.config
+    disabledWhen: project.loaded == false
+    groups:
+      - items:
+          - id: config.digitalEmployee
+            label: menuConfig.digitalEmployee
+            action: config.digitalEmployee
+          - id: config.businessFlow
+            label: menuConfig.businessFlow
+            action: config.businessFlow
+          - id: config.sharedDocs
+            label: menuConfig.sharedDocs
+            action: config.sharedDocs
+          - id: config.imIntegration
+            label: menuConfig.imIntegration
+            action: config.imIntegration
+          - id: config.agentConfig
+            label: menuConfig.agentConfig
+            action: config.agentConfig
+      - items:
+          - id: config.ai
+            label: menuConfig.ai
+            action: config.ai
+          - id: config.skill
+            label: menuConfig.skill
+            action: config.skill
+          - id: config.mcp
+            label: menuConfig.mcp
+            action: config.mcp
+      - items:
+          - id: config.contextEngineering
+            label: menuConfig.contextEngineering
+            action: config.contextEngineering
+      - items:
+          - id: config.scenario
+            label: menuConfig.scenario
+            action: config.scenario
+      - items:
+          - id: config.system
+            label: menuConfig.system
+            action: config.system
+
+  - id: run
+    label: menu.run
+    disabledWhen: project.loaded == false
+    groups:
+      - items:
+          - id: run.terminal
+            label: menuRun.terminal
+            shortcut: Alt+F12 / Option+F12
+            action: run.terminal
+      - items:
+          - id: run.genRequirement
+            label: menuRun.genRequirement
+            action: run.genRequirement
+          - id: run.genDesign
+            label: menuRun.genDesign
+            action: run.genDesign
+          - id: run.genCode
+            label: menuRun.genCode
+            action: run.genCode
+          - id: run.genSkeleton
+            label: menuRun.genSkeleton
+            action: run.genSkeleton
+      - items:
+          - id: run.genDbTable
+            label: menuRun.genDbTable
+            action: run.genDbTable
+          - id: run.genDataStandard
+            label: menuRun.genDataStandard
+            action: run.genDataStandard
+          - id: run.genCallChain
+            label: menuRun.genCallChain
+            action: run.genCallChain
+      - items:
+          - id: run.genTestCase
+            label: menuRun.genTestCase
+            action: run.genTestCase
+          - id: run.genE2eTest
+            label: menuRun.genE2eTest
+            action: run.genE2eTest
+
+  - id: help
+    label: menu.help
+    groups:
+      - items:
+          - id: file.register
+            label: license.register
+            action: license.openDialog

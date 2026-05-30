@@ -1,0 +1,347 @@
+# ═══════════════════════════════════════════════════════════════
+# ArchBot 动作定义
+# 声明每个动作的 id、执行器类型、输入参数、结果处理
+# ═══════════════════════════════════════════════════════════════
+version: "1.0"
+
+actions:
+  # ── Project ──
+  - id: project.open
+    label: menuFile.openProject
+    executor: backend
+    command: open_project
+    input:
+      path: "${params.path}"
+    result:
+      storeAs: project.current
+      notify: true
+
+  - id: project.create
+    label: menuFile.newProject
+    executor: backend
+    command: create_project
+    input:
+      dir: "${params.dir}"
+      name: "${params.name}"
+
+  - id: project.close
+    label: menuFile.closeProject
+    executor: frontend
+    handler: project.close
+
+  - id: project.save
+    label: menuFile.saveProject
+    executor: frontend
+    handler: project.save
+
+  - id: project.saveAs
+    label: menuFile.saveAsProject
+    executor: frontend
+    handler: project.saveAs
+
+  - id: project.openRemote
+    label: menuFile.openRemoteProject
+    executor: frontend
+    handler: project.openRemote
+
+  # ── Editor ──
+  - id: editor.openFile
+    label: contextMenu.open
+    executor: frontend
+    handler: editor.openFile
+    input:
+      filePath: "${params.filePath}"
+
+  - id: editor.find
+    label: menuEdit.find
+    executor: frontend
+    handler: editor.find
+
+  - id: editor.replace
+    label: menuEdit.replace
+    executor: frontend
+    handler: editor.replace
+
+  - id: editor.goTo
+    label: menuEdit.goTo
+    executor: frontend
+    handler: editor.goTo
+
+  - id: editor.cut
+    label: menuEdit.cut
+    executor: frontend
+    handler: editor.cut
+
+  - id: editor.copy
+    label: menuEdit.copy
+    executor: frontend
+    handler: editor.copy
+
+  - id: editor.format
+    label: menuEdit.format
+    executor: frontend
+    handler: editor.format
+
+  # ── Config ──
+  - id: config.openDigitalEmployee
+    label: menuConfig.digitalEmployee
+    executor: frontend
+    handler: config.openDigitalEmployee
+
+  - id: config.openBusinessFlow
+    label: menuConfig.businessFlow
+    executor: frontend
+    handler: config.openBusinessFlow
+
+  - id: config.openSharedDocs
+    label: menuConfig.sharedDocs
+    executor: frontend
+    handler: config.openSharedDocs
+
+  - id: config.openImIntegration
+    label: menuConfig.imIntegration
+    executor: frontend
+    handler: config.openImIntegration
+
+  - id: config.openAgentConfig
+    label: menuConfig.agentConfig
+    executor: frontend
+    handler: config.openAgentConfig
+
+  - id: config.openAi
+    label: menuConfig.ai
+    executor: frontend
+    handler: config.openAi
+
+  - id: config.openSkill
+    label: menuConfig.skill
+    executor: frontend
+    handler: config.openSkill
+
+  - id: config.openMcp
+    label: menuConfig.mcp
+    executor: frontend
+    handler: config.openMcp
+
+  - id: config.openContextEng
+    label: menuConfig.contextEngineering
+    executor: frontend
+    handler: config.openContextEng
+
+  - id: config.openScenario
+    label: menuConfig.scenario
+    executor: frontend
+    handler: config.openScenario
+
+  - id: config.openSystem
+    label: menuConfig.system
+    executor: frontend
+    handler: config.openSystem
+
+  # ── Settings ──
+  - id: settings.clearCache
+    label: menuFile.clearCache
+    executor: frontend
+    handler: settings.clearCache
+
+  # ── License ──
+  - id: license.openDialog
+    label: license.register
+    executor: frontend
+    handler: license.openDialog
+
+  # ── Run ──
+  - id: run.terminal
+    label: menuRun.terminal
+    executor: frontend
+    handler: run.terminal
+
+  - id: run.genRequirement
+    label: menuRun.genRequirement
+    executor: backend
+    command: run_gen_requirement
+
+  - id: run.genDesign
+    label: menuRun.genDesign
+    executor: backend
+    command: run_gen_design
+
+  - id: run.genCode
+    label: menuRun.genCode
+    executor: backend
+    command: run_gen_code
+
+  - id: run.genSkeleton
+    label: menuRun.genSkeleton
+    executor: backend
+    command: run_gen_skeleton
+
+  - id: run.genDbTable
+    label: menuRun.genDbTable
+    executor: backend
+    command: run_gen_db_table
+
+  - id: run.genDataStandard
+    label: menuRun.genDataStandard
+    executor: backend
+    command: run_gen_data_standard
+
+  - id: run.genCallChain
+    label: menuRun.genCallChain
+    executor: backend
+    command: run_gen_call_chain
+
+  - id: run.genTestCase
+    label: menuRun.genTestCase
+    executor: backend
+    command: run_gen_test_case
+
+  - id: run.genE2eTest
+    label: menuRun.genE2eTest
+    executor: backend
+    command: run_gen_e2e_test
+
+  # ── Data Standard ──
+  - id: ds.newDomain
+    label: contextMenu.newDomain
+    executor: frontend
+    handler: ds.newDomain
+
+  - id: ds.newEntity
+    label: contextMenu.newEntity
+    executor: frontend
+    handler: ds.newEntity
+
+  - id: ds.newDict
+    label: contextMenu.newDictionary
+    executor: frontend
+    handler: ds.newDict
+
+  - id: ds.importFile
+    label: contextMenu.importFile
+    executor: frontend
+    handler: ds.importFile
+
+  - id: ds.reverseDb
+    label: contextMenu.reverseDb
+    executor: backend
+    command: ds_reverse_db
+
+  - id: ds.reverseDdl
+    label: contextMenu.reverseDdl
+    executor: backend
+    command: ds_reverse_ddl
+
+  - id: ds.reverseCode
+    label: contextMenu.reverseCode
+    executor: backend
+    command: ds_reverse_code
+
+  # ── Category Actions ──
+  - id: cat.brainstorm
+    label: contextMenu.brainstorm
+    executor: frontend
+    handler: cat.brainstorm
+
+  - id: cat.generateSRS
+    label: contextMenu.generateSRS
+    executor: backend
+    command: cat_generate_srs
+
+  - id: cat.exportHTML
+    label: contextMenu.exportHTML
+    executor: backend
+    command: cat_export_html
+
+  - id: cat.sealAll
+    label: contextMenu.sealAll
+    executor: frontend
+    handler: cat.sealAll
+
+  - id: cat.importProject
+    label: contextMenu.importProject
+    executor: frontend
+    handler: cat.importProject
+
+  - id: cat.exportPackage
+    label: contextMenu.exportPackage
+    executor: backend
+    command: cat_export_package
+
+  # ── Group / Item Actions ──
+  - id: grp.analyze
+    label: contextMenu.analyze
+    executor: frontend
+    handler: grp.analyze
+
+  - id: grp.review
+    label: contextMenu.review
+    executor: frontend
+    handler: grp.review
+
+  - id: grp.write
+    label: contextMenu.write
+    executor: frontend
+    handler: grp.write
+
+  - id: grp.seal
+    label: contextMenu.seal
+    executor: frontend
+    handler: grp.seal
+
+  - id: grp.import
+    label: contextMenu.import
+    executor: frontend
+    handler: grp.import
+
+  - id: grp.export
+    label: contextMenu.export
+    executor: frontend
+    handler: grp.export
+
+  - id: itm.analyze
+    label: contextMenu.analyze
+    executor: frontend
+    handler: itm.analyze
+
+  - id: itm.review
+    label: contextMenu.review
+    executor: frontend
+    handler: itm.review
+
+  - id: itm.write
+    label: contextMenu.write
+    executor: frontend
+    handler: itm.write
+
+  - id: itm.seal
+    label: contextMenu.seal
+    executor: frontend
+    handler: itm.seal
+
+  - id: itm.import
+    label: contextMenu.import
+    executor: frontend
+    handler: itm.import
+
+  - id: itm.export
+    label: contextMenu.export
+    executor: frontend
+    handler: itm.export
+
+  # ── File System ──
+  - id: fs.deleteFile
+    label: contextMenu.delete
+    executor: backend
+    command: fs_delete
+    input:
+      path: "${params.filePath}"
+    confirm: contextMenu.confirmDelete
+
+  # ── UI ──
+  - id: ui.refreshPanel
+    label: ""
+    executor: frontend
+    handler: ui.refreshPanel
+    input:
+      panelId: "${params.panelId}"

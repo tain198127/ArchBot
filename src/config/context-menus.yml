@@ -1,0 +1,145 @@
+# ═══════════════════════════════════════════════════════════════
+# ArchBot 右键菜单配置
+# 按 ContextObject.resourceType 匹配，支持条件过滤
+# ═══════════════════════════════════════════════════════════════
+version: "1.0"
+
+contextMenus:
+  # ── 数据标准根节点 ──
+  - id: dataStandard-root
+    appliesTo:
+      resourceType: dataStandard
+    items:
+      - id: ds.newDomain
+        label: contextMenu.newDomain
+        action: ds.newDomain
+      - id: ds.newEntity
+        label: contextMenu.newEntity
+        action: ds.newEntity
+      - id: ds.newDict
+        label: contextMenu.newDictionary
+        action: ds.newDict
+      - type: separator
+      - id: ds.importFile
+        label: contextMenu.importFile
+        action: ds.importFile
+      - id: ds.reverseDb
+        label: contextMenu.reverseDb
+        action: ds.reverseDb
+      - id: ds.reverseDdl
+        label: contextMenu.reverseDdl
+        action: ds.reverseDdl
+      - id: ds.reverseCode
+        label: contextMenu.reverseCode
+        action: ds.reverseCode
+
+  # ── 领域节点 ──
+  - id: domain-node
+    appliesTo:
+      resourceType: domain
+    items:
+      - id: ds.newEntity
+        label: contextMenu.newEntity
+        action: ds.newEntity
+      - id: ds.newDict
+        label: contextMenu.newDictionary
+        action: ds.newDict
+
+  # ── 分类节点 (需求/设计/开发/测试/部署) ──
+  - id: category-node
+    appliesTo:
+      resourceType: category
+    items:
+      - id: cat.brainstorm
+        label: contextMenu.brainstorm
+        action: cat.brainstorm
+      - id: cat.generateSRS
+        label: contextMenu.generateSRS
+        action: cat.generateSRS
+      - id: cat.exportHTML
+        label: contextMenu.exportHTML
+        action: cat.exportHTML
+      - type: separator
+      - id: cat.sealAll
+        label: contextMenu.sealAll
+        action: cat.sealAll
+      - type: separator
+      - id: cat.importProject
+        label: contextMenu.importProject
+        action: cat.importProject
+      - id: cat.exportPackage
+        label: contextMenu.exportPackage
+        action: cat.exportPackage
+
+  # ── 分组节点 (bizContext / dataStandard / funcSpec) ──
+  - id: group-node
+    appliesTo:
+      resourceType: group
+    items:
+      - id: grp.analyze
+        label: contextMenu.analyze
+        action: grp.analyze
+      - id: grp.review
+        label: contextMenu.review
+        action: grp.review
+      - id: grp.write
+        label: contextMenu.write
+        action: grp.write
+      - type: separator
+      - id: grp.conditional
+        label: ""
+        predicate: groupSpecificAction
+      - type: separator
+      - id: grp.seal
+        label: contextMenu.seal
+        action: grp.seal
+      - type: separator
+      - id: grp.import
+        label: contextMenu.import
+        action: grp.import
+      - id: grp.export
+        label: contextMenu.export
+        action: grp.export
+
+  # ── 文件/文档节点 ──
+  - id: item-node
+    appliesTo:
+      resourceType: item
+    items:
+      - id: itm.analyze
+        label: contextMenu.analyze
+        action: itm.analyze
+      - id: itm.review
+        label: contextMenu.review
+        action: itm.review
+      - id: itm.write
+        label: contextMenu.write
+        action: itm.write
+      - type: separator
+      - id: itm.seal
+        label: contextMenu.seal
+        action: itm.seal
+      - type: separator
+      - id: itm.import
+        label: contextMenu.import
+        action: itm.import
+      - id: itm.export
+        label: contextMenu.export
+        action: itm.export
+
+  # ── 文件树节点（项目文件） ──
+  - id: file-node
+    appliesTo:
+      resourceType: file
+    items:
+      - id: file.open
+        label: contextMenu.open
+        action: editor.openFile
+        params:
+          filePath: "${context.resource.path}"
+      - type: separator
+      - id: file.delete
+        label: contextMenu.delete
+        action: fs.deleteFile
+        params:
+          filePath: "${context.resource.path}"

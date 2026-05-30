@@ -1,0 +1,89 @@
+# ═══════════════════════════════════════════════════════════════
+# ArchBot 多步骤业务编排 (Flows)
+# 每个 flow 是一组串行执行的 action，步骤间通过 outputAs 传递数据
+# onError: abort — 步骤失败即停止，不回滚前序步骤
+# ═══════════════════════════════════════════════════════════════
+version: "1.0"
+
+flows:
+  # ── 完整 Controller 调用链分析 ──
+  - id: analysis.fullControllerTrace
+    label: 完整分析调用链
+    description: 右键 Controller → 扫描接口 → 分析 Service → 追踪 Mapper → 识别表 → 保存 → 刷新
+    onError: abort
+    input:
+      filePath: "${context.resource.path}"
+    steps:
+      - id: validateFile
+        action: validation.ensureJavaController
+        params:
+          filePath: "${input.filePath}"
+      - id: parseController
+        action: analysis.controller.single
+        params:
+          filePath: "${input.filePath}"
+        outputAs: controllerResult
+      - id: traceServices
+        action: analysis.service.trace
+        params:
+          controllerResult: "${steps.controllerResult}"
+        outputAs: serviceResult
+      - id: traceMappers
+        action: analysis.mapper.trace
+        params:
+          serviceResult: "${steps.serviceResult}"
+        outputAs: mapperResult
+      - id: identifyTables
+        action: analysis.database.identifyTables
+        params:
+          mapperResult: "${steps.mapperResult}"
+        outputAs: tableResult
+      - id: saveGraph
+        action: workspace.saveAnalysisResult
+        params:
+          type: callChain
+          controller: "${steps.controllerResult}"
+          services: "${steps.serviceResult}"
+          mappers: "${steps.mapperResult}"
+          tables: "${steps.tableResult}"
+      - id: refreshView
+        action: ui.refreshPanel
+        params:
+          panelId: call-chain-panel
+
+  # ── 数据标准完整导入流程 ──
+  - id: ds.fullImportFlow
+    label: 完整导入流程
+    description: 导入文件 → 校验格式 → 创建领域 → 解析实体 → 保存 → 刷新
+    onError: abort
+    input:
+      filePath: "${context.resource.path}"
+    steps:
+      - id: importFile
+        action: ds.importFile
+        params:
+          filePath: "${input.filePath}"
+        outputAs: importResult
+      - id: validateFormat
+        action: ds.validateFormat
+        params:
+          data: "${steps.importResult}"
+      - id: createDomain
+        action: ds.newDomain
+        params:
+          data: "${steps.importResult}"
+        outputAs: domain
+      - id: parseEntities
+        action: ds.parseEntities
+        params:
+          data: "${steps.importResult}"
+          domain: "${steps.domain}"
+        outputAs: entities
+      - id: saveAll
+        action: ds.saveEntities
+        params:
+          entities: "${steps.entities}"
+      - id: refreshView
+        action: ui.refreshPanel
+        params:
+          panelId: data-standard-panel

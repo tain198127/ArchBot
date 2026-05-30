@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { openProject as apiOpenProject, initArchbotDir, ensureGitignore, dbDisconnect } from './api'
-import { openFileDialog, browserOpenProjectFile } from './api/filePicker'
+import { computed, onMounted, ref } from 'vue'
+import { openProject as apiOpenProject, initArchbotDir, ensureGitignore } from './api'
 import { pushLog } from './stores/log'
-import { isTauri } from './api/env'
 import { useToast } from './composables/useToast'
+import { registerAllActions } from './actions'
+import { getActionRegistry, type ActionRuntime } from './orchestration/ActionRegistry'
+import { getPredicateRegistry } from './orchestration/PredicateRegistry'
 import ToastProvider from './components/base/ToastProvider.vue'
 import MenuBar from './components/layout/MenuBar.vue'
 import SplitPanel from './components/layout/SplitPanel.vue'
@@ -16,114 +17,72 @@ import NewProjectDialog from './components/domain/NewProjectDialog.vue'
 import LicenseDialog from './components/domain/LicenseDialog.vue'
 import { useI18n } from './i18n'
 import { useSettings } from './stores/settings'
-import { useMenuAction } from './composables/useMenuAction'
 import { useProject } from './stores/project'
+
 const { t } = useI18n()
 const toast = useToast()
-const { initSettings, saveSettings } = useSettings()
-const { on } = useMenuAction()
-const { setProject, closeProject } = useProject()
+const { initSettings } = useSettings()
+const { setProject } = useProject()
 
 const newProjectDialogRef = ref<InstanceType<typeof NewProjectDialog> | null>(null)
 const licenseDialogRef = ref<InstanceType<typeof LicenseDialog> | null>(null)
 
+// Create ActionRuntime — bridges actions to app-level capabilities
+const runtime: ActionRuntime = {
+  invoke: async (cmd: string, args?: Record<string, unknown>) => {
+    // Tauri invoke or HTTP fallback
+    const { isTauri } = await import('./api/env')
+    if (isTauri) {
+      const { invoke } = await import('@tauri-apps/api/core')
+      return invoke(cmd, args)
+    }
+    const { call } = await import('./api/transport')
+    return call(cmd, 'POST', `/${cmd.replace(/_/g, '-')}`, args)
+  },
+  openFile: () => {},
+  toast: {
+    success: toast.success,
+    error: toast.error,
+    warning: toast.warning,
+  },
+  pushLog: (level, source, msg) => pushLog(level, source, msg),
+  confirm: async (msg: string) => {
+    return window.confirm(msg)
+  },
+}
+
 onMounted(() => {
   initSettings()
-})
 
-async function handleOpenProject() {
-  const filter = [{ name: t.value.openProject.filterName, extensions: ['ab'] }]
+  // Register all actions from YML config
+  registerAllActions(runtime)
 
-  if (isTauri) {
-    // Desktop: get absolute path from native dialog, have backend read the file
-    let selected: string | null = null
-    try {
-      selected = await openFileDialog(filter)
-    } catch (e) {
-      toast.error(`${t.value.openProject.failed}: ${e}`)
-      return
-    }
-    if (!selected) return
+  // Register Predicates for complex conditions
+  const predicates = getPredicateRegistry()
+  predicates.register('groupSpecificAction', (state, context) => {
+    const groupKey = (context?.resource as Record<string, unknown>)?.groupKey as string | undefined
+    return state.project.loaded && !!groupKey
+  })
 
-    pushLog('info', 'app', `Opening project: ${selected} (mode: tauri)`)
-    try {
-      const result = await apiOpenProject(selected)
-      pushLog('info', 'app', `Project opened: ${result.name}`)
-      setProject({ name: result.name, path: selected, content: result.content })
-      await initProjectDir(selected)
-      toast.success(t.value.openProject.success)
-    } catch (e) {
-      toast.error(`${t.value.openProject.failed}: ${e}`)
-    }
-  } else {
-    // Browser: no absolute paths available — read file content directly via FileReader
-    let result: { name: string; path: string; content: string } | null = null
-    try {
-      result = await browserOpenProjectFile(filter)
-    } catch (e) {
-      toast.error(`${t.value.openProject.failed}: ${e}`)
-      return
-    }
-    if (!result) return
-
-    pushLog('info', 'app', `Opening project: ${result.path} (mode: browser, content-read locally)`)
-    setProject({ name: result.name, path: result.path, content: result.content })
-    toast.success(t.value.openProject.success)
-    // initProjectDir is skipped — no filesystem access in browser mode
-  }
-}
-
-async function handleProjectCreated(filePath: string, name: string) {
-  try {
-    const result = await apiOpenProject(filePath)
-    setProject({ name: result.name, path: filePath, content: result.content })
-  } catch {
-    setProject({ name, path: filePath, content: '' })
-  }
-  await initProjectDir(filePath)
-}
-
-async function initProjectDir(projectPath: string) {
-  try {
-    await initArchbotDir(projectPath)
-    await ensureGitignore(projectPath)
-  } catch {
-    // Non-critical: project still usable without .archbot directory
-  }
-}
-
-async function handleCloseProject() {
-  try {
-    await dbDisconnect()
-  } catch { /* ignore */ }
-  closeProject()
-  toast.success(t.value.menuFile.closeProject)
-}
-
-function handleClearCache() {
-  saveSettings()
-  window.location.reload()
-}
-
-let unsubscribe: (() => void) | null = null
-onMounted(() => {
-  unsubscribe = on((action) => {
-    if (action === 'file.newProject') {
-      newProjectDialogRef.value?.show()
-    } else if (action === 'file.openProject') {
-      handleOpenProject()
-    } else if (action === 'file.register') {
-      licenseDialogRef.value?.show()
-    } else if (action === 'file.closeProject') {
-      handleCloseProject()
-    } else if (action === 'file.clearCache') {
-      handleClearCache()
-    }
+  // Override dialog-triggering actions that need component refs
+  const registry = getActionRegistry()
+  registry.register('project.create', async () => {
+    newProjectDialogRef.value?.show()
+  })
+  registry.register('license.openDialog', async () => {
+    licenseDialogRef.value?.show()
   })
 })
-onUnmounted(() => {
-  unsubscribe?.()
-})
+
+function handleProjectCreated(filePath: string, name: string) {
+  apiOpenProject(filePath).then(result => {
+    setProject({ name: result.name, path: filePath, content: result.content })
+  }).catch(() => {
+    setProject({ name, path: filePath, content: '' })
+  })
+  initArchbotDir(filePath).catch(() => {})
+  ensureGitignore(filePath).catch(() => {})
+}
 
 const bottomCollapseLabels = computed(() => ['', t.value.panel.bottomPanel])
 const rightCollapseLabels = computed(() => ['', '', t.value.panel.model])

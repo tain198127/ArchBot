@@ -39,6 +39,9 @@ frontend:
     language: TypeScript 5.6
     build_tool: Vite 6
     script_syntax: "<script setup lang=\"ts\">"
+    dependencies:
+      js-yaml: "^4.x"
+      zod: "^4.x"
     tsconfig:
       target: ES2020
       module: ESNext
@@ -130,7 +133,34 @@ frontend:
 
   routing:
     pattern: SPA panel-based (no Vue Router)
-    menu: action-based event bus (useMenuAction)
+    menu: YML-driven (menus.yml → ConfigLoader → MenuCategory[])
+
+  orchestration:
+    path: src/orchestration/
+    modules:
+      ConfigLoader: YML → typed config + fallback
+      ConfigValidator: Zod schema validation (4 schemas)
+      ActionRegistry: register(id, handler) + execute
+      PredicateRegistry: complex condition functions
+      ExpressionEvaluator: L1 recursive-descent parser (== != && || !)
+      ParameterResolver: ${context|state|steps|input|params.xxx}
+      ContextMenuResolver: resourceType-hashed O(1) lookup
+      FlowExecutor: serial step execution with onError: abort
+      RuntimeContext: state + ContextObject model
+    config_files:
+      - src/config/menus.yml
+      - src/config/context-menus.yml
+      - src/config/actions.yml
+      - src/config/flows.yml
+    actions:
+      path: src/actions/
+      files:
+        - index.ts (registerAllActions)
+        - projectActions.ts (project.open|close|save|saveAs|openRemote)
+        - editorActions.ts (editor.openFile|find|replace|goTo|cut|copy|format)
+        - uiActions.ts (ui.refreshPanel)
+        - dsActions.ts (ds.newDomain|newEntity|newDict|import|reverse|...)
+        - miscActions.ts (config|settings|license|run|cat|grp|itm|fs)
 
   api_layer:
     location: src/api/
@@ -149,6 +179,7 @@ frontend:
     e2e: Playwright 1.60
     browser_mode: "@vitest/browser-playwright 4.x"
     coverage: "@vitest/coverage-v8 4.x"
+    test_files: 5 (36 tests) in tests/orchestration/
 
   storybook:
     version: 10.4
