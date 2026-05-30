@@ -1,4 +1,5 @@
 import { open } from '@tauri-apps/plugin-dialog'
+import { pushLog } from '../stores/log'
 import { isTauri } from './env'
 
 export interface FileFilter {
@@ -7,13 +8,7 @@ export interface FileFilter {
 }
 
 /**
- * Open a file picker dialog. In Tauri mode uses the native dialog;
- * in browser mode uses the File System Access API.
- *
- * Returns the absolute file path string, or null if cancelled.
- * Browsers only expose the path in Chrome/Edge; other browsers
- * return the filename only (suitable for display but not for
- * backend file operations).
+ * Open a file picker dialog, returning the absolute path or null.
  */
 export async function openFileDialog(
   filters: FileFilter[],
@@ -41,45 +36,47 @@ export async function openDirectoryDialog(): Promise<string | null> {
   return browserOpenDirectory()
 }
 
-async function browserOpenFile(_filters: FileFilter[]): Promise<string | null> {
+async function browserOpenFile(filters: FileFilter[]): Promise<string | null> {
+  const accept = filters.flatMap((f) => f.extensions.map((e) => `.${e}`)).join(',')
+  pushLog('info', 'filePicker', `Browser file dialog opened (accept="${accept}")`)
+
   try {
-    // Use a classic <input type="file"> approach — it exposes the full
-    // filesystem path via `webkitRelativePath` in Chromium browsers.
-    // File System Access API's showOpenFilePicker() does NOT give us
-    // the absolute path (only filename), which the backend needs.
     return await new Promise<string | null>((resolve) => {
       const input = document.createElement('input')
       input.type = 'file'
-      input.accept = _filters.flatMap((f) => f.extensions.map((e) => `.${e}`)).join(',')
+      input.accept = accept
       input.style.display = 'none'
+
+      let settled = false
+      const done = (value: string | null) => {
+        if (settled) return
+        settled = true
+        input.remove()
+        pushLog('info', 'filePicker', `Selected: ${value ?? '(cancelled)'}`)
+        resolve(value)
+      }
 
       input.onchange = () => {
         const file = input.files?.[0]
-        resolve(file ? ((file as any).path ?? file.webkitRelativePath ?? file.name) : null)
-        input.remove()
+        if (!file) { done(null); return }
+        const path: string = (file as any).path ?? file.webkitRelativePath ?? file.name
+        done(path || null)
       }
 
-      // Handle cancel (no file selected)
-      input.oncancel = () => {
-        resolve(null)
-        input.remove()
-      }
+      // Fallback: resolve null if dialog closes without selection.
+      // Some browsers don't fire `oncancel`; the focus event catches those.
+      window.addEventListener('focus', () => {
+        setTimeout(() => { if (input.parentNode) done(null) }, 500)
+      }, { once: true })
 
-      // Fallback: if dialog closes without change or cancel event
-      const cleanup = () => {
-        setTimeout(() => {
-          if (input.parentNode) {
-            resolve(null)
-            input.remove()
-          }
-        }, 1000)
-      }
+      // Absolute last-resort timeout (5 minutes)
+      setTimeout(() => done(null), 300_000)
 
       document.body.appendChild(input)
       input.click()
-      window.addEventListener('focus', cleanup, { once: true })
     })
-  } catch {
+  } catch (e) {
+    pushLog('error', 'filePicker', `File dialog error: ${e}`)
     return null
   }
 }
