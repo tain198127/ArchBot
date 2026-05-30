@@ -3,6 +3,7 @@ import { reactive, ref, computed } from 'vue'
 import VTabs from '../base/VTabs.vue'
 import VButton from '../base/VButton.vue'
 import VInput from '../base/VInput.vue'
+import VSelect from '../base/VSelect.vue'
 import VFormItem from '../base/VFormItem.vue'
 import { useI18n } from '../../i18n'
 import { useToast } from '../../composables/useToast'
@@ -10,6 +11,15 @@ import { invoke } from '@tauri-apps/api/core'
 
 const { t } = useI18n()
 const toast = useToast()
+
+const protocolOptions = [
+  { value: 'anthropic', label: 'Anthropic-compatible' },
+  { value: 'openai', label: 'OpenAI-compatible' },
+]
+
+function versionOptions(versions: string[]) {
+  return versions.map(v => ({ value: v, label: v }))
+}
 
 // ── Runtime tabs ──
 const tabs = [
@@ -234,13 +244,12 @@ async function validateRuntime(runtime: string) {
                 </span>
               </div>
               <div class="flex items-center gap-2 mt-2">
-                <select
+                <VSelect
                   v-model="current.selectedVersion"
-                  class="h-8 rounded-md border border-border-default bg-surface-100 px-2 text-[13px] text-text-primary"
-                >
-                  <option value="">{{ t.agentConfig.selectVersion }}</option>
-                  <option v-for="v in current.availableVersions" :key="v" :value="v">{{ v }}</option>
-                </select>
+                  :options="versionOptions(current.availableVersions)"
+                  :placeholder="t.agentConfig.selectVersion"
+                  class="min-w-[180px]"
+                />
                 <VButton size="sm" :loading="current.installLoading" @click="installRuntime(rt)">
                   {{ t.agentConfig.install }}
                 </VButton>
@@ -258,13 +267,12 @@ async function validateRuntime(runtime: string) {
             <!-- ========== Section 3: Version ========== -->
             <section>
               <h3 class="text-sm font-semibold text-text-primary mb-3">{{ t.agentConfig.versionTitle }}</h3>
-              <select
+              <VSelect
                 v-model="current.selectedVersion"
-                class="h-8 rounded-md border border-border-default bg-surface-100 px-2 text-[13px] text-text-primary min-w-[200px]"
-              >
-                <option value="">{{ current.installedVersion || t.agentConfig.selectVersion }}</option>
-                <option v-for="v in current.availableVersions" :key="v" :value="v">{{ v }}</option>
-              </select>
+                :options="versionOptions(current.availableVersions)"
+                :placeholder="current.installedVersion || t.agentConfig.selectVersion"
+                class="min-w-[200px]"
+              />
             </section>
 
             <!-- ========== Section 4: Model Config ========== -->
@@ -273,13 +281,7 @@ async function validateRuntime(runtime: string) {
               <div class="space-y-3 max-w-[520px]">
                 <!-- Protocol -->
                 <VFormItem :label="t.agentConfig.protocol">
-                  <select
-                    v-model="current.protocol"
-                    class="h-8 rounded-md border border-border-default bg-surface-100 px-2 text-[13px] text-text-primary w-full"
-                  >
-                    <option value="anthropic">Anthropic-compatible</option>
-                    <option value="openai">OpenAI-compatible</option>
-                  </select>
+                  <VSelect v-model="current.protocol" :options="protocolOptions" />
                 </VFormItem>
 
                 <!-- Base URL -->

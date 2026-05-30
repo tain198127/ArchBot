@@ -72,6 +72,11 @@ impl SecretManager {
         Ok(())
     }
 
+    /// 检查指定 runtime/key 的 secret 文件是否存在
+    pub fn exists(&self, runtime: &str, key: &str) -> bool {
+        self.secret_path(runtime, key).exists()
+    }
+
     /// 解密并返回一个 secret
     pub fn get(&self, runtime: &str, key: &str) -> Result<String, String> {
         let file_path = self.secret_path(runtime, key);

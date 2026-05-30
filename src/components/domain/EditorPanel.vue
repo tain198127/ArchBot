@@ -7,6 +7,7 @@ import DataStandardEditor from './DataStandardEditor.vue'
 import DigitalEmployeePanel from './DigitalEmployeePanel.vue'
 import ScenarioPanel from './ScenarioPanel.vue'
 import AgentConfigPanel from './AgentConfigPanel.vue'
+import AIConfigPanel from './AIConfigPanel.vue'
 import ContextEngineeringPanel from './ContextEngineeringPanel.vue'
 
 const { t, tt } = useI18n()
@@ -111,7 +112,9 @@ onMounted(() => {
     const action = getAction(rawAction)
     const payload = getPayload(rawAction)
 
-    if (action === 'config.system') {
+    if (action === 'config.ai') {
+      openTab('ai-config', 'aiConfig.title', 'ai-config')
+    } else if (action === 'config.system') {
       openTab('settings', 'settings.title', 'settings')
     } else if (action === 'config.contextEngineering') {
       openTab('context-engineering', 'context.title', 'context-engineering')
@@ -184,6 +187,7 @@ onUnmounted(() => { unsubscribe?.() })
       <SettingsPanel v-else-if="activeTabData()?.type === 'settings'" />
       <ScenarioPanel v-else-if="activeTabData()?.type === 'scenario'" />
       <ContextEngineeringPanel v-else-if="activeTabData()?.type === 'context-engineering'" />
+      <AIConfigPanel v-else-if="activeTabData()?.type === 'ai-config'" />
       <AgentConfigPanel v-else-if="activeTabData()?.type === 'agent-config'" />
       <DigitalEmployeePanel v-else-if="activeTabData()?.type === 'digital-employee'" />
       <DataStandardEditor

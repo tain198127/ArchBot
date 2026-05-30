@@ -32,6 +32,29 @@ const editForm = ref<any>({})
 const editSkills = ref<string[]>([])
 const editAgents = ref<string[]>([])
 const editMcps = ref<string[]>([])
+const skillPick = ref('')
+const agentPick = ref('')
+const mcpPick = ref('')
+
+function onPickSkill(val: string | number) {
+  const v = String(val)
+  if (v && !editSkills.value.includes(v)) editSkills.value.push(v)
+  skillPick.value = ''
+}
+function onPickAgent(val: string | number) {
+  const v = String(val)
+  if (v && !editAgents.value.includes(v)) editAgents.value.push(v)
+  agentPick.value = ''
+}
+function onPickMcp(val: string | number) {
+  const v = String(val)
+  if (v && !editMcps.value.includes(v)) editMcps.value.push(v)
+  mcpPick.value = ''
+}
+
+function toSelectOptions(arr: any[]) {
+  return arr.map((x: any) => ({ value: x.code || x.id, label: x.name || x.label || String(x.code || x.id) }))
+}
 const editHandoffs = ref<any[]>([])
 
 // ── lookup data ──
@@ -354,10 +377,14 @@ onMounted(async () => { await loadEmployees(); await loadLookups() })
                 {{ s }}
                 <button v-if="editMode === 'edit'" class="border-0 bg-transparent text-text-muted cursor-pointer text-xs px-0.5 hover:text-danger-500" @click="editSkills = editSkills.filter(x => x !== s)">&#10005;</button>
               </span>
-              <select v-if="editMode === 'edit'" class="h-7 px-1.5 border border-border-default rounded text-xs" @change="(e: any) => { if (e.target.value && !editSkills.includes(e.target.value)) editSkills.push(e.target.value); e.target.value = '' }">
-                <option value="">+ 添加</option>
-                <option v-for="sk in skillOptions" :key="sk.code" :value="sk.code">{{ sk.name }}</option>
-              </select>
+              <VSelect
+                v-if="editMode === 'edit'"
+                v-model="skillPick"
+                :options="toSelectOptions(skillOptions)"
+                placeholder="+ 添加"
+                class="w-[140px]"
+                @update:model-value="onPickSkill"
+              />
             </div>
           </div>
           <div class="flex items-center gap-3 mb-2">
@@ -367,10 +394,14 @@ onMounted(async () => { await loadEmployees(); await loadLookups() })
                 {{ a }}
                 <button v-if="editMode === 'edit'" class="border-0 bg-transparent text-text-muted cursor-pointer text-xs px-0.5 hover:text-danger-500" @click="editAgents = editAgents.filter(x => x !== a)">&#10005;</button>
               </span>
-              <select v-if="editMode === 'edit'" class="h-7 px-1.5 border border-border-default rounded text-xs" @change="(e: any) => { if (e.target.value && !editAgents.includes(e.target.value)) editAgents.push(e.target.value); e.target.value = '' }">
-                <option value="">+ 添加</option>
-                <option v-for="ag in agentOptions" :key="ag.code" :value="ag.code">{{ ag.name }}</option>
-              </select>
+              <VSelect
+                v-if="editMode === 'edit'"
+                v-model="agentPick"
+                :options="toSelectOptions(agentOptions)"
+                placeholder="+ 添加"
+                class="w-[140px]"
+                @update:model-value="onPickAgent"
+              />
             </div>
           </div>
           <div class="flex items-center gap-3">
@@ -380,10 +411,14 @@ onMounted(async () => { await loadEmployees(); await loadLookups() })
                 {{ m }}
                 <button v-if="editMode === 'edit'" class="border-0 bg-transparent text-text-muted cursor-pointer text-xs px-0.5 hover:text-danger-500" @click="editMcps = editMcps.filter(x => x !== m)">&#10005;</button>
               </span>
-              <select v-if="editMode === 'edit'" class="h-7 px-1.5 border border-border-default rounded text-xs" @change="(e: any) => { if (e.target.value && !editMcps.includes(e.target.value)) editMcps.push(e.target.value); e.target.value = '' }">
-                <option value="">+ 添加</option>
-                <option v-for="mc in mcpOptions" :key="mc.code" :value="mc.code">{{ mc.name }}</option>
-              </select>
+              <VSelect
+                v-if="editMode === 'edit'"
+                v-model="mcpPick"
+                :options="toSelectOptions(mcpOptions)"
+                placeholder="+ 添加"
+                class="w-[140px]"
+                @update:model-value="onPickMcp"
+              />
             </div>
           </div>
         </fieldset>

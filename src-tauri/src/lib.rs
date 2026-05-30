@@ -1,4 +1,5 @@
 mod agent_runtime;
+mod ai_config;
 mod context;
 mod secret;
 mod data_standard;
@@ -154,6 +155,12 @@ pub fn run() {
             agent_runtime::agent_config_handler::agent_save_config,
             agent_runtime::agent_config_handler::agent_save_secret,
             agent_runtime::agent_config_handler::agent_validate,
+            // ai_config
+            ai_config::ai_list_providers,
+            ai_config::ai_save_provider,
+            ai_config::ai_delete_provider,
+            ai_config::ai_validate_provider,
+            ai_config::ai_save_provider_secret,
             // lancedb (legacy)
             lancedb_store::lancedb_init,
             lancedb_store::lancedb_list_tables,

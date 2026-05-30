@@ -96,14 +96,22 @@ const collapseButtonDirection = computed(() => props.direction === 'horizontal' 
 
       <div
         v-if="index < initialSizes.length - 1"
-        class="splitter shrink-0 relative group"
+        class="splitter shrink-0 relative z-10"
         :class="[
-          direction === 'horizontal' ? 'w-px cursor-col-resize' : 'h-px cursor-row-resize',
-          dragging ? 'bg-primary-500' : 'bg-border-default hover:bg-primary-400',
-          'transition-colors duration-150',
+          direction === 'horizontal'
+            ? 'flex items-center w-[8px] -mx-[4px] cursor-col-resize'
+            : 'flex justify-center h-[8px] -my-[4px] cursor-row-resize',
         ]"
         @mousedown="startDrag(index, $event)"
       >
+        <!-- visual line: 2px thin, expands slightly on hover, color delayed 300ms -->
+        <div
+          class="splitter-handle rounded-full bg-border-default"
+          :class="[
+            direction === 'horizontal' ? 'w-[2px] h-full hover:w-[3px]' : 'h-[2px] w-full hover:h-[3px]',
+            dragging ? 'dragging' : '',
+          ]"
+        />
         <button
           v-if="collapsible[index + 1] && !collapsed[index + 1]"
           class="collapse-btn absolute z-20 flex items-center justify-center bg-surface-100 dark:bg-surface-200 border border-border-default text-text-muted text-[9px] rounded-full hover:bg-primary-500 hover:text-white hover:border-primary-500 transition-all duration-150 shadow-sm opacity-0 group-hover:opacity-100"
