@@ -32,7 +32,21 @@ async function httpRequest<T>(method: string, path: string, body?: unknown): Pro
   } catch (e) {
     return logError(`${method} ${url}`, e)
   }
-  const json: ApiResponse<T> = await res.json()
+
+  const text = await res.text()
+  if (!res.ok) {
+    pushLog('error', 'api', `[${method} ${path}] HTTP ${res.status}: ${text.slice(0, 200)}`)
+    throw new Error(`HTTP ${res.status}: ${text.slice(0, 100)}`)
+  }
+
+  let json: ApiResponse<T>
+  try {
+    json = JSON.parse(text)
+  } catch {
+    pushLog('error', 'api', `[${method} ${path}] Invalid JSON response: ${text.slice(0, 200)}`)
+    throw new Error(`Invalid response from server: ${text.slice(0, 100)}`)
+  }
+
   if (!json.success) {
     pushLog('error', 'api', `[${method} ${path}] ${json.error || 'Unknown error'}`)
     throw new Error(json.error || 'Unknown error')
