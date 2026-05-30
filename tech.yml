@@ -1,0 +1,310 @@
+# ═══════════════════════════════════════════════════════════════
+# ArchBot 技术栈
+# ═══════════════════════════════════════════════════════════════
+
+project:
+  name: ArchBot
+  version: 0.1.0
+  description: 全生命周期开发管理工具
+  type: desktop-app-with-browser-mode
+  identifier: com.baodan.archbot
+
+# ── 运行时 ──────────────────────────────────────────────────
+runtime:
+  desktop:
+    framework: Tauri 2
+    language: Rust (edition 2021)
+    window:
+      title: ArchBot
+      default_size: [1280, 800]
+      min_size: [960, 600]
+      decorations: false
+  browser:
+    dev_url: http://localhost:1420
+    http_server: Axum 0.8 (port 1421)
+    proxy: Vite dev proxy (/api → 127.0.0.1:1421)
+  dual_transport:
+    - type: Tauri IPC
+      commands: 52+
+      usage: desktop native
+    - type: HTTP REST
+      prefix: /api
+      usage: browser mode + external clients
+    - auto_detect: window.__TAURI_INTERNALS__
+
+# ── 前端 ────────────────────────────────────────────────────
+frontend:
+  core:
+    framework: Vue 3.5
+    language: TypeScript 5.6
+    build_tool: Vite 6
+    script_syntax: "<script setup lang=\"ts\">"
+    tsconfig:
+      target: ES2020
+      module: ESNext
+      strict: true
+
+  ui_framework:
+    component_library: PrimeVue 4.5
+    mode: unstyled
+    css_framework: Tailwind CSS v4
+    css_location: src/tailwind.css (only — no <style> blocks)
+    icons: "@lucide/vue 1.17"
+    fonts:
+      ui: Inter (400/500/600/700)
+      code: JetBrains Mono (400)
+    base_font_size: 13px
+
+  design_system:
+    palette:
+      surface: slate-cool grays (0/50/100/200/300)
+      primary: indigo (50–950)
+      danger: red (50–600)
+      success: green (50–600)
+      warning: amber (50–600)
+    theme: dark-first (.dark class toggle)
+    radius: [4px, 6px, 8px, 12px]
+    shadow: [sm, md, lg, xl]
+    animations:
+      - slide-in (0.25s)
+      - fade-in (0.2s)
+      - scale-in (0.2s)
+      - slide-up (0.2s)
+      - shimmer (1.5s)
+    vue_transitions:
+      - fade (0.15s)
+      - menu-dropdown (0.12s)
+      - dialog (0.2s)
+
+  base_components:
+    - VButton
+    - VInput
+    - VSelect
+    - VTextarea
+    - VCheckbox
+    - VSwitch
+    - VRadio / VRadioGroup
+    - VSlider
+    - VDialog
+    - VTabs
+    - VFormItem
+    - ToastProvider
+
+  domain_components:
+    - FileTreePanel
+    - EditorPanel
+    - ModelPanel
+    - BottomPanel
+    - MenuBar
+    - SplitPanel
+    - SettingsPanel
+    - NewProjectDialog
+    - LicenseDialog
+    - DataStandardEditor
+    - DigitalEmployeePanel
+    - ContextEngineeringPanel
+    - ScenarioPanel
+    - FileTreeContextMenu
+
+  state_management:
+    pattern: Vue 3 Composition API refs (no Pinia)
+    stores:
+      - project (currentProject, recentProjects, localStorage)
+      - settings (with persistence)
+      - license
+      - log (pushLog, in-memory reactive array)
+    composables:
+      - useToast
+      - useMenuAction (pub/sub event bus)
+      - useScenario
+      - useProjectDir
+
+  i18n:
+    library: vue-i18n v11
+    mode: Composition API
+    default_locale: en-US
+    locales:
+      - zh-CN
+      - en-US
+    type_safe: key structure mirrored between locale files
+
+  routing:
+    pattern: SPA panel-based (no Vue Router)
+    menu: action-based event bus (useMenuAction)
+
+  api_layer:
+    location: src/api/
+    files:
+      - index.ts (all API functions: openProject, db*, fs*, vec*, ds*, de*, ...)
+      - transport.ts (IPC/HTTP auto-dispatch)
+      - env.ts (runtime detection)
+      - filePicker.ts (Tauri dialog / browser <input type="file">)
+      - types.ts (ApiResponse<T>, FileContent, EntityDef, ...)
+    http:
+      base: /api
+      content_type: application/json
+
+  testing:
+    unit: Vitest 4.x
+    e2e: Playwright 1.60
+    browser_mode: "@vitest/browser-playwright 4.x"
+    coverage: "@vitest/coverage-v8 4.x"
+
+  storybook:
+    version: 10.4
+    framework: "@storybook/vue3-vite"
+    addons: [a11y, docs, onboarding, vitest, chromatic]
+
+  linting:
+    eslint: 9.x
+    ts_plugin: "@typescript-eslint 8.x"
+    vue_plugin: eslint-plugin-vue 9.x
+    copy_paste_detection: jscpd 4.x
+
+# ── 后端 ────────────────────────────────────────────────────
+backend:
+  language: Rust (edition 2021)
+  async_runtime: Tokio 1 (full features)
+  crate_type: [staticlib, cdylib, rlib]
+
+  modules:
+    fs:
+      path: src-tauri/src/fs/
+      files: [mod.rs, local.rs, remote.rs]
+      trait: FsBackend (LocalFs / RemoteFs)
+      features:
+        - path traversal protection (canonicalize)
+        - .ab project file read/write
+        - .archbot/ directory init
+        - remote HTTP fetch
+      http_excluded: [fs_configure_local]
+
+    db:
+      path: src-tauri/src/db/
+      files: [mod.rs, local_sqlite.rs, remote_mysql.rs]
+      orm: SeaORM 1 (sqlx-sqlite, runtime-tokio)
+      entities: [agent, skill, mcp, digital_employee, employee_skill, employee_mcp, employee_agent, employee_handoff, approval_queue]
+      migrations:
+        - m20260529_001_create_digital_tables.sql
+        - m20260529_002_seed_digital_employees.sql
+      http_excluded: [db_execute_raw]
+
+    vector:
+      path: src-tauri/src/vector/
+      files: [mod.rs, vector.rs, local_vector.rs, remote_vector.rs]
+      engine: LanceDB 0.17
+      arrow: [arrow-array 53, arrow-schema 53]
+
+    handlers:
+      path: src-tauri/src/handlers/
+      files:
+        - mod.rs (Axum router, /api prefix)
+        - project_handler.rs
+        - ds_handler.rs
+        - db_handler.rs
+        - de_handler.rs
+        - fs_handler.rs
+        - vector_handler.rs
+        - settings_handler.rs
+        - license_handler.rs
+        - scenario_handler.rs
+        - context_handler.rs
+      pattern: api_ok! / api_empty_sync! macros
+
+    server:
+      path: src-tauri/src/server.rs
+      framework: Axum 0.8
+      cors: tower-http 0.6 (graded: localhost strict / LAN permissive)
+      config: "~/.ArchBot/settings.json → httpServer key"
+      debug_force_enable: true
+
+    license:
+      path: src-tauri/src/license.rs
+      crypto: RSA 0.9 (2048-bit) + SHA2 0.10 (HMAC) + hex 0.4
+      machine_id: hostname 0.4
+      gate: license_gate!() macro
+
+    scenario:
+      path: src-tauri/src/scenario.rs
+      presets: [greenfield, legacy, product]
+      dimensions: 5-dimension linkage
+
+    context:
+      path: src-tauri/src/context.rs
+      sections: [session, rules, memory, codebase, git]
+
+    data_standard:
+      path: src-tauri/src/data_standard.rs
+      entities: [domain, entity, enum, conventions]
+
+    digital_employee:
+      path: src-tauri/src/digital_employee.rs
+      roles: 18 predefined roles
+
+    resource:
+      path: src-tauri/src/resource.rs
+
+  tauri_plugins:
+    - tauri-plugin-opener 2
+    - tauri-plugin-dialog 2
+    - tauri-plugin-fs 2
+
+  serialization:
+    json: [serde 1, serde_json 1]
+    yaml: serde_yml 0.0.12
+
+  external:
+    http_client: reqwest 0.12 (json feature)
+    time: chrono 0.4
+    home_dir: dirs 5
+
+# ── 数据层 ──────────────────────────────────────────────────
+data:
+  sqlite:
+    engine: SeaORM 1 + sqlx-sqlite
+    path: .archbot/db/ (per-project)
+    tables: 9
+
+  lancedb:
+    engine: LanceDB 0.17
+    path: .archbot/db/ (per-project)
+    usage: vector embeddings for context retrieval
+
+  file_system:
+    project_format: .ab (YAML: name, version, description)
+    project_dir: .archbot/
+    trait_polymorphism: FsBackend (LocalFs / RemoteFs)
+
+# ── 项目系统 ────────────────────────────────────────────────
+project_system:
+  file_format:
+    extension: .ab
+    content: YAML
+    required_fields: [name, version]
+  storage:
+    config: .archbot/ (per-project)
+    priority: project-local > user-global
+  scenarios:
+    preset_count: 3
+    dimensions: 5
+  context_engineering:
+    sections: 5
+    merged_ui: true
+  digital_employee:
+    roles: 18
+    linked_to_scenario: true
+
+# ── 开发工具链 ──────────────────────────────────────────────
+dev_toolchain:
+  package_manager: npm
+  scripts:
+    dev: vite (port 1420)
+    build: "vue-tsc --noEmit && vite build"
+    tauri: tauri CLI
+    storybook: "storybook dev -p 6006"
+    preview: vite preview
+  claude_code:
+    skills_dir: .claude/skills/
+    agents_dir: .claude/agents/
+    memory_dir: .claude/memory/
+    commands_dir: .claude/commands/
