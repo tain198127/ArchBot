@@ -41,19 +41,44 @@ export async function openDirectoryDialog(): Promise<string | null> {
   return browserOpenDirectory()
 }
 
-async function browserOpenFile(filters: FileFilter[]): Promise<string | null> {
+async function browserOpenFile(_filters: FileFilter[]): Promise<string | null> {
   try {
-    const exts = filters.flatMap((f) => f.extensions.map((e) => `.${e}`))
-    const types = exts.length > 0
-      ? [{ description: filters.map((f) => f.name).join(', '), accept: { 'application/octet-stream': exts } }]
-      : undefined
+    // Use a classic <input type="file"> approach — it exposes the full
+    // filesystem path via `webkitRelativePath` in Chromium browsers.
+    // File System Access API's showOpenFilePicker() does NOT give us
+    // the absolute path (only filename), which the backend needs.
+    return await new Promise<string | null>((resolve) => {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = _filters.flatMap((f) => f.extensions.map((e) => `.${e}`)).join(',')
+      input.style.display = 'none'
 
-    const w = window as any
-    const opts: any = { multiple: false }
-    if (types) opts.types = types
-    const [handle] = await w.showOpenFilePicker(opts)
-    const file = await handle.getFile()
-    return file.path ?? file.name
+      input.onchange = () => {
+        const file = input.files?.[0]
+        resolve(file ? ((file as any).path ?? file.webkitRelativePath ?? file.name) : null)
+        input.remove()
+      }
+
+      // Handle cancel (no file selected)
+      input.oncancel = () => {
+        resolve(null)
+        input.remove()
+      }
+
+      // Fallback: if dialog closes without change or cancel event
+      const cleanup = () => {
+        setTimeout(() => {
+          if (input.parentNode) {
+            resolve(null)
+            input.remove()
+          }
+        }, 1000)
+      }
+
+      document.body.appendChild(input)
+      input.click()
+      window.addEventListener('focus', cleanup, { once: true })
+    })
   } catch {
     return null
   }
