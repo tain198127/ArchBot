@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { open } from '@tauri-apps/plugin-dialog'
-import { invoke } from '@tauri-apps/api/core'
+import { openProject as apiOpenProject, initArchbotDir, ensureGitignore, dbDisconnect } from './api'
+import { openFileDialog } from './api/filePicker'
 import { useToast } from './composables/useToast'
 import ToastProvider from './components/base/ToastProvider.vue'
 import MenuBar from './components/layout/MenuBar.vue'
@@ -32,11 +32,9 @@ onMounted(() => {
 async function handleOpenProject() {
   let selected: string | null = null
   try {
-    const result = await open({
-      multiple: false,
-      filters: [{ name: t.value.openProject.filterName, extensions: ['ab'] }]
-    })
-    selected = result as string | null
+    selected = await openFileDialog([
+      { name: t.value.openProject.filterName, extensions: ['ab'] }
+    ])
   } catch (e) {
     toast.error(`${t.value.openProject.failed}: ${e}`)
     return
@@ -44,7 +42,7 @@ async function handleOpenProject() {
   if (!selected) return
 
   try {
-    const result = await invoke<{ name: string; content: string }>('open_project', { path: selected })
+    const result = await apiOpenProject(selected)
     setProject({ name: result.name, path: selected, content: result.content })
     await initProjectDir(selected)
     toast.success(t.value.openProject.success)
@@ -55,7 +53,7 @@ async function handleOpenProject() {
 
 async function handleProjectCreated(filePath: string, name: string) {
   try {
-    const result = await invoke<{ name: string; content: string }>('open_project', { path: filePath })
+    const result = await apiOpenProject(filePath)
     setProject({ name: result.name, path: filePath, content: result.content })
   } catch {
     setProject({ name, path: filePath, content: '' })
@@ -65,8 +63,8 @@ async function handleProjectCreated(filePath: string, name: string) {
 
 async function initProjectDir(projectPath: string) {
   try {
-    await invoke('init_archbot_dir', { projectPath })
-    await invoke('ensure_gitignore', { projectPath })
+    await initArchbotDir(projectPath)
+    await ensureGitignore(projectPath)
   } catch {
     // Non-critical: project still usable without .archbot directory
   }
@@ -74,7 +72,7 @@ async function initProjectDir(projectPath: string) {
 
 async function handleCloseProject() {
   try {
-    await invoke('db_disconnect')
+    await dbDisconnect()
   } catch { /* ignore */ }
   closeProject()
   toast.success(t.value.menuFile.closeProject)

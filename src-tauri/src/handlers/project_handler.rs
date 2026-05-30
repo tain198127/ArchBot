@@ -7,7 +7,6 @@ pub fn routes() -> Router {
         .route("/project/create", post(create_project))
         .route("/project/init-dir", post(init_archbot_dir))
         .route("/project/ensure-gitignore", post(ensure_gitignore))
-        .route("/project/read-file", post(read_local_file))
 }
 
 #[derive(Deserialize)]
@@ -38,9 +37,5 @@ async fn ensure_gitignore(Json(b): Json<EnsureGitignoreBody>) -> Json<super::Api
     api_ok_sync!(crate::fs::ensure_gitignore(b.project_path))
 }
 
-#[derive(Deserialize)]
-struct ReadFileBody { path: String }
-
-async fn read_local_file(Json(b): Json<ReadFileBody>) -> Json<super::ApiResponse<crate::fs::FileContent>> {
-    api_ok!(crate::fs::read_local_file(b.path))
-}
+// read_local_file is intentionally excluded from the HTTP API.
+// It allows arbitrary file reads and is only safe via Tauri IPC.

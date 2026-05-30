@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
-import { open } from '@tauri-apps/plugin-dialog'
-import { invoke } from '@tauri-apps/api/core'
+import { createProject } from '../../api'
+import { openDirectoryDialog } from '../../api/filePicker'
 import VDialog from '../base/VDialog.vue'
 import VInput from '../base/VInput.vue'
 import VFormItem from '../base/VFormItem.vue'
@@ -31,9 +31,9 @@ function show() {
 
 async function selectDirectory() {
   try {
-    const selected = await open({ directory: true })
+    const selected = await openDirectoryDialog()
     if (selected) {
-      form.location = selected as string
+      form.location = selected
     }
   } catch (e) {
     toast.error(String(e))
@@ -52,10 +52,7 @@ async function handleCreate() {
 
   loading.value = true
   try {
-    const path = await invoke<string>('create_project', {
-      dir: form.location,
-      name: form.name.trim()
-    })
+    const path = await createProject(form.location, form.name.trim())
     toast.success(t.value.newProject.success)
     visible.value = false
     emit('created', path, form.name.trim())

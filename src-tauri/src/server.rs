@@ -26,19 +26,24 @@ impl Default for HttpConfig {
 ///
 /// Security notes:
 /// - `db_execute_raw` and `fs_configure_local` are excluded from the HTTP API.
-/// - The server is disabled by default; the user explicitly enables it in settings.
-/// - When `bind_lan: true`, anyone on the LAN can call the API. This is the user's
-///   explicit choice — the setting label warns about this.
+/// - CORS applies `Any` only when `bind_lan: true` (user explicitly enables LAN access).
+///   When localhost-only, CORS restricts to the Vite dev server origin.
 pub async fn start(config: HttpConfig) -> tokio::task::JoinHandle<()> {
     let bind_address = if config.bind_lan { "0.0.0.0" } else { "127.0.0.1" };
 
-    let app = crate::handlers::router().layer(
+    let cors = if config.bind_lan {
         CorsLayer::new()
             .allow_origin(Any)
             .allow_methods(Any)
-            .allow_headers(Any),
-    );
+            .allow_headers(Any)
+    } else {
+        CorsLayer::new()
+            .allow_origin("http://localhost:1420".parse::<axum::http::HeaderValue>().unwrap())
+            .allow_methods(Any)
+            .allow_headers(Any)
+    };
 
+    let app = crate::handlers::router().layer(cors);
     let addr = format!("{bind_address}:{}", config.port);
     let listener = tokio::net::TcpListener::bind(&addr)
         .await

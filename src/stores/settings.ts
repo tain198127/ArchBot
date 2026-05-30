@@ -1,5 +1,5 @@
 import { reactive, watch, toRefs } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
+import { loadSettings as apiLoadSettings, saveSettings as apiSaveSettings } from '../api'
 import { useI18n } from '../i18n'
 import type { Locale } from '../i18n'
 
@@ -60,7 +60,7 @@ function applyFont(fontSize: number, fontFamily: string) {
 
 async function persistSettings() {
   try {
-    await invoke('save_settings', { content: JSON.stringify(state) })
+    await apiSaveSettings(JSON.stringify(state))
   } catch {
     // ignore
   }
@@ -112,7 +112,7 @@ export function useSettings() {
    */
   async function initSettings() {
     try {
-      const stored = await invoke<string>('load_settings')
+      const stored = await apiLoadSettings()
       if (stored) {
         const parsed = JSON.parse(stored) as Partial<AppSettings>
         Object.assign(state, { ...getDefaults(), ...parsed })
