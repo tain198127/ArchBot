@@ -87,24 +87,14 @@ mod vector_handler;
 /// Build the combined Axum router with all /api routes.
 pub fn router() -> Router {
     Router::new()
-        // Project
-        .merge(project_handler::routes())
-        // Data Standard
-        .merge(ds_handler::routes())
-        // Database
-        .merge(db_handler::routes())
-        // Context Engineering
-        .merge(context_handler::routes())
-        // Scenario
-        .merge(scenario_handler::routes())
-        // Digital Employee
-        .merge(de_handler::routes())
-        // File System
-        .merge(fs_handler::routes())
-        // Settings
-        .merge(settings_handler::routes())
-        // License
-        .merge(license_handler::routes())
-        // Vector
-        .merge(vector_handler::routes())
+        .nest("/api", project_handler::routes())
+        .nest("/api", ds_handler::routes())
+        .nest("/api", db_handler::routes())
+        .nest("/api", context_handler::routes())
+        .nest("/api", scenario_handler::routes())
+        .nest("/api", de_handler::routes())
+        .nest("/api", fs_handler::routes())
+        .nest("/api", settings_handler::routes())
+        .nest("/api", license_handler::routes())
+        .nest("/api", vector_handler::routes())
 }
