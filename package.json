@@ -9,7 +9,10 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "test:e2e": "playwright test",
+    "test:e2e:native": "TAURI_E2E=1 playwright test --config=playwright.native.config.ts",
+    "test:e2e:native:headed": "TAURI_E2E=1 playwright test --config=playwright.native.config.ts --headed"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",

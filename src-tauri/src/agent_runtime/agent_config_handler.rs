@@ -25,6 +25,8 @@ pub struct AgentStatus {
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct AgentConfigInfo {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub provider_id: String,
     pub protocol: String,
     pub base_url: String,
     #[serde(default)]
@@ -94,6 +96,7 @@ pub fn agent_get_status(runtime: String) -> Result<AgentStatus, String> {
                 .as_ref()
                 .map_or(false, |a| a.default.iter().any(|x| x.contains("claude")));
         AgentConfigInfo {
+            provider_id: entry.provider_id.clone().unwrap_or_default(),
             protocol: if is_anthropic {
                 "anthropic".into()
             } else {
@@ -154,6 +157,13 @@ pub fn agent_save_config(runtime: String, config: AgentConfigInfo) -> Result<(),
         .runtimes
         .get_mut(&runtime)
         .ok_or_else(|| format!("Runtime not found: {}", runtime))?;
+
+    // 持久化 provider 选择
+    if config.provider_id.is_empty() {
+        entry.provider_id = None;
+    } else {
+        entry.provider_id = Some(config.provider_id.clone());
+    }
 
     // 更新 env 中的 model 相关变量
     if let Some(env) = &mut entry.env {

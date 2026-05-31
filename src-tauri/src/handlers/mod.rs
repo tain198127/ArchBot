@@ -119,4 +119,6 @@ pub fn router() -> Router {
         .nest("/api", settings_handler::routes())
         .nest("/api", license_handler::routes())
         .nest("/api", vector_handler::routes())
+        // playwright — native window E2E test bridge
+        .nest("/api", tauri_plugin_playwright::http_router())
 }

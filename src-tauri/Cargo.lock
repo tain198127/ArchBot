@@ -162,6 +162,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-fs",
  "tauri-plugin-opener",
+ "tauri-plugin-playwright",
  "tokio",
  "tower-http",
  "url",
@@ -8221,6 +8222,18 @@ dependencies = [
  "url",
  "windows",
  "zbus",
+]
+
+[[package]]
+name = "tauri-plugin-playwright"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

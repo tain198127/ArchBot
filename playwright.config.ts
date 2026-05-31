@@ -1,7 +1,10 @@
 import { defineConfig } from 'playwright/test'
 
+const NATIVE = process.env.TAURI_E2E === '1'
+
 export default defineConfig({
   testDir: './e2e',
+  testIgnore: ['**/native/**'],
   timeout: 15000,
   retries: 0,
   use: {

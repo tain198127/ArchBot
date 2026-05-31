@@ -2,7 +2,6 @@
 import { reactive, ref, computed, onMounted } from 'vue'
 import VTabs from '../base/VTabs.vue'
 import VButton from '../base/VButton.vue'
-import VInput from '../base/VInput.vue'
 import VSelect from '../base/VSelect.vue'
 import { useI18n } from '../../i18n'
 import { useToast } from '../../composables/useToast'
@@ -48,10 +47,8 @@ interface AgentState {
   selectedVersion: string
   selectedProviderId: string
   selectedModel: string
-  apiKey: string
   installLoading: boolean
   updateLoading: boolean
-  modelSaving: boolean
   validateLoading: boolean
   validateResult: string
 }
@@ -63,10 +60,8 @@ const initState = (): AgentState => ({
   selectedVersion: '',
   selectedProviderId: '',
   selectedModel: '',
-  apiKey: '',
   installLoading: false,
   updateLoading: false,
-  modelSaving: false,
   validateLoading: false,
   validateResult: '',
 })
@@ -87,10 +82,6 @@ const providerLoading = ref(false)
 // 只显示已配置 API Key (验证过) 的 Provider
 const verifiedProviders = computed(() =>
   providers.value.filter(p => p.has_api_key)
-)
-
-const currentProvider = computed(() =>
-  providers.value.find(p => p.id === current.value.selectedProviderId)
 )
 
 const runtimeDefaultProviders: Record<string, string> = {
@@ -124,6 +115,10 @@ async function refreshRuntimeStatus(runtime: string) {
     state[runtime].selectedVersion = result.installed_version || state[runtime].selectedVersion
     if (result.config) {
       state[runtime].selectedModel = result.config.model_name || result.config.model_default || ''
+      // 恢复上次保存的 provider 选择（仅当该 provider 仍存在时）
+      if (result.config.provider_id && providers.value.some(p => p.id === result.config.provider_id)) {
+        state[runtime].selectedProviderId = result.config.provider_id
+      }
     }
   } catch { /* backend not ready */ }
 
@@ -188,15 +183,16 @@ async function rollbackRuntime(runtime: string) {
   } finally { s.updateLoading = false }
 }
 
-async function saveModelConfig(runtime: string) {
+// 选择 provider 或模型时自动保存，无需手动点击保存按钮
+async function autoSaveConfig(runtime: string) {
   const s = state[runtime]
   const provider = providers.value.find(p => p.id === s.selectedProviderId)
-  if (!provider) { toast.error('Please select a provider'); return }
-  s.modelSaving = true
+  if (!provider) return
   try {
     await invoke('agent_save_config', {
       runtime,
       config: {
+        provider_id: s.selectedProviderId,
         protocol: provider.protocol,
         base_url: provider.base_url,
         model_default: provider.protocol === 'anthropic' ? s.selectedModel : '',
@@ -206,21 +202,24 @@ async function saveModelConfig(runtime: string) {
         extra_args: '',
       },
     })
-    toast.success('Model configuration saved')
   } catch (e: any) {
-    toast.error(String(e))
-  } finally { s.modelSaving = false }
+    pushLog('error', 'agent:save_config', String(e))
+  }
 }
 
-async function saveApiKey(runtime: string) {
-  const s = state[runtime]
-  if (!s.apiKey.trim()) return
-  try {
-    await invoke('ai_save_provider_secret', { id: s.selectedProviderId, key: s.apiKey })
-    s.apiKey = ''
-    toast.success('API key saved')
-    await loadProviders() // refresh has_api_key flag
-  } catch (e: any) { toast.error(String(e)) }
+function selectProvider(rt: string, providerId: string) {
+  state[rt].selectedProviderId = providerId
+  // 自动选择该 provider 的默认模型
+  const provider = providers.value.find(p => p.id === providerId)
+  if (provider && provider.default_model) {
+    state[rt].selectedModel = provider.default_model
+  }
+  autoSaveConfig(rt)
+}
+
+function selectModel(rt: string, model: string) {
+  state[rt].selectedModel = model
+  autoSaveConfig(rt)
 }
 
 async function validateRuntime(runtime: string) {
@@ -312,7 +311,7 @@ async function validateRuntime(runtime: string) {
                   :class="current.selectedProviderId === provider.id
                     ? 'border-primary-500 bg-primary-500/5'
                     : 'border-border-default hover:border-text-muted bg-surface-0'"
-                  @click="state[rt].selectedProviderId = provider.id"
+                  @click="selectProvider(rt, provider.id)"
                 >
                   <!-- Provider header -->
                   <div class="flex items-center gap-3 px-4 py-3">
@@ -340,28 +339,15 @@ async function validateRuntime(runtime: string) {
                         :options="modelOptions(provider.models)"
                         placeholder="Select model"
                         class="flex-1"
-                        @update:model-value="state[rt].selectedModel = $event as string"
+                        @update:model-value="selectModel(rt, $event as string)"
                       />
-                      <VButton size="sm" :loading="current.modelSaving" @click="saveModelConfig(rt)">Save</VButton>
                     </div>
                   </div>
                 </div>
               </div>
             </section>
 
-            <!-- ========== Section 4: API Key ========== -->
-            <section v-if="current.selectedProviderId">
-              <h3 class="text-sm font-semibold text-text-primary mb-3">{{ t.agentConfig.apiKeyTitle }}</h3>
-              <div class="text-[11px] text-text-muted mb-2">
-                Provider: <span class="text-text-primary font-medium">{{ currentProvider?.name || current.selectedProviderId }}</span>
-              </div>
-              <div class="flex items-center gap-2 max-w-[520px]">
-                <VInput v-model="current.apiKey" type="password" :placeholder="t.agentConfig.apiKeyPlaceholder" size="sm" class="flex-1" />
-                <VButton size="sm" @click="saveApiKey(rt)">{{ t.agentConfig.saveApiKey }}</VButton>
-              </div>
-            </section>
-
-            <!-- ========== Section 5: Validate ========== -->
+            <!-- ========== Section 4: Validate ========== -->
             <section>
               <h3 class="text-sm font-semibold text-text-primary mb-3">{{ t.agentConfig.validateTitle }}</h3>
               <div class="flex items-center gap-3">

@@ -16,6 +16,8 @@ pub struct RuntimeEntry {
     pub enabled: bool,
     pub current_version: String,
     pub executable: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
     pub env: Option<HashMap<String, String>>,
     pub args: Option<RuntimeArgs>,
     pub execution: Option<ExecutionConfig>,
