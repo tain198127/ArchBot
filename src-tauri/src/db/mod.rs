@@ -44,15 +44,13 @@ pub struct OrderBy {
 }
 
 /// 查询参数
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[derive(Default)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct QueryParams {
     pub filters: Vec<Filter>,
     pub order_by: Vec<OrderBy>,
     pub limit: Option<u64>,
     pub offset: Option<u64>,
 }
-
 
 /// 查询结果集
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -92,7 +90,7 @@ pub trait DbBackend: Send + Sync {
 static LOCAL_DB: OnceLock<Mutex<Option<LocalSqliteDb>>> = OnceLock::new();
 static REMOTE_DB: OnceLock<Mutex<Option<RemoteMySqlDb>>> = OnceLock::new();
 
-fn local_db_cell() -> &'static Mutex<Option<LocalSqliteDb>> {
+pub(crate) fn local_db_cell() -> &'static Mutex<Option<LocalSqliteDb>> {
     LOCAL_DB.get_or_init(|| Mutex::new(None))
 }
 
@@ -187,11 +185,7 @@ pub async fn db_find_by_id(
 
 /// 插入记录
 #[tauri::command]
-pub async fn db_insert(
-    table: String,
-    data: DbRow,
-    db_type: String,
-) -> Result<String, String> {
+pub async fn db_insert(table: String, data: DbRow, db_type: String) -> Result<String, String> {
     validate_identifier(&table)?;
     for k in data.keys() {
         validate_identifier(k)?;

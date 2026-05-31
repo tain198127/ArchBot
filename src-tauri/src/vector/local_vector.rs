@@ -57,8 +57,7 @@ impl VectorBackend for LocalVectorDb {
                     _,
                     _,
                 >(
-                    Vec::<Option<Vec<Option<f32>>>>::new(),
-                    dimension as i32,
+                    Vec::<Option<Vec<Option<f32>>>>::new(), dimension as i32
                 )),
             ],
         )
@@ -91,7 +90,8 @@ impl VectorBackend for LocalVectorDb {
 
         let dim = vector.len() as i32;
         let ids = StringArray::from(vec![id]);
-        let cell: Vec<Option<Vec<Option<f32>>>> = vec![Some(vector.into_iter().map(Some).collect())];
+        let cell: Vec<Option<Vec<Option<f32>>>> =
+            vec![Some(vector.into_iter().map(Some).collect())];
         let vectors = FixedSizeListArray::from_iter_primitive::<Float32Type, _, _>(cell, dim);
 
         let schema = tbl.schema().await.map_err(|e| format!("{e}"))?;

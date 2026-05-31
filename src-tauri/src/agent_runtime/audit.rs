@@ -1,7 +1,17 @@
 use std::path::{Path, PathBuf};
 
+/// An audit log entry for the session_manager API.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AuditEntry {
+    pub log_id: String,
+    pub action: String,
+    pub severity: AuditSeverity,
+    pub detail: String,
+    pub created_at: String,
+}
+
 /// 审计违规严重级别
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum AuditSeverity {
     /// 读到用户凭据（~/.ssh, ~/.aws）→ 立即终止 Turn
     Critical,
@@ -9,6 +19,10 @@ pub enum AuditSeverity {
     High,
     /// 读到用户个人数据（~/.config, ~/.gitconfig）→ 仅记录
     Medium,
+    /// 告警
+    Warning,
+    /// 信息性记录
+    Info,
     /// 读到无关系统文件 → 忽略
     Low,
 }
@@ -140,8 +154,10 @@ mod tests {
     fn detects_high_violation() {
         let manager = AuditManager::new();
         let home = dirs::home_dir().unwrap();
-        let violations =
-            manager.audit(&[home.join(".claude/settings.json").to_string_lossy().to_string()]);
+        let violations = manager.audit(&[home
+            .join(".claude/settings.json")
+            .to_string_lossy()
+            .to_string()]);
         assert_eq!(violations.len(), 1);
         assert_eq!(violations[0].rule.severity, AuditSeverity::High);
     }

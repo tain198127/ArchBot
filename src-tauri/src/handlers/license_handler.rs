@@ -1,4 +1,7 @@
-use axum::{routing::{get, post}, Json, Router};
+use axum::{
+    routing::{get, post},
+    Json, Router,
+};
 use serde::Deserialize;
 
 pub fn routes() -> Router {
@@ -12,7 +15,9 @@ async fn get_license_status() -> Json<super::ApiResponse<crate::license::License
 }
 
 #[derive(Deserialize)]
-struct RegisterBody { verification_code: String }
+struct RegisterBody {
+    verification_code: String,
+}
 
 async fn register_software(Json(b): Json<RegisterBody>) -> Json<super::ApiResponse<bool>> {
     api_ok!(crate::license::register_software(b.verification_code))

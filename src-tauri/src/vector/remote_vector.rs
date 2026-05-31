@@ -67,7 +67,11 @@ impl RemoteVectorDb {
         if let Some(ref a) = self.auth() {
             req = req.header("Authorization", a);
         }
-        req.send().await.map_err(|e| format!("请求失败: {e}"))?.error_for_status().map_err(|e| format!("HTTP 错误: {e}"))
+        req.send()
+            .await
+            .map_err(|e| format!("请求失败: {e}"))?
+            .error_for_status()
+            .map_err(|e| format!("HTTP 错误: {e}"))
     }
 
     async fn post(&self, path: &str, body: &Value) -> Result<reqwest::Response, String> {
@@ -76,7 +80,11 @@ impl RemoteVectorDb {
         if let Some(ref a) = self.auth() {
             req = req.header("Authorization", a);
         }
-        req.send().await.map_err(|e| format!("请求失败: {e}"))?.error_for_status().map_err(|e| format!("HTTP 错误: {e}"))
+        req.send()
+            .await
+            .map_err(|e| format!("请求失败: {e}"))?
+            .error_for_status()
+            .map_err(|e| format!("HTTP 错误: {e}"))
     }
 
     async fn delete_req(&self, path: &str) -> Result<reqwest::Response, String> {
@@ -85,40 +93,78 @@ impl RemoteVectorDb {
         if let Some(ref a) = self.auth() {
             req = req.header("Authorization", a);
         }
-        req.send().await.map_err(|e| format!("请求失败: {e}"))?.error_for_status().map_err(|e| format!("HTTP 错误: {e}"))
+        req.send()
+            .await
+            .map_err(|e| format!("请求失败: {e}"))?
+            .error_for_status()
+            .map_err(|e| format!("HTTP 错误: {e}"))
     }
 }
 
 fn enc(s: &str) -> String {
-    s.replace('%', "%25").replace('/', "%2F").replace('\\', "%5C").replace(' ', "%20")
-        .replace('&', "%26").replace('=', "%3D").replace('?', "%3F").replace('#', "%23").replace('@', "%40")
+    s.replace('%', "%25")
+        .replace('/', "%2F")
+        .replace('\\', "%5C")
+        .replace(' ', "%20")
+        .replace('&', "%26")
+        .replace('=', "%3D")
+        .replace('?', "%3F")
+        .replace('#', "%23")
+        .replace('@', "%40")
 }
 
 #[async_trait]
 impl VectorBackend for RemoteVectorDb {
     async fn create_table(&self, name: &str, dimension: u32) -> Result<(), String> {
         #[derive(Serialize)]
-        struct Body { dimension: u32 }
-        self.post(&format!("/vector/{}", enc(name)), &serde_json::to_value(&Body { dimension }).unwrap()).await?;
+        struct Body {
+            dimension: u32,
+        }
+        self.post(
+            &format!("/vector/{}", enc(name)),
+            &serde_json::to_value(&Body { dimension }).unwrap(),
+        )
+        .await?;
         Ok(())
     }
 
     async fn insert(&self, table: &str, id: &str, vector: Vec<f32>) -> Result<(), String> {
         #[derive(Serialize)]
-        struct Body<'a> { id: &'a str, vector: Vec<f32> }
-        self.post(&format!("/vector/{}/insert", enc(table)), &serde_json::to_value(&Body { id, vector }).unwrap()).await?;
+        struct Body<'a> {
+            id: &'a str,
+            vector: Vec<f32>,
+        }
+        self.post(
+            &format!("/vector/{}/insert", enc(table)),
+            &serde_json::to_value(&Body { id, vector }).unwrap(),
+        )
+        .await?;
         Ok(())
     }
 
-    async fn search(&self, table: &str, query: Vec<f32>, top_k: usize) -> Result<Vec<SearchResult>, String> {
+    async fn search(
+        &self,
+        table: &str,
+        query: Vec<f32>,
+        top_k: usize,
+    ) -> Result<Vec<SearchResult>, String> {
         #[derive(Serialize)]
-        struct Body { query: Vec<f32>, top_k: usize }
-        let resp = self.post(&format!("/vector/{}/search", enc(table)), &serde_json::to_value(&Body { query, top_k }).unwrap()).await?;
+        struct Body {
+            query: Vec<f32>,
+            top_k: usize,
+        }
+        let resp = self
+            .post(
+                &format!("/vector/{}/search", enc(table)),
+                &serde_json::to_value(&Body { query, top_k }).unwrap(),
+            )
+            .await?;
         resp.json().await.map_err(|e| format!("解析响应失败: {e}"))
     }
 
     async fn delete(&self, table: &str, id: &str) -> Result<(), String> {
-        self.delete_req(&format!("/vector/{}/{}", enc(table), enc(id))).await?;
+        self.delete_req(&format!("/vector/{}/{}", enc(table), enc(id)))
+            .await?;
         Ok(())
     }
 

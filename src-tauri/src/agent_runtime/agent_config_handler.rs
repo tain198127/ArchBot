@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::agent_runtime::runtime_config::load_runtimes_config;
+use crate::agent_runtime::version_manager;
 use crate::secret::SecretManager;
 
 fn expand_home(path: &str) -> String {
@@ -47,12 +48,43 @@ pub fn agent_get_status(runtime: String) -> Result<AgentStatus, String> {
         .get(&runtime)
         .ok_or_else(|| format!("Runtime not found: {}", runtime))?;
 
-    let executable = expand_home(&entry.executable);
-    let installed = std::path::Path::new(&executable).exists();
-    let installed_version = if installed {
-        entry.current_version.clone()
+    // 1. Try version_manager managed install first (checks ~/.archbot/runtimes/{name}/current)
+    let vm_version = version_manager::current_version(&runtime).unwrap_or_default();
+    let mut available_versions = version_manager::detect_versions(&runtime).unwrap_or_default();
+
+    // 2. Always include the config's current_version as a known version candidate
+    let config_version = &entry.current_version;
+    if !config_version.is_empty() && !available_versions.contains(config_version) {
+        available_versions.push(config_version.clone());
+    }
+
+    let (installed, installed_version) = if !vm_version.is_empty() && vm_version != "not installed" {
+        (true, vm_version)
     } else {
-        String::new()
+        // 3. Fallback: check if the executable from runtimes.yml exists and run --version
+        let exe_path = expand_home(&entry.executable);
+        let exe_path = std::path::Path::new(&exe_path);
+        if exe_path.exists() {
+            match std::process::Command::new(exe_path).arg("--version").output() {
+                Ok(output) if output.status.success() => {
+                    let ver = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    if !ver.is_empty() && !available_versions.contains(&ver) {
+                        available_versions.push(ver.clone());
+                    }
+                    (true, ver)
+                }
+                _ => {
+                    let ver = config_version.clone();
+                    if !ver.is_empty() && !available_versions.contains(&ver) {
+                        available_versions.push(ver.clone());
+                    }
+                    (true, ver)
+                }
+            }
+        } else {
+            // Not installed — show config version so user knows what to install
+            (false, config_version.clone())
+        }
     };
 
     let config = entry.env.as_ref().map(|env| {
@@ -62,15 +94,25 @@ pub fn agent_get_status(runtime: String) -> Result<AgentStatus, String> {
                 .as_ref()
                 .map_or(false, |a| a.default.iter().any(|x| x.contains("claude")));
         AgentConfigInfo {
-            protocol: if is_anthropic { "anthropic".into() } else { "openai".into() },
+            protocol: if is_anthropic {
+                "anthropic".into()
+            } else {
+                "openai".into()
+            },
             base_url: env
                 .get("ANTHROPIC_BASE_URL")
                 .or_else(|| env.get("OPENAI_BASE_URL"))
                 .cloned()
                 .unwrap_or_default(),
             model_default: env.get("ANTHROPIC_MODEL").cloned().unwrap_or_default(),
-            model_small: env.get("ANTHROPIC_SMALL_MODEL").cloned().unwrap_or_default(),
-            model_large: env.get("ANTHROPIC_LARGE_MODEL").cloned().unwrap_or_default(),
+            model_small: env
+                .get("ANTHROPIC_SMALL_MODEL")
+                .cloned()
+                .unwrap_or_default(),
+            model_large: env
+                .get("ANTHROPIC_LARGE_MODEL")
+                .cloned()
+                .unwrap_or_default(),
             model_name: env.get("OPENAI_MODEL").cloned().unwrap_or_default(),
             extra_args: String::new(),
         }
@@ -79,15 +121,15 @@ pub fn agent_get_status(runtime: String) -> Result<AgentStatus, String> {
     Ok(AgentStatus {
         installed,
         installed_version,
-        available_versions: vec![entry.current_version.clone()],
+        available_versions,
         config,
     })
 }
 
-// ── agent_install ──
+// ── agent_install (stub — real impl in version_manager) ──
 
-#[tauri::command]
-pub fn agent_install(runtime: String, version: Option<String>) -> Result<String, String> {
+#[allow(dead_code)]
+pub fn agent_install_legacy(runtime: String, version: Option<String>) -> Result<String, String> {
     let version = version.unwrap_or_default();
     Err(format!(
         "Install not yet implemented for {} v{}. Please manually install to ~/.archbot/runtimes/{}/",
@@ -95,10 +137,10 @@ pub fn agent_install(runtime: String, version: Option<String>) -> Result<String,
     ))
 }
 
-// ── agent_update ──
+// ── agent_update (stub — real impl in version_manager) ──
 
-#[tauri::command]
-pub fn agent_update(runtime: String) -> Result<String, String> {
+#[allow(dead_code)]
+pub fn agent_update_legacy(runtime: String) -> Result<String, String> {
     Err(format!("Update not yet implemented for {}", runtime))
 }
 
@@ -148,8 +190,7 @@ pub fn agent_save_config(runtime: String, config: AgentConfigInfo) -> Result<(),
         .join("config")
         .join("runtimes.yml");
 
-    std::fs::write(&path, yml)
-        .map_err(|e| format!("Failed to write runtimes.yml: {}", e))?;
+    std::fs::write(&path, yml).map_err(|e| format!("Failed to write runtimes.yml: {}", e))?;
 
     Ok(())
 }

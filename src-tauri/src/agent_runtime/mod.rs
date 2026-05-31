@@ -1,8 +1,15 @@
+pub mod adapter_manager;
 pub mod agent_config_handler;
 pub mod audit;
 pub mod config;
+pub mod context_assembly;
+pub mod event_stream;
+pub mod file_control;
 pub mod home_setup;
 pub mod launcher;
 pub mod runtime_config;
+pub mod session_manager;
+pub mod shell_control;
 pub mod turn_config;
 pub mod turn_executor;
+pub mod version_manager;

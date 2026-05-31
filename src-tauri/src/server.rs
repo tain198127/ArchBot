@@ -1,6 +1,6 @@
 use serde::Deserialize;
-use tower_http::cors::CorsLayer;
 use tower_http::cors::Any;
+use tower_http::cors::CorsLayer;
 
 /// Configuration for the embedded HTTP server, deserialized from settings.json.
 #[derive(Deserialize)]
@@ -14,12 +14,20 @@ pub struct HttpConfig {
     pub bind_lan: bool,
 }
 
-fn default_enabled() -> bool { true }
-fn default_port() -> u16 { 1421 }
+fn default_enabled() -> bool {
+    true
+}
+fn default_port() -> u16 {
+    1421
+}
 
 impl Default for HttpConfig {
     fn default() -> Self {
-        Self { enabled: true, port: 1421, bind_lan: false }
+        Self {
+            enabled: true,
+            port: 1421,
+            bind_lan: false,
+        }
     }
 }
 
@@ -30,7 +38,11 @@ impl Default for HttpConfig {
 /// - CORS applies `Any` only when `bind_lan: true` (user explicitly enables LAN access).
 ///   When localhost-only, CORS restricts to the Vite dev server origin.
 pub async fn start(config: HttpConfig) -> tokio::task::JoinHandle<()> {
-    let bind_address = if config.bind_lan { "0.0.0.0" } else { "127.0.0.1" };
+    let bind_address = if config.bind_lan {
+        "0.0.0.0"
+    } else {
+        "127.0.0.1"
+    };
 
     let cors = if config.bind_lan {
         CorsLayer::new()
@@ -39,7 +51,11 @@ pub async fn start(config: HttpConfig) -> tokio::task::JoinHandle<()> {
             .allow_headers(Any)
     } else {
         CorsLayer::new()
-            .allow_origin("http://localhost:1420".parse::<axum::http::HeaderValue>().unwrap())
+            .allow_origin(
+                "http://localhost:1420"
+                    .parse::<axum::http::HeaderValue>()
+                    .unwrap(),
+            )
             .allow_methods(Any)
             .allow_headers(Any)
     };

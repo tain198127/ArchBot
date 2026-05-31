@@ -51,11 +51,7 @@ fn builtin_providers() -> Vec<AIProvider> {
             name: "OpenAI".into(),
             protocol: "openai".into(),
             base_url: "https://api.openai.com/v1".into(),
-            models: vec![
-                "gpt-5.2".into(),
-                "gpt-4.1".into(),
-                "gpt-4.1-mini".into(),
-            ],
+            models: vec!["gpt-5.2".into(), "gpt-4.1".into(), "gpt-4.1-mini".into()],
             default_model: Some("gpt-5.2".into()),
             is_builtin: true,
             has_api_key: false,
@@ -88,10 +84,7 @@ fn builtin_providers() -> Vec<AIProvider> {
             name: "OpenRouter".into(),
             protocol: "openai".into(),
             base_url: "https://openrouter.ai/api/v1".into(),
-            models: vec![
-                "anthropic/claude-sonnet-4".into(),
-                "openai/gpt-5.2".into(),
-            ],
+            models: vec!["anthropic/claude-sonnet-4".into(), "openai/gpt-5.2".into()],
             default_model: Some("anthropic/claude-sonnet-4".into()),
             is_builtin: true,
             has_api_key: false,
@@ -141,10 +134,7 @@ fn builtin_providers() -> Vec<AIProvider> {
             name: "Google Gen AI".into(),
             protocol: "openai".into(),
             base_url: "https://generativelanguage.googleapis.com/v1beta/openai".into(),
-            models: vec![
-                "gemini-2.5-pro".into(),
-                "gemini-2.5-flash".into(),
-            ],
+            models: vec!["gemini-2.5-pro".into(), "gemini-2.5-flash".into()],
             default_model: Some("gemini-2.5-pro".into()),
             is_builtin: true,
             has_api_key: false,
@@ -204,10 +194,8 @@ fn save_providers(providers: &[AIProvider]) -> Result<(), String> {
     let config = AIProvidersConfig {
         providers: providers.to_vec(),
     };
-    let yml = serde_yml::to_string(&config)
-        .map_err(|e| format!("Failed to serialize: {}", e))?;
-    std::fs::write(&path, yml)
-        .map_err(|e| format!("Failed to write {:?}: {}", path, e))?;
+    let yml = serde_yml::to_string(&config).map_err(|e| format!("Failed to serialize: {}", e))?;
+    std::fs::write(&path, yml).map_err(|e| format!("Failed to write {:?}: {}", path, e))?;
     Ok(())
 }
 
@@ -238,7 +226,10 @@ pub fn ai_save_provider(
     models: Vec<String>,
     default_model: Option<String>,
 ) -> Result<(), String> {
-    eprintln!("[ai_config] save_provider id={} models={:?} default={:?}", id, models, default_model);
+    eprintln!(
+        "[ai_config] save_provider id={} models={:?} default={:?}",
+        id, models, default_model
+    );
     let mut providers = load_providers()?;
 
     // Validate protocol
@@ -247,8 +238,7 @@ pub fn ai_save_provider(
     }
 
     // Validate URL
-    let parsed = url::Url::parse(&base_url)
-        .map_err(|e| format!("Invalid URL: {}", e))?;
+    let parsed = url::Url::parse(&base_url).map_err(|e| format!("Invalid URL: {}", e))?;
     if parsed.scheme() != "http" && parsed.scheme() != "https" {
         return Err("Base URL must use http:// or https://".into());
     }
@@ -259,10 +249,7 @@ pub fn ai_save_provider(
     // Validate default_model is actually in the models list
     if let Some(ref dm) = default_model {
         if !models.contains(dm) {
-            return Err(format!(
-                "Default model '{}' is not in the models list",
-                dm
-            ));
+            return Err(format!("Default model '{}' is not in the models list", dm));
         }
     }
 
@@ -413,7 +400,12 @@ pub async fn ai_validate_provider(
     }
 
     let model = if model.is_empty() {
-        if protocol == "anthropic" { "claude-haiku-4-5" } else { "gpt-4.1-mini" }.into()
+        if protocol == "anthropic" {
+            "claude-haiku-4-5"
+        } else {
+            "gpt-4.1-mini"
+        }
+        .into()
     } else {
         model
     };
@@ -438,8 +430,7 @@ pub async fn ai_validate_provider(
     };
 
     // SSRF protection
-    let parsed = url::Url::parse(&endpoint)
-        .map_err(|e| format!("Invalid URL: {}", e))?;
+    let parsed = url::Url::parse(&endpoint).map_err(|e| format!("Invalid URL: {}", e))?;
     let host = parsed.host_str().ok_or("URL has no host")?;
     validate_host_allowed(host).await?;
 
@@ -450,12 +441,14 @@ pub async fn ai_validate_provider(
         .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
     let req = if protocol == "anthropic" {
-        client.post(&endpoint)
+        client
+            .post(&endpoint)
             .header("x-api-key", &api_key)
             .header("anthropic-version", "2023-06-01")
             .json(&body)
     } else {
-        client.post(&endpoint)
+        client
+            .post(&endpoint)
             .header("Authorization", format!("Bearer {}", api_key))
             .json(&body)
     };
@@ -468,7 +461,8 @@ pub async fn ai_validate_provider(
             if status.is_success() {
                 let reply = parse_chat_reply(&protocol, &body_text);
                 // Also fetch available models from this provider
-                let remote_models = fetch_remote_models(&protocol, &base_url, &api_key, &client).await;
+                let remote_models =
+                    fetch_remote_models(&protocol, &base_url, &api_key, &client).await;
                 Ok(ValidateResult {
                     ok: true,
                     response: Some(reply),
@@ -512,9 +506,14 @@ async fn fetch_remote_models(
     };
 
     let req = if protocol == "anthropic" {
-        client.get(&url).header("x-api-key", api_key).header("anthropic-version", "2023-06-01")
+        client
+            .get(&url)
+            .header("x-api-key", api_key)
+            .header("anthropic-version", "2023-06-01")
     } else {
-        client.get(&url).header("Authorization", format!("Bearer {}", api_key))
+        client
+            .get(&url)
+            .header("Authorization", format!("Bearer {}", api_key))
     };
 
     match req.send().await {

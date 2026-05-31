@@ -22,6 +22,7 @@ export interface AppSettings {
   fontFamily: string
   theme: 'light' | 'dark'
   aiLanguage: 'zh-CN' | 'en-US' | 'auto'
+  defaultProviderId: string | null
   proxy: ProxyConfig
   httpServer: HttpServerConfig
 }
@@ -33,6 +34,7 @@ function getDefaults(): AppSettings {
     fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     theme: 'dark',
     aiLanguage: 'auto',
+    defaultProviderId: null,
     proxy: {
       enabled: false,
       address: '',
@@ -100,6 +102,10 @@ export function useSettings() {
   watch(() => state.httpServer, () => {
     persistSettings()
   }, { deep: true })
+
+  watch(() => state.defaultProviderId, () => {
+    persistSettings()
+  })
 
   /**
    * 初始化配置

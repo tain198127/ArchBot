@@ -41,9 +41,7 @@ impl Default for ProjectScenario {
 /// 获取 `.archbot/scenario.yml` 的完整路径
 fn scenario_path(project_path: &str) -> Result<std::path::PathBuf, String> {
     let ab_path = Path::new(project_path);
-    let project_dir = ab_path
-        .parent()
-        .ok_or("无法获取项目目录")?;
+    let project_dir = ab_path.parent().ok_or("无法获取项目目录")?;
     Ok(project_dir.join(".archbot").join("scenario.yml"))
 }
 
@@ -56,10 +54,8 @@ pub fn get_scenario(project_path: String) -> Result<ProjectScenario, String> {
     if !path.exists() {
         return Ok(ProjectScenario::default());
     }
-    let content = std::fs::read_to_string(&path)
-        .map_err(|e| format!("读取场景配置失败: {e}"))?;
-    serde_yml::from_str(&content)
-        .map_err(|e| format!("解析场景配置失败: {e}"))
+    let content = std::fs::read_to_string(&path).map_err(|e| format!("读取场景配置失败: {e}"))?;
+    serde_yml::from_str(&content).map_err(|e| format!("解析场景配置失败: {e}"))
 }
 
 /// 保存项目场景配置
@@ -67,11 +63,8 @@ pub fn get_scenario(project_path: String) -> Result<ProjectScenario, String> {
 pub fn save_scenario(project_path: String, scenario: ProjectScenario) -> Result<(), String> {
     let path = scenario_path(&project_path)?;
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("创建场景配置目录失败: {e}"))?;
+        std::fs::create_dir_all(parent).map_err(|e| format!("创建场景配置目录失败: {e}"))?;
     }
-    let yaml = serde_yml::to_string(&scenario)
-        .map_err(|e| format!("序列化场景配置失败: {e}"))?;
-    std::fs::write(&path, yaml)
-        .map_err(|e| format!("保存场景配置失败: {e}"))
+    let yaml = serde_yml::to_string(&scenario).map_err(|e| format!("序列化场景配置失败: {e}"))?;
+    std::fs::write(&path, yaml).map_err(|e| format!("保存场景配置失败: {e}"))
 }

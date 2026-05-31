@@ -233,8 +233,8 @@ pub fn ensure_gitignore(project_path: String) -> Result<bool, String> {
     let pattern = ".archbot/db";
 
     if gitignore_path.exists() {
-        let content =
-            std::fs::read_to_string(&gitignore_path).map_err(|e| format!("读取 .gitignore 失败: {e}"))?;
+        let content = std::fs::read_to_string(&gitignore_path)
+            .map_err(|e| format!("读取 .gitignore 失败: {e}"))?;
         if content.lines().any(|line| line.trim() == pattern) {
             return Ok(false);
         }
@@ -246,8 +246,11 @@ pub fn ensure_gitignore(project_path: String) -> Result<bool, String> {
         std::fs::write(&gitignore_path, new_content)
             .map_err(|e| format!("写入 .gitignore 失败: {e}"))?;
     } else {
-        std::fs::write(&gitignore_path, format!("# ArchBot database files\n{pattern}\n"))
-            .map_err(|e| format!("创建 .gitignore 失败: {e}"))?;
+        std::fs::write(
+            &gitignore_path,
+            format!("# ArchBot database files\n{pattern}\n"),
+        )
+        .map_err(|e| format!("创建 .gitignore 失败: {e}"))?;
     }
 
     Ok(true)
@@ -334,15 +337,12 @@ pub async fn fs_mkdir(path: String, fs_type: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn read_local_file(path: String) -> Result<FileContent, String> {
     let raw = std::path::Path::new(&path);
-    let canonical = raw
-        .canonicalize()
-        .map_err(|e| format!("路径无效: {e}"))?;
+    let canonical = raw.canonicalize().map_err(|e| format!("路径无效: {e}"))?;
     let name = canonical
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_default();
-    let content =
-        std::fs::read_to_string(&canonical).map_err(|e| format!("读取文件失败: {e}"))?;
+    let content = std::fs::read_to_string(&canonical).map_err(|e| format!("读取文件失败: {e}"))?;
     Ok(FileContent { name, content })
 }
 
@@ -504,15 +504,17 @@ pub async fn fetch_remote(
     password: String,
 ) -> Result<RemoteResponse, String> {
     // 校验协议，拒绝非 https URL
-    let parsed =
-        reqwest::Url::parse(&url).map_err(|e| format!("URL 无效: {e}"))?;
+    let parsed = reqwest::Url::parse(&url).map_err(|e| format!("URL 无效: {e}"))?;
     if parsed.scheme() != "https" {
         return Err("仅支持 https 协议".into());
     }
     // 拒绝内网地址
     if let Some(host) = parsed.host_str() {
-        if host == "localhost" || host.starts_with("127.") || host.starts_with("10.")
-            || host.starts_with("172.16.") || host.starts_with("192.168.")
+        if host == "localhost"
+            || host.starts_with("127.")
+            || host.starts_with("10.")
+            || host.starts_with("172.16.")
+            || host.starts_with("192.168.")
         {
             return Err("不允许访问内网地址".into());
         }
@@ -536,4 +538,58 @@ pub async fn fetch_remote(
         .map_err(|e| format!("读取响应失败: {e}"))?;
 
     Ok(RemoteResponse { status, body })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// E2E: defaultProviderId 设置 → 保存 → 加载 → 验证 的完整流程
+    #[tokio::test]
+    async fn e2e_settings_default_provider_persistence() {
+        let settings_path = get_settings_path().expect("get settings path");
+
+        // 备份原始内容
+        let original = if settings_path.exists() {
+            std::fs::read_to_string(&settings_path).ok()
+        } else {
+            None
+        };
+
+        // Step 1: 保存含 defaultProviderId 的 settings
+        let test_id = "anthropic";
+        let payload = serde_json::json!({
+            "locale": "zh-CN",
+            "fontSize": 13,
+            "defaultProviderId": test_id,
+            "theme": "dark",
+            "proxy": {"enabled": false},
+            "httpServer": {"enabled": true, "port": 1421}
+        });
+
+        save_settings(payload.to_string())
+            .await
+            .expect("save settings should succeed");
+
+        // Step 2: 加载
+        let loaded = load_settings().await.expect("load settings should succeed");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&loaded).expect("settings should be valid JSON");
+
+        // Step 3: 验证 defaultProviderId 持久化
+        let actual_id = parsed["defaultProviderId"].as_str();
+        assert_eq!(
+            actual_id,
+            Some(test_id),
+            "defaultProviderId should persist across save/load cycle"
+        );
+
+        // Step 4: 验证其他字段未被破坏
+        assert_eq!(parsed["locale"].as_str(), Some("zh-CN"));
+
+        // 恢复原始内容
+        if let Some(orig) = original {
+            std::fs::write(&settings_path, orig).ok();
+        }
+    }
 }

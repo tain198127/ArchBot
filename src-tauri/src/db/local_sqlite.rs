@@ -95,7 +95,13 @@ impl LocalSqliteDb {
         let parts: Vec<String> = params
             .order_by
             .iter()
-            .map(|o| format!("`{}` {}", o.field, if o.descending { "DESC" } else { "ASC" }))
+            .map(|o| {
+                format!(
+                    "`{}` {}",
+                    o.field,
+                    if o.descending { "DESC" } else { "ASC" }
+                )
+            })
             .collect();
         format!("ORDER BY {}", parts.join(", "))
     }
@@ -186,7 +192,10 @@ impl DbBackend for LocalSqliteDb {
             .await
             .map_err(|e| format!("查询失败: {e}"))?;
 
-        let db_rows: Vec<DbRow> = rows.iter().map(|r| query_result_to_dbrow(r, &columns)).collect();
+        let db_rows: Vec<DbRow> = rows
+            .iter()
+            .map(|r| query_result_to_dbrow(r, &columns))
+            .collect();
         Ok(QueryResult {
             rows: db_rows,
             total,
@@ -425,7 +434,10 @@ mod tests {
         run_full_migration(&db).await;
 
         let id_str = db
-            .insert("digital_employees", make_employee_data("test-user", "测试用户", 99))
+            .insert(
+                "digital_employees",
+                make_employee_data("test-user", "测试用户", 99),
+            )
             .await
             .expect("插入失败");
 
@@ -451,12 +463,24 @@ mod tests {
         // 更新第一个员工的名字
         let mut data = DbRow::new();
         data.insert("name".into(), Value::String("需求分析师(已更名)".into()));
-        data.insert("updated_at".into(), Value::String("2026-06-01T00:00:00+08:00".into()));
+        data.insert(
+            "updated_at".into(),
+            Value::String("2026-06-01T00:00:00+08:00".into()),
+        );
 
-        db.update("digital_employees", "1", data).await.expect("更新失败");
+        db.update("digital_employees", "1", data)
+            .await
+            .expect("更新失败");
 
-        let row = db.find_by_id("digital_employees", "1").await.unwrap().unwrap();
-        assert_eq!(row.get("name").unwrap().as_str().unwrap(), "需求分析师(已更名)");
+        let row = db
+            .find_by_id("digital_employees", "1")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            row.get("name").unwrap().as_str().unwrap(),
+            "需求分析师(已更名)"
+        );
         // code 不应被修改
         assert_eq!(row.get("code").unwrap().as_str().unwrap(), "ba-analyst");
     }
@@ -492,18 +516,32 @@ mod tests {
         let db = setup_memory_db().await;
         run_full_migration(&db).await;
 
-        db.delete("digital_employees", "19").await.expect("删除失败");
+        db.delete("digital_employees", "19")
+            .await
+            .expect("删除失败");
 
-        let result = db.find_all("digital_employees", QueryParams::default()).await.unwrap();
+        let result = db
+            .find_all("digital_employees", QueryParams::default())
+            .await
+            .unwrap();
         assert_eq!(result.total, 18); // 种子 18 条，第 19 条不存在时删除是 no-op？不对...
 
         // 先插入再删除
-        let id = db.insert("digital_employees", make_employee_data("tmp", "临时", 100)).await.unwrap();
-        let before = db.find_all("digital_employees", QueryParams::default()).await.unwrap();
+        let id = db
+            .insert("digital_employees", make_employee_data("tmp", "临时", 100))
+            .await
+            .unwrap();
+        let before = db
+            .find_all("digital_employees", QueryParams::default())
+            .await
+            .unwrap();
         assert_eq!(before.total, 19);
 
         db.delete("digital_employees", &id).await.unwrap();
-        let after = db.find_all("digital_employees", QueryParams::default()).await.unwrap();
+        let after = db
+            .find_all("digital_employees", QueryParams::default())
+            .await
+            .unwrap();
         assert_eq!(after.total, 18);
     }
 }
@@ -521,8 +559,6 @@ fn sea_value_from_json(v: &Value) -> sea_orm::Value {
             }
         }
         Value::String(s) => sea_orm::Value::String(Some(Box::new(s.clone()))),
-        Value::Array(_) | Value::Object(_) => {
-            sea_orm::Value::String(Some(Box::new(v.to_string())))
-        }
+        Value::Array(_) | Value::Object(_) => sea_orm::Value::String(Some(Box::new(v.to_string()))),
     }
 }

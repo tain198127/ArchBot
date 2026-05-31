@@ -137,8 +137,7 @@ impl FsBackend for RemoteFs {
             path: &'a str,
             content: &'a str,
         }
-        self.post("/fs/write", &WriteBody { path, content })
-            .await?;
+        self.post("/fs/write", &WriteBody { path, content }).await?;
         Ok(())
     }
 

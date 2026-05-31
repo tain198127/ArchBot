@@ -66,8 +66,7 @@ pub fn save_context_config(
     validate_section(&section)?;
     let path = section_path(&project_path, &section)?;
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("创建上下文配置目录失败: {e}"))?;
+        std::fs::create_dir_all(parent).map_err(|e| format!("创建上下文配置目录失败: {e}"))?;
     }
     std::fs::write(&path, content).map_err(|e| format!("保存上下文配置失败: {e}"))
 }
@@ -83,8 +82,7 @@ pub fn list_context_entries(project_path: String, section: String) -> Result<Vec
         return Ok(Vec::new());
     }
     let mut entries = Vec::new();
-    let read_dir =
-        std::fs::read_dir(&dir).map_err(|e| format!("读取目录失败: {e}"))?;
+    let read_dir = std::fs::read_dir(&dir).map_err(|e| format!("读取目录失败: {e}"))?;
     for entry in read_dir {
         let entry = entry.map_err(|e| format!("读取条目失败: {e}"))?;
         if entry.file_type().map(|t| t.is_file()).unwrap_or(false) {
@@ -113,8 +111,7 @@ pub fn get_context_entry(
     if !path.exists() {
         return Err(format!("条目不存在: {name}"));
     }
-    let content =
-        std::fs::read_to_string(&path).map_err(|e| format!("读取条目失败: {e}"))?;
+    let content = std::fs::read_to_string(&path).map_err(|e| format!("读取条目失败: {e}"))?;
     serde_yml::from_str(&content).map_err(|e| format!("解析条目失败: {e}"))
 }
 

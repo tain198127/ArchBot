@@ -170,7 +170,11 @@ pub async fn lancedb_create_table(name: String, dimension: u32) -> Result<(), St
 }
 
 #[tauri::command]
-pub async fn lancedb_insert(table_name: String, id: String, vector: Vec<f32>) -> Result<(), String> {
+pub async fn lancedb_insert(
+    table_name: String,
+    id: String,
+    vector: Vec<f32>,
+) -> Result<(), String> {
     validate_table_name(&table_name)?;
     let db = get_conn().await?;
 

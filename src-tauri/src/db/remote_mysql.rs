@@ -64,9 +64,7 @@ impl RemoteMySqlDb {
 
     /// 添加认证头
     fn auth_header(&self) -> Option<String> {
-        self.token
-            .as_ref()
-            .map(|t| format!("Bearer {}", t))
+        self.token.as_ref().map(|t| format!("Bearer {}", t))
     }
 
     async fn get(&self, path: &str) -> Result<reqwest::Response, String> {
@@ -132,8 +130,10 @@ impl DbBackend for RemoteMySqlDb {
         let resp = self
             .get(&format!("/db/{}/{}", urlencoding(table), urlencoding(id)))
             .await?;
-        let body: FindByIdResp =
-            resp.json().await.map_err(|e| format!("解析响应失败: {e}"))?;
+        let body: FindByIdResp = resp
+            .json()
+            .await
+            .map_err(|e| format!("解析响应失败: {e}"))?;
         Ok(body.data)
     }
 
@@ -160,8 +160,10 @@ impl DbBackend for RemoteMySqlDb {
                 &serde_json::to_value(&data).map_err(|e| format!("序列化失败: {e}"))?,
             )
             .await?;
-        let body: InsertResp =
-            resp.json().await.map_err(|e| format!("解析响应失败: {e}"))?;
+        let body: InsertResp = resp
+            .json()
+            .await
+            .map_err(|e| format!("解析响应失败: {e}"))?;
         Ok(body.id)
     }
 

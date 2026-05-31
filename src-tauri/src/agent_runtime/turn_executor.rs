@@ -59,7 +59,11 @@ pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
     // 注入 API token（从 Secret Manager）
     if let Ok(sm) = SecretManager::new(&get_machine_id()) {
         let token_refs = [
-            ("claude_code", "ANTHROPIC_AUTH_TOKEN", "secret://claude_code/api_token"),
+            (
+                "claude_code",
+                "ANTHROPIC_AUTH_TOKEN",
+                "secret://claude_code/api_token",
+            ),
             ("hermes", "HERMES_API_KEY", "secret://hermes/api_token"),
             ("opencode", "OPENAI_API_KEY", "secret://opencode/api_token"),
             ("openclaw", "OPENAI_API_KEY", "secret://openclaw/api_token"),
@@ -159,7 +163,10 @@ pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
 }
 
 /// 带超时的进程等待
-fn wait_with_timeout(child: &mut Child, timeout: std::time::Duration) -> Result<(String, String, std::process::ExitStatus), String> {
+fn wait_with_timeout(
+    child: &mut Child,
+    timeout: std::time::Duration,
+) -> Result<(String, String, std::process::ExitStatus), String> {
     let start = Instant::now();
     loop {
         match child.try_wait() {
@@ -188,12 +195,18 @@ fn wait_with_timeout(child: &mut Child, timeout: std::time::Duration) -> Result<
 
 fn turn_directory(workspace_root: &str, turn_id: &str) -> Result<PathBuf, String> {
     let root = PathBuf::from(workspace_root);
-    let canonical = root
-        .canonicalize()
-        .map_err(|_| format!("Invalid workspace_root (not found or inaccessible): {}", workspace_root))?;
+    let canonical = root.canonicalize().map_err(|_| {
+        format!(
+            "Invalid workspace_root (not found or inaccessible): {}",
+            workspace_root
+        )
+    })?;
     // 额外校验：不包含 .. 或符号链接逃逸
     if canonical.to_string_lossy().contains("..") {
-        return Err(format!("workspace_root contains path traversal: {}", workspace_root));
+        return Err(format!(
+            "workspace_root contains path traversal: {}",
+            workspace_root
+        ));
     }
     Ok(canonical
         .join(".archbot")

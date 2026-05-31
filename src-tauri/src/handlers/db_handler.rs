@@ -13,7 +13,9 @@ pub fn routes() -> Router {
 }
 
 #[derive(Deserialize)]
-struct ConnectBody { path: String }
+struct ConnectBody {
+    path: String,
+}
 
 async fn db_connect(Json(b): Json<ConnectBody>) -> Json<super::EmptyResponse> {
     api_empty!(crate::db::db_connect(b.path))
@@ -24,35 +26,60 @@ async fn db_disconnect() -> Json<super::EmptyResponse> {
 }
 
 #[derive(Deserialize)]
-struct FindAllBody { table: String, params: crate::db::QueryParams, db_type: String }
+struct FindAllBody {
+    table: String,
+    params: crate::db::QueryParams,
+    db_type: String,
+}
 
-async fn db_find_all(Json(b): Json<FindAllBody>) -> Json<super::ApiResponse<crate::db::QueryResult>> {
+async fn db_find_all(
+    Json(b): Json<FindAllBody>,
+) -> Json<super::ApiResponse<crate::db::QueryResult>> {
     api_ok!(crate::db::db_find_all(b.table, b.params, b.db_type))
 }
 
 #[derive(Deserialize)]
-struct FindByIdBody { table: String, id: String, db_type: String }
+struct FindByIdBody {
+    table: String,
+    id: String,
+    db_type: String,
+}
 
-async fn db_find_by_id(Json(b): Json<FindByIdBody>) -> Json<super::ApiResponse<Option<crate::db::DbRow>>> {
+async fn db_find_by_id(
+    Json(b): Json<FindByIdBody>,
+) -> Json<super::ApiResponse<Option<crate::db::DbRow>>> {
     api_ok!(crate::db::db_find_by_id(b.table, b.id, b.db_type))
 }
 
 #[derive(Deserialize)]
-struct InsertBody { table: String, data: crate::db::DbRow, db_type: String }
+struct InsertBody {
+    table: String,
+    data: crate::db::DbRow,
+    db_type: String,
+}
 
 async fn db_insert(Json(b): Json<InsertBody>) -> Json<super::ApiResponse<String>> {
     api_ok!(crate::db::db_insert(b.table, b.data, b.db_type))
 }
 
 #[derive(Deserialize)]
-struct UpdateBody { table: String, id: String, data: crate::db::DbRow, db_type: String }
+struct UpdateBody {
+    table: String,
+    id: String,
+    data: crate::db::DbRow,
+    db_type: String,
+}
 
 async fn db_update(Json(b): Json<UpdateBody>) -> Json<super::EmptyResponse> {
     api_empty!(crate::db::db_update(b.table, b.id, b.data, b.db_type))
 }
 
 #[derive(Deserialize)]
-struct DeleteBody { table: String, id: String, db_type: String }
+struct DeleteBody {
+    table: String,
+    id: String,
+    db_type: String,
+}
 
 async fn db_delete(Json(b): Json<DeleteBody>) -> Json<super::EmptyResponse> {
     api_empty!(crate::db::db_delete(b.table, b.id, b.db_type))

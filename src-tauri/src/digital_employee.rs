@@ -32,20 +32,68 @@ pub struct DigitalEmployee {
 fn row_to_employee(row: &DbRow) -> DigitalEmployee {
     DigitalEmployee {
         id: row.get("id").and_then(|v| v.as_i64()).unwrap_or(0) as i32,
-        code: row.get("code").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-        name: row.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        code: row
+            .get("code")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        name: row
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
         is_builtin: row.get("is_builtin").and_then(|v| v.as_i64()).unwrap_or(0) != 0,
-        avatar: row.get("avatar").and_then(|v| v.as_str()).unwrap_or("🤖").to_string(),
-        personality_tags: row.get("personality_tags").and_then(|v| v.as_str()).unwrap_or("[]").to_string(),
-        personality_desc: row.get("personality_desc").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-        comm_style: row.get("comm_style").and_then(|v| v.as_str()).unwrap_or("formal").to_string(),
-        decision_pref: row.get("decision_pref").and_then(|v| v.as_str()).unwrap_or("data_driven").to_string(),
-        focus_areas: row.get("focus_areas").and_then(|v| v.as_str()).unwrap_or("[]").to_string(),
-        deliverable_groups: row.get("deliverable_groups").and_then(|v| v.as_str()).unwrap_or("[]").to_string(),
-        default_op: row.get("default_op").and_then(|v| v.as_str()).unwrap_or("write").to_string(),
+        avatar: row
+            .get("avatar")
+            .and_then(|v| v.as_str())
+            .unwrap_or("🤖")
+            .to_string(),
+        personality_tags: row
+            .get("personality_tags")
+            .and_then(|v| v.as_str())
+            .unwrap_or("[]")
+            .to_string(),
+        personality_desc: row
+            .get("personality_desc")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        comm_style: row
+            .get("comm_style")
+            .and_then(|v| v.as_str())
+            .unwrap_or("formal")
+            .to_string(),
+        decision_pref: row
+            .get("decision_pref")
+            .and_then(|v| v.as_str())
+            .unwrap_or("data_driven")
+            .to_string(),
+        focus_areas: row
+            .get("focus_areas")
+            .and_then(|v| v.as_str())
+            .unwrap_or("[]")
+            .to_string(),
+        deliverable_groups: row
+            .get("deliverable_groups")
+            .and_then(|v| v.as_str())
+            .unwrap_or("[]")
+            .to_string(),
+        default_op: row
+            .get("default_op")
+            .and_then(|v| v.as_str())
+            .unwrap_or("write")
+            .to_string(),
         sort_order: row.get("sort_order").and_then(|v| v.as_i64()).unwrap_or(0) as i32,
-        created_at: row.get("created_at").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-        updated_at: row.get("updated_at").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        created_at: row
+            .get("created_at")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        updated_at: row
+            .get("updated_at")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
     }
 }
 
@@ -71,7 +119,8 @@ async fn run_migrations(db_type: &str) -> Result<(), String> {
         "digital_employees".to_string(),
         db::QueryParams::default(),
         db_type.to_string(),
-    ).await?;
+    )
+    .await?;
 
     if existing.total == 0 {
         for stmt in split_statements(MIGRATION_SEED) {
@@ -143,8 +192,7 @@ pub async fn de_init(db_type: String, project_path: String) -> Result<(), String
 
         // Ensure parent directory exists
         if let Some(parent) = db_path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| format!("创建数据库目录失败: {e}"))?;
+            std::fs::create_dir_all(parent).map_err(|e| format!("创建数据库目录失败: {e}"))?;
         }
 
         let db_path_str = db_path.to_string_lossy().to_string();
@@ -159,11 +207,15 @@ pub async fn de_list(db_type: String) -> Result<Vec<DigitalEmployee>, String> {
     let result = db::db_find_all(
         "digital_employees".to_string(),
         db::QueryParams {
-            order_by: vec![db::OrderBy { field: "sort_order".to_string(), descending: false }],
+            order_by: vec![db::OrderBy {
+                field: "sort_order".to_string(),
+                descending: false,
+            }],
             ..Default::default()
         },
         db_type,
-    ).await?;
+    )
+    .await?;
 
     Ok(result.rows.iter().map(row_to_employee).collect())
 }
@@ -183,7 +235,8 @@ pub async fn de_get(code: String, db_type: String) -> Result<Option<DigitalEmplo
             ..Default::default()
         },
         db_type,
-    ).await?;
+    )
+    .await?;
 
     Ok(result.rows.first().map(row_to_employee))
 }
@@ -197,12 +250,27 @@ pub async fn de_save(employee: DigitalEmployee, db_type: String) -> Result<(), S
     data.insert("name".to_string(), Value::String(employee.name));
     data.insert("is_builtin".to_string(), Value::from(employee.is_builtin));
     data.insert("avatar".to_string(), Value::String(employee.avatar));
-    data.insert("personality_tags".to_string(), Value::String(employee.personality_tags));
-    data.insert("personality_desc".to_string(), Value::String(employee.personality_desc));
+    data.insert(
+        "personality_tags".to_string(),
+        Value::String(employee.personality_tags),
+    );
+    data.insert(
+        "personality_desc".to_string(),
+        Value::String(employee.personality_desc),
+    );
     data.insert("comm_style".to_string(), Value::String(employee.comm_style));
-    data.insert("decision_pref".to_string(), Value::String(employee.decision_pref));
-    data.insert("focus_areas".to_string(), Value::String(employee.focus_areas));
-    data.insert("deliverable_groups".to_string(), Value::String(employee.deliverable_groups));
+    data.insert(
+        "decision_pref".to_string(),
+        Value::String(employee.decision_pref),
+    );
+    data.insert(
+        "focus_areas".to_string(),
+        Value::String(employee.focus_areas),
+    );
+    data.insert(
+        "deliverable_groups".to_string(),
+        Value::String(employee.deliverable_groups),
+    );
     data.insert("default_op".to_string(), Value::String(employee.default_op));
     data.insert("sort_order".to_string(), Value::from(employee.sort_order));
     data.insert("updated_at".to_string(), Value::String(now.clone()));
@@ -210,7 +278,13 @@ pub async fn de_save(employee: DigitalEmployee, db_type: String) -> Result<(), S
     if employee.id > 0 {
         // Update
         data.insert("created_at".to_string(), Value::String(employee.created_at));
-        db::db_update("digital_employees".to_string(), employee.id.to_string(), data, db_type).await
+        db::db_update(
+            "digital_employees".to_string(),
+            employee.id.to_string(),
+            data,
+            db_type,
+        )
+        .await
     } else {
         // Create
         data.insert("created_at".to_string(), Value::String(now));

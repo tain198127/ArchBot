@@ -37,8 +37,14 @@ macro_rules! api_ok_sync {
 macro_rules! api_empty {
     ($expr:expr) => {{
         match $expr.await {
-            Ok(()) => axum::Json($crate::handlers::EmptyResponse { success: true, error: None }),
-            Err(e) => axum::Json($crate::handlers::EmptyResponse { success: false, error: Some(e) }),
+            Ok(()) => axum::Json($crate::handlers::EmptyResponse {
+                success: true,
+                error: None,
+            }),
+            Err(e) => axum::Json($crate::handlers::EmptyResponse {
+                success: false,
+                error: Some(e),
+            }),
         }
     }};
 }
@@ -48,19 +54,33 @@ macro_rules! api_empty {
 macro_rules! api_empty_sync {
     ($expr:expr) => {{
         match $expr {
-            Ok(()) => axum::Json($crate::handlers::EmptyResponse { success: true, error: None }),
-            Err(e) => axum::Json($crate::handlers::EmptyResponse { success: false, error: Some(e) }),
+            Ok(()) => axum::Json($crate::handlers::EmptyResponse {
+                success: true,
+                error: None,
+            }),
+            Err(e) => axum::Json($crate::handlers::EmptyResponse {
+                success: false,
+                error: Some(e),
+            }),
         }
     }};
 }
 
 impl<T: Serialize> ApiResponse<T> {
     pub fn ok(data: T) -> Self {
-        Self { success: true, data: Some(data), error: None }
+        Self {
+            success: true,
+            data: Some(data),
+            error: None,
+        }
     }
 
     pub fn err(msg: impl Into<String>) -> Self {
-        Self { success: false, data: None, error: Some(msg.into()) }
+        Self {
+            success: false,
+            data: None,
+            error: Some(msg.into()),
+        }
     }
 }
 
@@ -72,21 +92,23 @@ pub struct EmptyResponse {
     pub error: Option<String>,
 }
 
-// ── Sub-module declarations (implemented in Phase 3) ──
-mod project_handler;
-mod ds_handler;
-mod db_handler;
+// ── Sub-module declarations ──
+mod agent_handler;
 mod context_handler;
-mod scenario_handler;
+mod db_handler;
 mod de_handler;
+mod ds_handler;
 mod fs_handler;
-mod settings_handler;
 mod license_handler;
+mod project_handler;
+mod scenario_handler;
+mod settings_handler;
 mod vector_handler;
 
 /// Build the combined Axum router with all /api routes.
 pub fn router() -> Router {
     Router::new()
+        .nest("/api", agent_handler::routes())
         .nest("/api", project_handler::routes())
         .nest("/api", ds_handler::routes())
         .nest("/api", db_handler::routes())

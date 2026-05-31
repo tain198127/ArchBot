@@ -36,8 +36,7 @@ pub fn resolve(uri: &str, resource_dir: &Path, project_name: &str) -> Result<Pat
     let base: PathBuf = match protocol {
         UriProtocol::Resource => resource_dir.to_path_buf(),
         UriProtocol::User => {
-            let home = dirs_next()
-                .ok_or("无法获取用户主目录")?;
+            let home = dirs_next().ok_or("无法获取用户主目录")?;
             home.join(".archbot").join(project_name)
         }
     };
@@ -45,9 +44,9 @@ pub fn resolve(uri: &str, resource_dir: &Path, project_name: &str) -> Result<Pat
     let candidate = base.join(&relative);
 
     // 防御：canonicalize 解析符号链接和相对路径后，确认结果仍在 base 内
-    let canonical = candidate.canonicalize().map_err(|e| {
-        format!("资源路径无效: {candidate:?} — {e}")
-    })?;
+    let canonical = candidate
+        .canonicalize()
+        .map_err(|e| format!("资源路径无效: {candidate:?} — {e}"))?;
 
     if !canonical.starts_with(&base) {
         return Err(format!("路径遍历拒绝: {uri} → {canonical:?}"));
@@ -63,7 +62,9 @@ fn parse_uri(uri: &str) -> Result<(UriProtocol, String), String> {
     } else if let Some(r) = uri.strip_prefix("user://") {
         (UriProtocol::User, r)
     } else {
-        return Err(format!("不支持的 URI 协议，请使用 resource:// 或 user://: {uri}"));
+        return Err(format!(
+            "不支持的 URI 协议，请使用 resource:// 或 user://: {uri}"
+        ));
     };
 
     let relative = rest.1;
@@ -87,11 +88,17 @@ fn parse_uri(uri: &str) -> Result<(UriProtocol, String), String> {
 
 fn dirs_next() -> Option<PathBuf> {
     #[cfg(target_os = "linux")]
-    { std::env::var("HOME").ok().map(PathBuf::from) }
+    {
+        std::env::var("HOME").ok().map(PathBuf::from)
+    }
     #[cfg(target_os = "macos")]
-    { std::env::var("HOME").ok().map(PathBuf::from) }
+    {
+        std::env::var("HOME").ok().map(PathBuf::from)
+    }
     #[cfg(target_os = "windows")]
-    { std::env::var("USERPROFILE").ok().map(PathBuf::from) }
+    {
+        std::env::var("USERPROFILE").ok().map(PathBuf::from)
+    }
 }
 
 #[cfg(test)]

@@ -95,8 +95,7 @@ impl SecretManager {
             .decrypt(nonce, ciphertext)
             .map_err(|_| "Decryption failed — wrong machine or corrupt data".to_string())?;
 
-        String::from_utf8(plaintext)
-            .map_err(|e| format!("Secret is not valid UTF-8: {}", e))
+        String::from_utf8(plaintext).map_err(|e| format!("Secret is not valid UTF-8: {}", e))
     }
 
     /// 解析 `secret://runtime/key` 引用并返回实际值

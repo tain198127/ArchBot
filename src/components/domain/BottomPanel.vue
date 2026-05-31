@@ -2,18 +2,27 @@
 import { ref } from 'vue'
 import { useI18n } from '../../i18n'
 import { logEntries, clearLog } from '../../stores/log'
+import AgentSessionPanel from './AgentSessionPanel.vue'
+import AgentTurnPanel from './AgentTurnPanel.vue'
+import AgentEventStreamPanel from './AgentEventStreamPanel.vue'
+import AgentDiffReviewPanel from './AgentDiffReviewPanel.vue'
+import AgentAuditLogPanel from './AgentAuditLogPanel.vue'
 
 const { t } = useI18n()
 
 const activeTab = ref('log')
+const agentSubTab = ref('session')
 
-const tabKeys = ['log', 'terminal', 'analysis'] as const
+const tabKeys = ['log', 'terminal', 'analysis', 'agent'] as const
+
+const agentSubTabs = ['session', 'turn', 'events', 'diff', 'audit'] as const
 
 const levelColors: Record<string, string> = {
   error: 'text-red-500',
   warn: 'text-amber-500',
   info: 'text-text-muted',
 }
+
 </script>
 
 <template>
@@ -28,7 +37,7 @@ const levelColors: Record<string, string> = {
           : 'text-text-secondary hover:bg-surface-50 dark:hover:bg-surface-50 hover:text-text-primary'"
         @click="activeTab = key"
       >
-        {{ (t.bottom as Record<string, string>)[key] }}
+        {{ (t.bottom as Record<string, string>)[key] || key }}
         <span
           v-if="logEntries.length > 0 && key === 'log'"
           class="ml-1.5 min-w-[18px] h-[16px] flex items-center justify-center rounded-full bg-red-500 text-[10px] text-white font-semibold leading-none"
@@ -73,9 +82,33 @@ const levelColors: Record<string, string> = {
     </div>
 
     <!-- Analysis tab -->
-    <div v-else class="flex-1 overflow-auto bg-surface-0 dark:bg-surface-0">
+    <div v-else-if="activeTab === 'analysis'" class="flex-1 overflow-auto bg-surface-0 dark:bg-surface-0">
       <div class="flex items-center justify-center h-full">
         <p class="text-[12px] text-text-muted font-mono">{{ t.bottom.analysisPlaceholder }}</p>
+      </div>
+    </div>
+
+    <!-- Agent tab group -->
+    <div v-else-if="activeTab === 'agent'" class="flex flex-col flex-1 overflow-hidden">
+      <!-- Agent sub-tabs -->
+      <div class="flex items-center h-[28px] border-b border-border-default shrink-0">
+        <div
+          v-for="st in agentSubTabs"
+          :key="st"
+          class="px-3 h-full flex items-center text-[11px] cursor-pointer transition-colors select-none"
+          :class="agentSubTab === st
+            ? 'text-text-primary border-b-2 border-primary-500'
+            : 'text-text-secondary hover:text-text-primary'"
+          @click="agentSubTab = st"
+        >{{ (t.bottom as Record<string, string>)[st] || st }}</div>
+      </div>
+
+      <div class="flex-1 overflow-hidden">
+        <AgentSessionPanel v-if="agentSubTab === 'session'" class="h-full" />
+        <AgentTurnPanel v-else-if="agentSubTab === 'turn'" class="h-full" />
+        <AgentEventStreamPanel v-else-if="agentSubTab === 'events'" class="h-full" />
+        <AgentDiffReviewPanel v-else-if="agentSubTab === 'diff'" class="h-full" />
+        <AgentAuditLogPanel v-else-if="agentSubTab === 'audit'" class="h-full" />
       </div>
     </div>
   </div>

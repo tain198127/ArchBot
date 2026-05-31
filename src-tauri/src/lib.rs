@@ -1,7 +1,6 @@
 mod agent_runtime;
 mod ai_config;
 mod context;
-mod secret;
 mod data_standard;
 mod db;
 mod digital_employee;
@@ -11,6 +10,7 @@ mod lancedb_store;
 mod license;
 mod resource;
 mod scenario;
+mod secret;
 mod server;
 mod vector;
 
@@ -150,11 +150,35 @@ pub fn run() {
             // agent_runtime
             agent_runtime::turn_executor::agent_execute_turn,
             agent_runtime::agent_config_handler::agent_get_status,
-            agent_runtime::agent_config_handler::agent_install,
-            agent_runtime::agent_config_handler::agent_update,
             agent_runtime::agent_config_handler::agent_save_config,
             agent_runtime::agent_config_handler::agent_save_secret,
             agent_runtime::agent_config_handler::agent_validate,
+            // agent_runtime — version manager (replaces legacy agent_install/agent_update stubs)
+            agent_runtime::version_manager::agent_list_versions,
+            agent_runtime::version_manager::agent_install_runtime,
+            agent_runtime::version_manager::agent_update_runtime,
+            agent_runtime::version_manager::agent_rollback_runtime,
+            agent_runtime::version_manager::agent_get_current_version,
+            // agent_runtime — session manager
+            agent_runtime::session_manager::agent_create_session,
+            agent_runtime::session_manager::agent_list_sessions,
+            agent_runtime::session_manager::agent_get_session,
+            agent_runtime::session_manager::agent_update_session_status,
+            agent_runtime::session_manager::agent_create_turn,
+            // agent_runtime — context assembly
+            agent_runtime::context_assembly::agent_assemble_context,
+            // agent_runtime — file control
+            agent_runtime::file_control::agent_capture_snapshot,
+            agent_runtime::file_control::agent_scan_file_changes,
+            agent_runtime::file_control::agent_rollback_turn,
+            agent_runtime::file_control::agent_rollback_file,
+            agent_runtime::file_control::agent_validate_path,
+            // agent_runtime — shell control
+            agent_runtime::shell_control::agent_validate_command,
+            agent_runtime::shell_control::agent_get_shell_policy,
+            // agent_runtime — adapter manager
+            agent_runtime::adapter_manager::agent_check_runtime_health,
+            agent_runtime::adapter_manager::agent_get_runtime_capabilities,
             // ai_config
             ai_config::ai_list_providers,
             ai_config::ai_save_provider,

@@ -11,21 +11,19 @@ use crate::agent_runtime::config::IsolatedHomeConfig;
 /// - 按需部署 SSH deploy key（从 ArchBot Secret Manager 读取）
 pub fn setup_isolated_home(config: &IsolatedHomeConfig) -> Result<(), String> {
     // 1. 创建隔离 HOME 目录
-    fs::create_dir_all(&config.home_path)
-        .map_err(|e| format!("Failed to create isolated HOME {:?}: {}", config.home_path, e))?;
+    fs::create_dir_all(&config.home_path).map_err(|e| {
+        format!(
+            "Failed to create isolated HOME {:?}: {}",
+            config.home_path, e
+        )
+    })?;
 
     // 2. 如果需要 git，生成 .gitconfig
     if config.needs_git {
         let git_name = config.git_user_name.as_deref().unwrap_or("ArchBot");
-        let git_email = config
-            .git_user_email
-            .as_deref()
-            .unwrap_or("archbot@local");
+        let git_email = config.git_user_email.as_deref().unwrap_or("archbot@local");
 
-        let gitconfig = format!(
-            "[user]\n  name = {}\n  email = {}\n",
-            git_name, git_email
-        );
+        let gitconfig = format!("[user]\n  name = {}\n  email = {}\n", git_name, git_email);
         fs::write(config.home_path.join(".gitconfig"), &gitconfig).map_err(|e| {
             format!(
                 "Failed to write .gitconfig in {:?}: {}",
@@ -38,10 +36,7 @@ pub fn setup_isolated_home(config: &IsolatedHomeConfig) -> Result<(), String> {
     if config.needs_ssh {
         if let Some(key_path) = &config.ssh_key_path {
             if !Path::new(key_path).exists() {
-                return Err(format!(
-                    "[home_setup] SSH key not found: {:?}",
-                    key_path
-                ));
+                return Err(format!("[home_setup] SSH key not found: {:?}", key_path));
             }
 
             let ssh_dir = config.home_path.join(".ssh");
@@ -60,9 +55,9 @@ pub fn setup_isolated_home(config: &IsolatedHomeConfig) -> Result<(), String> {
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
-                fs::set_permissions(&dest, fs::Permissions::from_mode(0o600)).map_err(
-                    |e| format!("Failed to set SSH key permissions on {:?}: {}", dest, e),
-                )?;
+                fs::set_permissions(&dest, fs::Permissions::from_mode(0o600)).map_err(|e| {
+                    format!("Failed to set SSH key permissions on {:?}: {}", dest, e)
+                })?;
             }
         }
     }
