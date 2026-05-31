@@ -16,16 +16,16 @@ use crate::agent_runtime::runtime_config::{
 use crate::agent_runtime::turn_config::{FileChange, TurnConfig, TurnResult};
 use crate::secret::SecretManager;
 
-/// Tauri command: 前端调用的入口
+/// Tauri command: 前端调用的入口 — async to avoid blocking the IPC thread.
 #[tauri::command]
-pub fn agent_execute_turn(
+pub async fn agent_execute_turn(
     runtime: String,
     workspace_root: String,
     user_message: String,
     context_files: Vec<String>,
     model_override: Option<String>,
 ) -> Result<TurnResult, String> {
-    execute_turn(TurnConfig {
+    let config = TurnConfig {
         runtime,
         workspace_root,
         user_message,
@@ -34,7 +34,10 @@ pub fn agent_execute_turn(
         git_user_email: None,
         session_id: None,
         model_override,
-    })
+    };
+    tokio::task::spawn_blocking(move || execute_turn(config))
+        .await
+        .map_err(|e| format!("spawn_blocking error: {}", e))?
 }
 
 /// 执行一次完整的 Agent Turn——串联 launcher / home_setup / audit / secret。

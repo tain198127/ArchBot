@@ -93,12 +93,20 @@ pub fn build_launch_config(
     // User-configured env vars are trusted; only dangerous keys that could
     // compromise process isolation (LD_PRELOAD, PATH, etc.) are blocked.
     let blocked_keys: &[&str] = &[
-        "LD_PRELOAD", "LD_LIBRARY_PATH", "DYLD_INSERT_LIBRARIES",
-        "DYLD_LIBRARY_PATH", "PYTHONPATH", "NODE_OPTIONS",
+        // Dynamic linker / library injection
+        "LD_PRELOAD", "LD_LIBRARY_PATH", "LD_AUDIT", "LD_ORIGIN_PATH",
+        "DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH",
+        // Language runtime injection
+        "PYTHONPATH", "PYTHONSTARTUP", "GCONV_PATH",
+        "NODE_OPTIONS", "NODE_PATH",
+        "RUBYOPT", "RUBYLIB",
+        "PERL5OPT", "PERL5LIB", "MODULEPATH",
+        // Shell / process
         "BASH_ENV", "ENV", "GIT_SSH_COMMAND", "IFS",
         "HOME", "USER", "LOGNAME", "SHELL",
         "PATH", "SYSTEMROOT", "TEMP", "TMP", "TMPDIR",
         "XAUTHORITY", "DISPLAY", "WAYLAND_DISPLAY",
+        "DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR",
     ];
     let mut allowed_env = HashMap::new();
     if let Some(env) = &entry.env {

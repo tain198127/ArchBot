@@ -4,9 +4,11 @@ import VSelect from '../base/VSelect.vue'
 import VButton from '../base/VButton.vue'
 import { useI18n } from '../../i18n'
 import { invoke } from '@tauri-apps/api/core'
+import { homeDir } from '@tauri-apps/api/path'
 import { pushLog } from '../../stores/log'
 
 const { t } = useI18n()
+const chatWorkspace = ref('')
 
 interface AIProvider {
   id: string
@@ -87,7 +89,10 @@ async function loadProviders() {
   }
 }
 
-onMounted(loadProviders)
+onMounted(async () => {
+  chatWorkspace.value = (await homeDir()) + '/.archbot/chat-workspace'
+  await loadProviders()
+})
 
 // ── Auto-scroll ──
 watch(messages, () => {
@@ -121,12 +126,17 @@ async function handleSend() {
   }
   messages.value.push(assistantMsg)
 
+  // Flush Vue DOM + yield to browser event loop so the loading UI actually paints
+  // before the 20+ second Claude Code call blocks the Tauri IPC channel.
+  await nextTick()
+  await new Promise(r => setTimeout(r, 100))
+
   pushLog('info', 'model:chat', `Sending to Claude Code — model=${currentModel.value}`)
 
   try {
     const result: any = await invoke('agent_execute_turn', {
       runtime: 'claude_code',
-      workspaceRoot: '/tmp/archbot-chat',
+      workspaceRoot: chatWorkspace.value,
       userMessage: text,
       contextFiles: [],
       modelOverride: currentModel.value || null,
