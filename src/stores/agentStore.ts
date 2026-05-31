@@ -188,6 +188,18 @@ export async function loadAuditLog(): Promise<void> {
   }
 }
 
+export interface RuntimeTestResult {
+  found: boolean
+  executable: string
+  exit_code: number
+  stdout: string
+  stderr: string
+}
+
+export async function testRuntime(runtime: string): Promise<RuntimeTestResult> {
+  return await invoke('agent_test_runtime', { runtime })
+}
+
 export async function checkRuntimeHealth(runtime: string): Promise<AdapterHealth> {
   return await invoke('agent_check_runtime_health', { runtime })
 }

@@ -6,6 +6,7 @@ import VSelect from '../base/VSelect.vue'
 import { useI18n } from '../../i18n'
 import { useToast } from '../../composables/useToast'
 import { pushLog } from '../../stores/log'
+import { testRuntime } from '../../stores/agentStore'
 import { invoke } from '@tauri-apps/api/core'
 
 const { t } = useI18n()
@@ -51,6 +52,9 @@ interface AgentState {
   updateLoading: boolean
   validateLoading: boolean
   validateResult: string
+  testRuntimeLoading: boolean
+  testRuntimeResult: string
+  testRuntimeDetail: string
 }
 
 const initState = (): AgentState => ({
@@ -64,6 +68,9 @@ const initState = (): AgentState => ({
   updateLoading: false,
   validateLoading: false,
   validateResult: '',
+  testRuntimeLoading: false,
+  testRuntimeResult: '',
+  testRuntimeDetail: '',
 })
 
 const state = reactive<Record<string, AgentState>>({
@@ -261,6 +268,38 @@ async function validateRuntime(runtime: string) {
     pushLog('error', 'agent:validate', msg)
   } finally { s.validateLoading = false }
 }
+
+// Actually spawn the CLI binary (e.g. `claude --version`) to prove it's the real runtime
+async function testRuntimeAction(runtime: string) {
+  const s = state[runtime]
+  s.testRuntimeLoading = true
+  s.testRuntimeResult = ''
+  s.testRuntimeDetail = ''
+  pushLog('info', 'agent:test-runtime', `Testing ${runtime} binary...`)
+  try {
+    const result = await testRuntime(runtime)
+    if (!result.found) {
+      s.testRuntimeResult = `❌ Not found`
+      pushLog('error', 'agent:test-runtime', result.stderr || `${runtime} executable not found`)
+      return
+    }
+    if (result.exit_code === 0 && result.stdout) {
+      const versionLine = result.stdout.trim().split('\n')[0]
+      s.testRuntimeResult = `✅ ${versionLine}`
+      s.testRuntimeDetail = `Executable: ${result.executable}\nExit code: ${result.exit_code}\n\n${result.stdout}${result.stderr ? '\n[stderr]\n' + result.stderr : ''}`
+      pushLog('info', 'agent:test-runtime', `Real binary confirmed: ${versionLine}`)
+    } else {
+      s.testRuntimeResult = `❌ Exit code: ${result.exit_code}`
+      s.testRuntimeDetail = `Executable: ${result.executable}\nExit code: ${result.exit_code}\n${result.stderr || result.stdout}`
+      pushLog('error', 'agent:test-runtime', `Binary failed: exit=${result.exit_code} ${result.stderr}`)
+    }
+  } catch (e: any) {
+    const msg = String(e)
+    s.testRuntimeResult = `❌ ${msg}`
+    s.testRuntimeDetail = msg
+    pushLog('error', 'agent:test-runtime', msg)
+  } finally { s.testRuntimeLoading = false }
+}
 </script>
 
 <template>
@@ -370,14 +409,28 @@ async function validateRuntime(runtime: string) {
             <!-- ========== Section 4: Validate ========== -->
             <section>
               <h3 class="text-sm font-semibold text-text-primary mb-3">{{ t.agentConfig.validateTitle }}</h3>
-              <div class="flex items-center gap-3">
+
+              <!-- API connectivity test — direct HTTP call to provider -->
+              <div class="flex items-center gap-3 mb-2">
                 <VButton size="sm" variant="secondary" :loading="current.validateLoading" @click="validateRuntime(rt)">
                   {{ t.agentConfig.validate }}
                 </VButton>
                 <span v-if="current.validateResult" class="text-[13px]" :class="current.validateResult.startsWith('✅') ? 'text-emerald-500' : 'text-red-400'">
                   {{ current.validateResult }}
                 </span>
+                <span v-else class="text-[11px] text-text-muted">Test API connectivity</span>
               </div>
+
+              <!-- Runtime binary test — actually spawns the CLI tool -->
+              <div class="flex items-center gap-2">
+                <VButton size="sm" variant="secondary" :loading="current.testRuntimeLoading" @click="testRuntimeAction(rt)">
+                  Test Runtime Binary
+                </VButton>
+                <span v-if="current.testRuntimeResult" class="text-[11px] font-mono" :class="current.testRuntimeResult.startsWith('✅') ? 'text-emerald-500' : 'text-red-400'">
+                  {{ current.testRuntimeResult }}
+                </span>
+              </div>
+              <div v-if="current.testRuntimeDetail" class="mt-2 p-2 rounded bg-surface-50 border border-border-default font-mono text-[11px] text-text-secondary whitespace-pre-wrap max-w-[560px] max-h-[120px] overflow-auto">{{ current.testRuntimeDetail }}</div>
             </section>
 
           </div>

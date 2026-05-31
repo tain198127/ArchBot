@@ -1,6 +1,7 @@
 mod agent_runtime;
 mod ai_config;
 mod context;
+mod trace;
 mod data_standard;
 mod db;
 mod digital_employee;
@@ -83,6 +84,11 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .setup(|app| {
+            trace::trace_init(app.handle().clone());
+            trace::trace_event("system", "ArchBot trace system initialized");
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             // fs — local
             fs::read_local_file,
@@ -166,6 +172,7 @@ pub fn run() {
             agent_runtime::version_manager::agent_update_runtime,
             agent_runtime::version_manager::agent_rollback_runtime,
             agent_runtime::version_manager::agent_get_current_version,
+            agent_runtime::version_manager::agent_test_runtime,
             // agent_runtime — session manager
             agent_runtime::session_manager::agent_create_session,
             agent_runtime::session_manager::agent_list_sessions,

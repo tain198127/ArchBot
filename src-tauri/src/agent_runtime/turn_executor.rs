@@ -1,3 +1,4 @@
+use crate::trace_fmt;
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -38,6 +39,7 @@ pub fn agent_execute_turn(
 pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
     let start = Instant::now();
     let turn_id = uuid::Uuid::new_v4().to_string();
+    trace_fmt!("turn", "START turn_id={} runtime={} workspace={}", turn_id, config.runtime, config.workspace_root);
 
     // 1. 加载 Runtime 配置
     let rt_config = load_runtimes_config()?;
@@ -47,8 +49,10 @@ pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
         .ok_or_else(|| format!("Runtime not found in config: {}", config.runtime))?;
 
     if !entry.enabled {
+        trace_fmt!("turn", "FAIL turn_id={} — runtime disabled: {}", turn_id, config.runtime);
         return Err(format!("Runtime disabled: {}", config.runtime));
     }
+    trace_fmt!("turn", "Runtime config loaded — executable={}", entry.executable);
 
     // 2. 获取 API token + 构造 launch config
     let mut launch_config = build_launch_config(
@@ -130,12 +134,14 @@ pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
     let snapshot = PreTurnSnapshot::capture(&turn_id, project_root).ok();
 
     // 7. 发射事件 + 启动子进程
+    trace_fmt!("turn", "Launching runtime — executable={} cwd={} stdin_bytes={}", launch_config.executable, launch_config.workspace_root, launch_config.stdin_content.as_ref().map_or(0, |c| c.len()));
     let bus = EventBus::global();
     let session_anchor = config.session_id.clone().unwrap_or_else(|| turn_id.clone());
     bus.publish(StandardEvent::session_created(&session_anchor, &config.runtime));
     bus.publish(StandardEvent::turn_started(&session_anchor, &turn_id, &config.runtime));
 
     let mut child = launch_isolated_runtime(&launch_config)?;
+    trace_fmt!("turn", "Child process spawned — pid={:?}", child.id());
 
     // 8. 等待进程退出（带超时），同时解析 NDJSON 流并实时发射 SSE 事件
     let timeout = std::time::Duration::from_secs(launch_config.timeout_seconds);
@@ -202,10 +208,12 @@ pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
 
     let duration_ms = start.elapsed().as_millis() as u64;
     let status_str = if status.success() {
+        trace_fmt!("turn", "COMPLETED turn_id={} duration={}ms file_changes={}", turn_id, duration_ms, file_changes.len());
         bus.publish(StandardEvent::turn_completed(&session_anchor, &turn_id));
         "completed".to_string()
     } else {
         let err = format!("failed: exit code {:?}", status.code());
+        trace_fmt!("turn", "FAILED turn_id={} error={}", turn_id, err);
         bus.publish(StandardEvent::turn_failed(&session_anchor, &turn_id, &err));
         err
     };

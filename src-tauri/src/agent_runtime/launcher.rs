@@ -1,3 +1,4 @@
+use crate::trace_fmt;
 use std::io::Write;
 use std::process::{Child, Command, Stdio};
 
@@ -14,7 +15,9 @@ pub type LaunchResult = Result<Child, String>;
 /// - Windows 上额外注入 SystemRoot/TEMP/TMP
 /// - 如果 config.stdin_content 非空，通过管道写入子进程 stdin
 pub fn launch_isolated_runtime(config: &RuntimeLaunchConfig) -> LaunchResult {
+    trace_fmt!("launcher", "Checking executable: {}", config.executable);
     if !std::path::Path::new(&config.executable).exists() {
+        trace_fmt!("launcher", "FAIL — executable not found: {}", config.executable);
         return Err(format!(
             "[launcher] Executable not found: {}",
             config.executable
@@ -64,9 +67,12 @@ pub fn launch_isolated_runtime(config: &RuntimeLaunchConfig) -> LaunchResult {
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
 
+    trace_fmt!("launcher", "Spawning: {} {:?} in {}", config.executable, config.args, config.workspace_root);
     let mut child = cmd
         .spawn()
         .map_err(|e| format!("[launcher] Failed to spawn {}: {}", config.runtime_type, e))?;
+
+    trace_fmt!("launcher", "Subprocess pid={:?} spawned successfully", child.id());
 
     // 写入 stdin 内容后关闭管道（EOF 信号）
     if let Some(ref content) = config.stdin_content {
@@ -74,6 +80,7 @@ pub fn launch_isolated_runtime(config: &RuntimeLaunchConfig) -> LaunchResult {
             stdin
                 .write_all(content.as_bytes())
                 .map_err(|e| format!("[launcher] Failed to write to stdin: {}", e))?;
+            trace_fmt!("launcher", "Stdin pipe written ({} bytes) and closed", content.len());
             // stdin 在此处 drop，管道关闭，子进程收到 EOF
         }
     }

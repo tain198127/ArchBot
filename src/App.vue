@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { openProject as apiOpenProject, initArchbotDir, ensureGitignore } from './api'
-import { pushLog } from './stores/log'
+import { pushLog, startTraceListener } from './stores/log'
 import { useToast } from './composables/useToast'
 import { registerAllActions } from './actions'
 import { getActionRegistry, type ActionRuntime } from './orchestration/ActionRegistry'
@@ -82,6 +82,9 @@ const runtime: ActionRuntime = {
 
 onMounted(() => {
   initSettings()
+
+  // Subscribe to backend trace events → visible in bottom panel log tab
+  startTraceListener()
 
   // Register all actions from YML config (guard against double-mount in dev HMR)
   try { registerAllActions(runtime) } catch (e: any) {

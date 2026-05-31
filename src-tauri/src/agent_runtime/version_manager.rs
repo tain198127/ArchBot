@@ -2,6 +2,8 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
+use crate::trace_fmt;
+
 // ─── Runtime Installer ───
 
 /// Validate runtime_name against known identifiers to prevent path traversal.
@@ -276,6 +278,68 @@ fn executable_name(runtime_name: &str) -> &str {
         "openclaw" => "openclaw",
         _ => runtime_name,
     }
+}
+
+/// Test that a runtime binary is real and working by spawning it and capturing output.
+/// Returns the full stdout, stderr, and exit code — proving it's the actual binary, not a mock.
+#[tauri::command]
+pub fn agent_test_runtime(runtime: String) -> Result<RuntimeTestResult, String> {
+    validate_runtime_name(&runtime)?;
+    let exe_name = executable_name(&runtime);
+    let exe_path = runtime_base_dir()
+        .join(&runtime)
+        .join("current")
+        .join(exe_name);
+
+    let exe = if exe_path.exists() {
+        exe_path
+    } else if let Some(p) = find_on_path(exe_name) {
+        p
+    } else {
+        return Ok(RuntimeTestResult {
+            found: false,
+            executable: String::new(),
+            exit_code: -1,
+            stdout: String::new(),
+            stderr: format!("{} executable not found", exe_name),
+        });
+    };
+
+    trace_fmt!("runtime:test", "Spawning: {} --version", exe.display());
+    match std::process::Command::new(&exe).arg("--version").output() {
+        Ok(output) => {
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            trace_fmt!("runtime:test", "Exit={:?} stdout={}", output.status.code(), stdout.trim());
+            Ok(RuntimeTestResult {
+                found: true,
+                executable: exe.display().to_string(),
+                exit_code: output.status.code().unwrap_or(-1),
+                stdout,
+                stderr,
+            })
+        }
+        Err(e) => {
+            trace_fmt!("runtime:test", "FAIL — cannot spawn {}: {}", exe.display(), e);
+            Ok(RuntimeTestResult {
+                found: true,
+                executable: exe.display().to_string(),
+                exit_code: -1,
+                stdout: String::new(),
+                stderr: format!("Failed to execute: {}", e),
+            })
+        }
+    }
+}
+
+/// Result of spawning a runtime binary for testing.
+#[derive(serde::Serialize)]
+pub struct RuntimeTestResult {
+    pub found: bool,
+    pub executable: String,
+    pub exit_code: i32,
+    pub stdout: String,
+    pub stderr: String,
 }
 
 // ─── Tauri Commands ───

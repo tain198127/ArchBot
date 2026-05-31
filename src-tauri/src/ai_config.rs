@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use crate::trace_fmt;
+
 use serde::{Deserialize, Serialize};
 
 use crate::secret::SecretManager;
@@ -387,10 +389,13 @@ pub async fn ai_validate_provider(
     base_url: String,
     model: String,
 ) -> Result<ValidateResult, String> {
+    trace_fmt!("ai:validate", "START — provider={} protocol={} base_url={}", id, protocol, base_url);
+
     let sm = SecretManager::new(&machine_id())?;
     let api_key = sm.get(&id, "api_token").unwrap_or_default();
 
     if api_key.is_empty() {
+        trace_fmt!("ai:validate", "FAIL — no API key configured for provider={}", id);
         return Ok(ValidateResult {
             ok: false,
             response: None,
@@ -398,6 +403,7 @@ pub async fn ai_validate_provider(
             error: Some("API key not configured. Please save your API key first.".into()),
         });
     }
+    trace_fmt!("ai:validate", "API key loaded for provider={}", id);
 
     let model = if model.is_empty() {
         if protocol == "anthropic" {
@@ -432,7 +438,9 @@ pub async fn ai_validate_provider(
     // SSRF protection
     let parsed = url::Url::parse(&endpoint).map_err(|e| format!("Invalid URL: {}", e))?;
     let host = parsed.host_str().ok_or("URL has no host")?;
+    trace_fmt!("ai:validate", "SSRF check — host={}", host);
     validate_host_allowed(host).await?;
+    trace_fmt!("ai:validate", "SSRF check passed");
 
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
@@ -440,6 +448,7 @@ pub async fn ai_validate_provider(
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
+    trace_fmt!("ai:validate", "Sending HTTP {} to {}", if protocol == "anthropic" { "POST (anthropic)" } else { "POST (openai)" }, endpoint);
     let req = if protocol == "anthropic" {
         client
             .post(&endpoint)
@@ -457,12 +466,13 @@ pub async fn ai_validate_provider(
         Ok(resp) => {
             let status = resp.status();
             let body_text = resp.text().await.unwrap_or_default();
+            trace_fmt!("ai:validate", "HTTP response — status={} body_len={}", status.as_u16(), body_text.len());
 
             if status.is_success() {
                 let reply = parse_chat_reply(&protocol, &body_text);
-                // Also fetch available models from this provider
                 let remote_models =
                     fetch_remote_models(&protocol, &base_url, &api_key, &client).await;
+                trace_fmt!("ai:validate", "SUCCESS — reply={:?} remote_models_count={}", reply, remote_models.len());
                 Ok(ValidateResult {
                     ok: true,
                     response: Some(reply),
@@ -475,6 +485,7 @@ pub async fn ai_validate_provider(
                 } else {
                     body_text
                 };
+                trace_fmt!("ai:validate", "FAIL — HTTP {} body={}", status.as_u16(), short);
                 Ok(ValidateResult {
                     ok: false,
                     response: None,
@@ -483,12 +494,15 @@ pub async fn ai_validate_provider(
                 })
             }
         }
-        Err(e) => Ok(ValidateResult {
-            ok: false,
-            response: None,
-            remote_models: None,
-            error: Some(format!("Connection failed: {}", e)),
-        }),
+        Err(e) => {
+            trace_fmt!("ai:validate", "FAIL — connection error: {}", e);
+            Ok(ValidateResult {
+                ok: false,
+                response: None,
+                remote_models: None,
+                error: Some(format!("Connection failed: {}", e)),
+            })
+        },
     }
 }
 
