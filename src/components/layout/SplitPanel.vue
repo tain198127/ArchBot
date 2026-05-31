@@ -81,6 +81,8 @@ function getPanelStyle(index: number): Record<string, string> {
 }
 
 const collapseButtonDirection = computed(() => props.direction === 'horizontal' ? '→' : '↓')
+
+defineExpose({ collapsePanel, expandPanel, collapsed })
 </script>
 
 <template>
@@ -99,16 +101,16 @@ const collapseButtonDirection = computed(() => props.direction === 'horizontal' 
         class="splitter shrink-0 relative z-10"
         :class="[
           direction === 'horizontal'
-            ? 'flex items-center w-[8px] -mx-[4px] cursor-col-resize'
-            : 'flex justify-center h-[8px] -my-[4px] cursor-row-resize',
+            ? 'flex items-center justify-center w-[10px] cursor-col-resize'
+            : 'flex justify-center items-center h-[10px] cursor-row-resize',
         ]"
         @mousedown="startDrag(index, $event)"
       >
-        <!-- visual line: 2px thin, expands slightly on hover, color delayed 300ms -->
+        <!-- visual line: 1px thin, centered in the 10px hit zone -->
         <div
           class="splitter-handle rounded-full bg-border-default"
           :class="[
-            direction === 'horizontal' ? 'w-[2px] h-full hover:w-[3px]' : 'h-[2px] w-full hover:h-[3px]',
+            direction === 'horizontal' ? 'w-[1.5px] h-3/5' : 'h-[1.5px] w-3/5',
             dragging ? 'dragging' : '',
           ]"
         />

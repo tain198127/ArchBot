@@ -481,6 +481,8 @@ export default {
     setDefault: 'Set as default model',
     setDefaultBtn: 'Default',
     modelValidated: 'Verified',
+    setDefaultProvider: 'Set as default',
+    isDefaultProvider: 'Default provider',
     builtin: 'Built-in',
     custom: 'Custom',
     confirmDelete: 'Are you sure you want to delete this provider?',

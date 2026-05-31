@@ -38,6 +38,7 @@ const emit = defineEmits<{
         option: { class: 'px-3 py-1.5 text-[13px] text-text-primary cursor-pointer hover:bg-surface-50 dark:hover:bg-surface-100 transition-colors' },
         optionGroup: { class: '' },
         emptyMessage: { class: 'px-3 py-2 text-[12px] text-text-muted' },
+        dropdownIcon: { class: 'hidden' },
       }"
       :id="inputId"
       :model-value="modelValue"

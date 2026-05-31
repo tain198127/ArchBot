@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { PanelLeft, PanelRight, PanelBottom } from '@lucide/vue'
 import { useToast } from '../../composables/useToast'
 import { openProject as apiOpenProject } from '../../api'
 import { useMenuAction } from '../../composables/useMenuAction'
@@ -12,7 +13,10 @@ import { getPlatformShortcut } from '../../config/menu'
 import type { MenuCategory } from '../../config/menu'
 import { useI18n } from '../../i18n'
 import { useProject } from '../../stores/project'
+import { usePanelLayout } from '../../composables/usePanelLayout'
 import type { RecentProject } from '../../stores/project'
+
+const { leftCollapsed, rightCollapsed, bottomCollapsed } = usePanelLayout()
 
 const { t, tt } = useI18n()
 const toast = useToast()
@@ -190,6 +194,28 @@ function handleClearRecent() { clearRecentProjects(); activeSubmenu.value = null
           <div class="px-3 py-2 text-[12px] text-text-muted cursor-default">{{ category.note || t.menu.noContent }}</div>
         </div>
       </div>
+    </div>
+
+    <!-- Panel toggle tools (top-right, Cursor-style) -->
+    <div class="flex items-center gap-0.5 px-2">
+      <button
+        class="w-7 h-7 flex items-center justify-center rounded-md transition-colors"
+        :class="leftCollapsed ? 'text-primary-500 bg-primary-50 dark:bg-primary-950' : 'text-text-muted hover:text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200'"
+        title="Toggle Left Panel"
+        @click="leftCollapsed = !leftCollapsed"
+      ><PanelLeft :size="15" /></button>
+      <button
+        class="w-7 h-7 flex items-center justify-center rounded-md transition-colors"
+        :class="rightCollapsed ? 'text-primary-500 bg-primary-50 dark:bg-primary-950' : 'text-text-muted hover:text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200'"
+        title="Toggle Right Panel"
+        @click="rightCollapsed = !rightCollapsed"
+      ><PanelRight :size="15" /></button>
+      <button
+        class="w-7 h-7 flex items-center justify-center rounded-md transition-colors"
+        :class="bottomCollapsed ? 'text-primary-500 bg-primary-50 dark:bg-primary-950' : 'text-text-muted hover:text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200'"
+        title="Toggle Bottom Panel"
+        @click="bottomCollapsed = !bottomCollapsed"
+      ><PanelBottom :size="15" /></button>
     </div>
 
     <div class="flex items-center window-controls">

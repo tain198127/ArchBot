@@ -6,10 +6,24 @@ import VSelect from '../base/VSelect.vue'
 import VDialog from '../base/VDialog.vue'
 import { useI18n } from '../../i18n'
 import { useToast } from '../../composables/useToast'
+import { usePanelLayout } from '../../composables/usePanelLayout'
 import { invoke } from '@tauri-apps/api/core'
 
 const { t, tt } = useI18n()
 const toast = useToast()
+const { defaultProviderId } = usePanelLayout()
+
+const sortedProviders = computed(() => {
+  const arr = [...providers.value]
+  if (defaultProviderId.value) {
+    arr.sort((a, b) => {
+      if (a.id === defaultProviderId.value) return -1
+      if (b.id === defaultProviderId.value) return 1
+      return 0
+    })
+  }
+  return arr
+})
 
 const protocolOptions = [
   { value: 'anthropic', label: 'Anthropic' },
@@ -274,15 +288,21 @@ async function addCustomProvider() {
         </div>
         <div class="flex-1 overflow-y-auto">
           <div
-            v-for="p in providers" :key="p.id"
+            v-for="p in sortedProviders" :key="p.id"
             class="flex items-center gap-2 px-3 py-2.5 cursor-pointer border-l-[3px] text-[13px] transition-colors"
-            :class="selectedId === p.id
-              ? 'bg-surface-0 dark:bg-surface-0 border-primary-500 text-text-primary'
-              : 'border-transparent text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100'"
+            :class="[
+              selectedId === p.id
+                ? 'bg-surface-0 dark:bg-surface-0 border-primary-500 text-text-primary'
+                : 'border-transparent text-text-secondary hover:bg-surface-100 dark:hover:bg-surface-100',
+              p.id === defaultProviderId ? 'border-l-amber-400' : '',
+            ]"
             @click="selectProvider(p.id)"
           >
             <div class="flex-1 min-w-0">
-              <div class="truncate font-medium">{{ p.name }}</div>
+              <div class="flex items-center gap-1.5">
+                <span class="truncate font-medium">{{ p.name }}</span>
+                <span v-if="p.id === defaultProviderId" class="text-[9px] px-1 py-px rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 font-medium shrink-0">{{ t.aiConfig.default }}</span>
+              </div>
               <div class="text-[11px] text-text-muted truncate">{{ p.base_url }}</div>
             </div>
             <div class="flex items-center gap-1 shrink-0">
@@ -405,12 +425,21 @@ async function addCustomProvider() {
               </div>
             </div>
 
-            <!-- Actions: validate, save, delete -->
+            <!-- Actions: validate, save, set default, delete -->
             <div class="flex items-center gap-2 pt-2 border-t border-border-default">
               <VButton size="sm" :loading="saving" @click="saveProvider">{{ t.aiConfig.save }}</VButton>
               <VButton size="sm" variant="secondary" :loading="validating" @click="doValidate">
                 {{ t.aiConfig.validate }}
               </VButton>
+              <VButton
+                v-if="selectedId !== defaultProviderId"
+                size="sm" variant="secondary"
+                @click="defaultProviderId = selectedId"
+              >{{ t.aiConfig.setDefaultProvider }}</VButton>
+              <span
+                v-else
+                class="text-[11px] text-amber-600 dark:text-amber-400 font-medium px-2"
+              >{{ t.aiConfig.isDefaultProvider }}</span>
               <div class="flex-1" />
               <VButton
                 v-if="!isBuiltin"

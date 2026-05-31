@@ -481,6 +481,8 @@ export default {
     setDefault: '设为默认模型',
     setDefaultBtn: '默认',
     modelValidated: '已通过验证',
+    setDefaultProvider: '设为默认',
+    isDefaultProvider: '已是默认提供商',
     builtin: '内置',
     custom: '自定义',
     confirmDelete: '确定要删除此提供商吗？',
