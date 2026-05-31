@@ -238,7 +238,7 @@ async fn visible(Query(q): Query<SelectorQuery>) -> impl IntoResponse {
         r#"var el=document.querySelector('{}');
 if(!el) return false;
 var style=window.getComputedStyle(el);
-return style.display!=='none' && style.visibility!=='hidden' && el.offsetParent!==null;"#,
+return style.display!=='none' && style.visibility!=='hidden' && (el.offsetParent!==null || el===document.body || el===document.documentElement);"#,
         escape_js_str(&q.selector)
     );
     match bridge::eval_js(&js).await {

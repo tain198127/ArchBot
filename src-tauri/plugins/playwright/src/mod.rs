@@ -5,11 +5,9 @@ mod http;
 
 /// Initialize the playwright plugin.
 ///
-/// This sets up the eval bridge (AppHandle → WebView JS injection)
-/// and exposes the HTTP routes for test control.
+/// Stores the AppHandle for use by the eval bridge (HTTP → WebView JS injection).
 pub fn init() -> TauriPlugin<tauri::Wry> {
     Builder::new("playwright")
-        .invoke_handler(tauri::generate_handler![bridge::callback])
         .setup(|app_handle, _api| {
             bridge::init_bridge(app_handle.clone());
             Ok(())

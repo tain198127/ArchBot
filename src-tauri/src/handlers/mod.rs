@@ -107,7 +107,7 @@ mod vector_handler;
 
 /// Build the combined Axum router with all /api routes.
 pub fn router() -> Router {
-    Router::new()
+    let mut router = Router::new()
         .nest("/api", agent_handler::routes())
         .nest("/api", project_handler::routes())
         .nest("/api", ds_handler::routes())
@@ -118,7 +118,13 @@ pub fn router() -> Router {
         .nest("/api", fs_handler::routes())
         .nest("/api", settings_handler::routes())
         .nest("/api", license_handler::routes())
-        .nest("/api", vector_handler::routes())
-        // playwright — native window E2E test bridge
-        .nest("/api", tauri_plugin_playwright::http_router())
+        .nest("/api", vector_handler::routes());
+
+    // playwright — native window E2E test bridge (debug/dev only)
+    #[cfg(feature = "e2e-test")]
+    {
+        router = router.nest("/api", tauri_plugin_playwright::http_router());
+    }
+
+    router
 }

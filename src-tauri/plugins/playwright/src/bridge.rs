@@ -1,125 +1,102 @@
-use std::collections::HashMap;
-use std::sync::OnceLock;
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use tauri::Manager;
-use tokio::sync::{oneshot, Mutex};
-use uuid::Uuid;
+use tokio::sync::oneshot;
 
-type PendingMap = HashMap<Uuid, oneshot::Sender<serde_json::Value>>;
+/// ── Bridge State ──
+///
+/// The eval bridge uses Tauri 2's native `eval_with_callback` which
+/// executes JS in the WebView and invokes a Rust closure with the result.
+/// This avoids the manual `invoke` callback pattern that doesn't work
+/// reliably across Tauri 2 IPC changes.
 
-static BRIDGE: OnceLock<BridgeState> = OnceLock::new();
-
-struct BridgeState {
-    pending: Mutex<PendingMap>,
-    app_handle: tauri::AppHandle,
-}
+static BRIDGE: OnceLock<tauri::AppHandle> = OnceLock::new();
 
 pub fn init_bridge(app_handle: tauri::AppHandle) {
-    let state = BridgeState {
-        pending: Mutex::new(HashMap::new()),
-        app_handle,
-    };
-    BRIDGE.set(state).ok();
+    BRIDGE.set(app_handle).ok();
 }
 
-fn get_bridge() -> Result<&'static BridgeState, String> {
+fn get_app_handle() -> Result<&'static tauri::AppHandle, String> {
     BRIDGE
         .get()
         .ok_or_else(|| "playwright bridge not initialized".to_string())
 }
 
-/// Retrieve the pending queries map for the callback command.
-pub fn pending_map() -> &'static Mutex<PendingMap> {
-    &BRIDGE.get().expect("bridge not initialized").pending
-}
-
-/// Evaluate JavaScript in the WebView and return the result.
+/// Evaluate JavaScript in the WebView and return the parsed result.
 ///
-/// For fire-and-forget operations (click, fill), use `eval_void()` instead.
-/// This function injects JS and waits for the callback (30s timeout).
+/// The JS must return a JSON-stringifiable value. We wrap it in a
+/// try/catch that always returns a JSON envelope: `{ok, data?, error?}`.
 pub async fn eval_js(js: &str) -> Result<serde_json::Value, String> {
-    let bridge = get_bridge()?;
-    let id = Uuid::new_v4();
     let (tx, rx) = oneshot::channel();
+    let tx = Arc::new(Mutex::new(Some(tx)));
 
-    {
-        let mut pending = bridge.pending.lock().await;
-        pending.insert(id, tx);
-    }
+    // Only escape backslashes. Single quotes and newlines are fine since
+    // the JS runs inside a function body (delimited by {}), not a string literal.
+    // Newlines are valid JS whitespace.
+    let escaped_js = js.replace('\\', "\\\\");
 
-    // Build the callback JS: wrap the user's JS in a try/catch, call invoke back
-    let escaped_js = js.replace('\\', "\\\\").replace('\'', "\\'");
-    let invoke_js = format!(
-        r#"(function(){{
-  try {{
-    var __r = (function(){{ return {} }})();
-    window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke
-      ? window.__TAURI_INTERNALS__.invoke('plugin:playwright|callback', {{ id: '{}', ok: true, result: __r }})
-      : window.__TAURI__.invoke('plugin:playwright|callback', {{ id: '{}', ok: true, result: __r }});
-  }} catch(e) {{
-    var invokeFn = (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke)
-      ? window.__TAURI_INTERNALS__.invoke
-      : window.__TAURI__.invoke;
-    invokeFn('plugin:playwright|callback', {{ id: '{}', ok: false, error: e.message || String(e) }});
-  }}
-}})()"#,
-        escaped_js, id, id, id
+    // Return a plain object — eval_with_callback will JSON-stringify it once.
+    // If we JSON.stringify here, it gets double-stringified.
+    let wrapped = format!(
+        "(function(){{ try {{ var __r = (function(){{ {} }})(); return {{ok:true,data:__r===undefined?null:__r}}; }} catch(e) {{ return {{ok:false,error:e.message||String(e)}}; }} }})()",
+        escaped_js
     );
 
-    // Execute in the main WebView
-    if let Some(window) = bridge.app_handle.get_webview_window("main") {
+    let app_handle = get_app_handle()?;
+
+    if let Some(window) = app_handle.get_webview_window("main") {
+        let tx_clone = tx.clone();
         window
-            .eval(&invoke_js)
-            .map_err(|e| format!("eval failed: {}", e))?;
+            .eval_with_callback(&wrapped, move |result: String| {
+                // eprintln!("[playwright:eval] raw result (len={}): {}", result.len(), &result[..result.len().min(200)]);
+                let parsed: serde_json::Value = serde_json::from_str(&result)
+                    .unwrap_or(serde_json::json!({"ok": true, "data": result}));
+                if let Ok(mut guard) = tx_clone.lock() {
+                    if let Some(sender) = guard.take() {
+                        let _ = sender.send(parsed);
+                    }
+                }
+            })
+            .map_err(|e| format!("eval_with_callback failed: {}", e))?;
     } else {
         return Err("main window not found".to_string());
     }
 
-    // Wait for the callback (with 30s timeout)
     match tokio::time::timeout(Duration::from_secs(30), rx).await {
-        Ok(Ok(value)) => Ok(value),
-        Ok(Err(_)) => Err("callback sender dropped".to_string()),
-        Err(_) => {
-            // Clean up the pending entry on timeout
-            let mut pending = bridge.pending.lock().await;
-            pending.remove(&id);
-            Err("eval timed out after 30s".to_string())
+        Ok(Ok(envelope)) => {
+            // eprintln!("[playwright:eval] envelope type: {:?}", envelope);
+            if let Some(obj) = envelope.as_object() {
+                let ok = obj.get("ok").and_then(|v| v.as_bool()).unwrap_or(false);
+                // eprintln!("[playwright:eval] ok={}, keys={:?}", ok, obj.keys().collect::<Vec<_>>());
+                if ok {
+                    let data = obj.get("data").cloned().unwrap_or(serde_json::Value::Null);
+                    // eprintln!("[playwright:eval] returning data type: {:?}", data);
+                    return Ok(data);
+                }
+                return Err(
+                    obj.get("error")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown JS error")
+                        .to_string(),
+                );
+            }
+            // eprintln!("[playwright:eval] envelope is not an object, returning as-is");
+            Ok(envelope)
         }
+        Ok(Err(_)) => Err("eval callback dropped".to_string()),
+        Err(_) => Err("eval timed out after 30s".to_string()),
     }
 }
 
 /// Evaluate JavaScript in the WebView without waiting for a return value.
-///
-/// Use this for fire-and-forget operations (click, fill, scroll).
 pub fn eval_js_void(js: &str) -> Result<(), String> {
-    let bridge = get_bridge()?;
-    if let Some(window) = bridge.app_handle.get_webview_window("main") {
+    let app_handle = get_app_handle()?;
+    if let Some(window) = app_handle.get_webview_window("main") {
         window
             .eval(js)
             .map_err(|e| format!("eval failed: {}", e))
     } else {
         Err("main window not found".to_string())
     }
-}
-
-/// The callback Tauri command — called from JS after eval completes.
-#[tauri::command]
-pub async fn callback(
-    id: String,
-    ok: bool,
-    result: Option<serde_json::Value>,
-    error: Option<String>,
-) -> Result<(), String> {
-    let uuid = Uuid::parse_str(&id).map_err(|_| format!("invalid callback id: {}", id))?;
-    let mut pending = pending_map().lock().await;
-    if let Some(sender) = pending.remove(&uuid) {
-        let value = if ok {
-            result.unwrap_or(serde_json::Value::Null)
-        } else {
-            serde_json::json!({ "__error": error.unwrap_or_else(|| "unknown JS error".into()) })
-        };
-        let _ = sender.send(value);
-    }
-    Ok(())
 }

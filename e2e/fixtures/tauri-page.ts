@@ -116,12 +116,10 @@ export class TauriPage {
     return new TauriLocator(selector)
   }
 
-  getByText(text: string, options?: { exact?: boolean }): TauriLocator {
-    const escaped = text.replace(/'/g, "\\'")
-    if (options?.exact) {
-      return new TauriLocator(`text='${escaped}'`)
-    }
-    return new TauriLocator(`text='${escaped}'`)
+  getByText(text: string, _options?: { exact?: boolean }): TauriLocator {
+    // Since CSS doesn't support text selectors, we use a JS-based approach
+    // via aria-label or button text through TauriLocator's eval mechanism
+    return new TauriLocator(`text:${text}`)
   }
 
   getByRole(role: string, options?: { name?: string }): TauriLocator {

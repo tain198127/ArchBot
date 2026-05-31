@@ -72,8 +72,14 @@ pub fn run() {
         });
     }
 
-    tauri::Builder::default()
-        .plugin(tauri_plugin_playwright::init())
+    let mut builder = tauri::Builder::default();
+
+    #[cfg(feature = "e2e-test")]
+    {
+        builder = builder.plugin(tauri_plugin_playwright::init());
+    }
+
+    builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
