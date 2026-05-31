@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::agent_runtime::runtime_config::load_runtimes_config;
@@ -40,6 +42,9 @@ pub struct AgentConfigInfo {
     pub model_name: String,
     #[serde(default)]
     pub extra_args: String,
+    /// All environment variables to inject into the runtime subprocess
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub env_vars: HashMap<String, String>,
 }
 
 #[tauri::command]
@@ -95,6 +100,18 @@ pub fn agent_get_status(runtime: String) -> Result<AgentStatus, String> {
                 .args
                 .as_ref()
                 .map_or(false, |a| a.default.iter().any(|x| x.contains("claude")));
+        // Build env_vars: include all env entries except the ones extracted as typed fields
+        let env_vars: HashMap<String, String> = env.iter()
+            .filter(|(k, _)| {
+                !matches!(k.as_str(),
+                    "ANTHROPIC_BASE_URL" | "ANTHROPIC_MODEL" |
+                    "ANTHROPIC_SMALL_MODEL" | "ANTHROPIC_LARGE_MODEL" |
+                    "OPENAI_BASE_URL" | "OPENAI_MODEL"
+                )
+            })
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+
         AgentConfigInfo {
             provider_id: entry.provider_id.clone().unwrap_or_default(),
             protocol: if is_anthropic {
@@ -118,6 +135,7 @@ pub fn agent_get_status(runtime: String) -> Result<AgentStatus, String> {
                 .unwrap_or_default(),
             model_name: env.get("OPENAI_MODEL").cloned().unwrap_or_default(),
             extra_args: String::new(),
+            env_vars,
         }
     });
 
@@ -165,29 +183,59 @@ pub fn agent_save_config(runtime: String, config: AgentConfigInfo) -> Result<(),
         entry.provider_id = Some(config.provider_id.clone());
     }
 
-    // 更新 env 中的 model 相关变量
-    if let Some(env) = &mut entry.env {
-        // 通用: 协议对应的 base URL
-        if config.protocol == "anthropic" {
-            env.insert("ANTHROPIC_BASE_URL".into(), config.base_url.clone());
-        } else {
-            env.insert("OPENAI_BASE_URL".into(), config.base_url.clone());
-        }
+    // 确保 env section 存在
+    if entry.env.is_none() {
+        entry.env = Some(HashMap::new());
+    }
+    let env = entry.env.as_mut().unwrap();
 
-        // Anthropic 协议 (Claude Code) 支持三档模型
-        if config.protocol == "anthropic" {
-            if !config.model_default.is_empty() {
-                env.insert("ANTHROPIC_MODEL".into(), config.model_default.clone());
+    // Base URL — claude_code always needs Anthropic format.
+    // For providers using OpenAI protocol (e.g. DeepSeek), convert the URL:
+    //   https://api.deepseek.com/v1 → https://api.deepseek.com/anthropic
+    let needs_anthropic = runtime == "claude_code";
+    if needs_anthropic {
+        let anthropic_url = if config.base_url.ends_with("/v1") {
+            format!("{}/anthropic", config.base_url.trim_end_matches("/v1"))
+        } else {
+            config.base_url.clone()
+        };
+        env.insert("ANTHROPIC_BASE_URL".into(), anthropic_url);
+    } else {
+        env.insert("OPENAI_BASE_URL".into(), config.base_url.clone());
+    }
+
+    // Model — claude_code always uses Anthropic env vars regardless of provider protocol
+    if needs_anthropic {
+        if !config.model_default.is_empty() {
+            env.insert("ANTHROPIC_MODEL".into(), config.model_default.clone());
+        }
+        if !config.model_small.is_empty() {
+            env.insert("ANTHROPIC_SMALL_MODEL".into(), config.model_small.clone());
+        }
+        if !config.model_large.is_empty() {
+            env.insert("ANTHROPIC_LARGE_MODEL".into(), config.model_large.clone());
+        }
+    } else if !config.model_name.is_empty() {
+        env.insert("OPENAI_MODEL".into(), config.model_name.clone());
+    }
+
+    // Merge all custom env vars from the UI editor
+    for (key, value) in &config.env_vars {
+        if value.is_empty() {
+            env.remove(key);
+        } else {
+            env.insert(key.clone(), value.clone());
+        }
+    }
+
+    // Auto-whitelist: any env key the user explicitly configured must be allowed
+    if let Some(exec) = &mut entry.execution {
+        if let Some(ref mut isolation) = exec.isolation {
+            for key in env.keys() {
+                if !isolation.allowed_env_keys.contains(key) {
+                    isolation.allowed_env_keys.push(key.clone());
+                }
             }
-            if !config.model_small.is_empty() {
-                env.insert("ANTHROPIC_SMALL_MODEL".into(), config.model_small.clone());
-            }
-            if !config.model_large.is_empty() {
-                env.insert("ANTHROPIC_LARGE_MODEL".into(), config.model_large.clone());
-            }
-        } else if !config.model_name.is_empty() {
-            // OpenAI 兼容协议使用单模型字段
-            env.insert("OPENAI_MODEL".into(), config.model_name.clone());
         }
     }
 

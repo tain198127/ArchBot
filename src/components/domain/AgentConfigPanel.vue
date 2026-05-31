@@ -55,6 +55,9 @@ interface AgentState {
   testRuntimeLoading: boolean
   testRuntimeResult: string
   testRuntimeDetail: string
+  envVars: Record<string, string>
+  newEnvKey: string
+  newEnvValue: string
 }
 
 const initState = (): AgentState => ({
@@ -71,6 +74,9 @@ const initState = (): AgentState => ({
   testRuntimeLoading: false,
   testRuntimeResult: '',
   testRuntimeDetail: '',
+  envVars: {},
+  newEnvKey: '',
+  newEnvValue: '',
 })
 
 const state = reactive<Record<string, AgentState>>({
@@ -126,6 +132,10 @@ async function refreshRuntimeStatus(runtime: string) {
       // 恢复上次保存的 provider 选择（仅当该 provider 仍存在时）
       if (result.config.provider_id && providers.value.some(p => p.id === result.config.provider_id)) {
         state[runtime].selectedProviderId = result.config.provider_id
+      }
+      // Load persisted env vars
+      if (result.config.env_vars) {
+        state[runtime].envVars = { ...result.config.env_vars }
       }
     }
   } catch (e: any) {
@@ -210,6 +220,7 @@ async function autoSaveConfig(runtime: string) {
         model_large: '',
         model_name: provider.protocol === 'openai' ? s.selectedModel : '',
         extra_args: '',
+        env_vars: s.envVars,
       },
     })
   } catch (e: any) {
@@ -299,6 +310,24 @@ async function testRuntimeAction(runtime: string) {
     s.testRuntimeDetail = msg
     pushLog('error', 'agent:test-runtime', msg)
   } finally { s.testRuntimeLoading = false }
+}
+
+function addEnvVar(rt: string) {
+  const s = state[rt]
+  const key = s.newEnvKey.trim()
+  if (!key) return
+  s.envVars = { ...s.envVars, [key]: s.newEnvValue }
+  s.newEnvKey = ''
+  s.newEnvValue = ''
+  autoSaveConfig(rt)
+}
+
+function removeEnvVar(rt: string, key: string) {
+  const s = state[rt]
+  const next = { ...s.envVars }
+  delete next[key]
+  s.envVars = next
+  autoSaveConfig(rt)
 }
 </script>
 
@@ -431,6 +460,54 @@ async function testRuntimeAction(runtime: string) {
                 </span>
               </div>
               <div v-if="current.testRuntimeDetail" class="mt-2 p-2 rounded bg-surface-50 border border-border-default font-mono text-[11px] text-text-secondary whitespace-pre-wrap max-w-[560px] max-h-[120px] overflow-auto">{{ current.testRuntimeDetail }}</div>
+            </section>
+
+            <!-- ========== Section 5: Environment Variables ========== -->
+            <section>
+              <h3 class="text-sm font-semibold text-text-primary mb-3">Environment Variables</h3>
+              <p class="text-[11px] text-text-muted mb-2">
+                These are injected into the {{ tabs.find(t => t.value === rt)?.label }} subprocess at launch.
+                Use for API keys, base URLs, model overrides, and runtime-specific settings.
+              </p>
+
+              <!-- Existing env vars -->
+              <div v-if="Object.keys(current.envVars).length > 0" class="space-y-1.5 mb-3 max-w-[560px]">
+                <div
+                  v-for="(value, key) in current.envVars"
+                  :key="key"
+                  class="flex items-center gap-2 px-3 py-1.5 rounded bg-surface-50 border border-border-default"
+                >
+                  <code class="text-[12px] font-semibold text-text-primary shrink-0 min-w-[140px]">{{ key }}</code>
+                  <input
+                    :value="value"
+                    class="flex-1 px-2 py-0.5 text-[12px] bg-surface-0 border border-border-default rounded outline-none focus:border-primary-500 font-mono"
+                    placeholder="value"
+                    @change="(e: Event) => { const t = e.target as HTMLInputElement; current.envVars = { ...current.envVars, [key]: t.value }; autoSaveConfig(rt) }"
+                  />
+                  <button
+                    class="shrink-0 px-1.5 py-0.5 text-[11px] text-text-muted hover:text-red-500 transition-colors"
+                    @click="removeEnvVar(rt, key)"
+                  >✕</button>
+                </div>
+              </div>
+              <div v-else class="text-[12px] text-text-muted mb-3">No custom environment variables configured.</div>
+
+              <!-- Add new env var -->
+              <div class="flex items-center gap-2 max-w-[560px]">
+                <input
+                  v-model="current.newEnvKey"
+                  placeholder="KEY"
+                  class="w-[180px] px-2.5 py-1.5 text-[12px] bg-surface-0 border border-border-default rounded outline-none focus:border-primary-500 font-mono"
+                  @keyup.enter="addEnvVar(rt)"
+                />
+                <input
+                  v-model="current.newEnvValue"
+                  placeholder="value"
+                  class="flex-1 px-2.5 py-1.5 text-[12px] bg-surface-0 border border-border-default rounded outline-none focus:border-primary-500 font-mono"
+                  @keyup.enter="addEnvVar(rt)"
+                />
+                <VButton size="sm" variant="secondary" @click="addEnvVar(rt)">Add</VButton>
+              </div>
             </section>
 
           </div>

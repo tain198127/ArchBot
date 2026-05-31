@@ -32,6 +32,13 @@ runtimes:
     env:
       CLAUDE_CONFIG_DIR: "~/.archbot/runtimes/claude-code/current/config"
       DISABLE_AUTOUPDATER: "1"
+      CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1"
+      API_TIMEOUT_MS: "3000000"
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
+      ANTHROPIC_BASE_URL: "https://api.anthropic.com"
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: "claude-haiku-4-5"
+      ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-4-6"
+      ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-4-7"
 
     args:
       default:
@@ -54,9 +61,19 @@ runtimes:
         env_policy: whitelist
         allowed_env_keys:
           - CLAUDE_CONFIG_DIR
+          - CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS
+          - CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC
           - ANTHROPIC_BASE_URL
           - ANTHROPIC_AUTH_TOKEN
           - ANTHROPIC_MODEL
+          - ANTHROPIC_DEFAULT_HAIKU_MODEL
+          - ANTHROPIC_DEFAULT_SONNET_MODEL
+          - ANTHROPIC_DEFAULT_OPUS_MODEL
+          - ANTHROPIC_SMALL_MODEL
+          - ANTHROPIC_LARGE_MODEL
+          - OPENAI_BASE_URL
+          - OPENAI_MODEL
+          - API_TIMEOUT_MS
           - DISABLE_AUTOUPDATER
           - PATH
           - LANG

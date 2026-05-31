@@ -67,7 +67,18 @@ pub fn launch_isolated_runtime(config: &RuntimeLaunchConfig) -> LaunchResult {
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
 
-    trace_fmt!("launcher", "Spawning: {} {:?} in {}", config.executable, config.args, config.workspace_root);
+    // Ensure workspace directory exists
+    let ws = std::path::Path::new(&config.workspace_root);
+    if !ws.exists() {
+        std::fs::create_dir_all(ws).map_err(|e| format!(
+            "[launcher] Failed to create workspace {}: {}", config.workspace_root, e
+        ))?;
+    }
+
+    trace_fmt!("launcher", "Spawning: {} {:?} in {} ({} env vars)", config.executable, config.args, config.workspace_root, config.allowed_env.len());
+    for k in config.allowed_env.keys() {
+        trace_fmt!("launcher", "  env: {} = <redacted>", k);
+    }
     let mut child = cmd
         .spawn()
         .map_err(|e| format!("[launcher] Failed to spawn {}: {}", config.runtime_type, e))?;

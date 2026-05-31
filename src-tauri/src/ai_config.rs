@@ -156,7 +156,8 @@ fn providers_config_path() -> PathBuf {
 
 // ── Load / Save ──
 
-fn load_providers() -> Result<Vec<AIProvider>, String> {
+/// Load all AI providers (built-in + user-configured) — public for use by turn_executor.
+pub fn load_providers_raw() -> Result<Vec<AIProvider>, String> {
     let path = providers_config_path();
     let saved: Vec<AIProvider> = if path.exists() {
         let content = std::fs::read_to_string(&path)
@@ -211,7 +212,7 @@ fn machine_id() -> String {
 
 #[tauri::command]
 pub fn ai_list_providers() -> Result<Vec<AIProvider>, String> {
-    let mut providers = load_providers()?;
+    let mut providers = load_providers_raw()?;
     let sm = SecretManager::new(&machine_id())?;
     for p in &mut providers {
         p.has_api_key = sm.exists(&p.id, "api_token");
@@ -232,7 +233,7 @@ pub fn ai_save_provider(
         "[ai_config] save_provider id={} models={:?} default={:?}",
         id, models, default_model
     );
-    let mut providers = load_providers()?;
+    let mut providers = load_providers_raw()?;
 
     // Validate protocol
     if protocol != "anthropic" && protocol != "openai" {
@@ -285,7 +286,7 @@ pub fn ai_save_provider(
 
 #[tauri::command]
 pub fn ai_delete_provider(id: String) -> Result<(), String> {
-    let providers = load_providers()?;
+    let providers = load_providers_raw()?;
     let provider = providers
         .iter()
         .find(|p| p.id == id)

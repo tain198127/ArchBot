@@ -319,6 +319,7 @@ impl SessionManager {
             git_user_name: None,
             git_user_email: None,
             session_id: Some(req.session_id.clone()),
+            model_override: None,
         })?;
 
         // Emit turn.completed or turn.failed

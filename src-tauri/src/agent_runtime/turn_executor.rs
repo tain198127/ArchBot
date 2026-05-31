@@ -23,6 +23,7 @@ pub fn agent_execute_turn(
     workspace_root: String,
     user_message: String,
     context_files: Vec<String>,
+    model_override: Option<String>,
 ) -> Result<TurnResult, String> {
     execute_turn(TurnConfig {
         runtime,
@@ -32,6 +33,7 @@ pub fn agent_execute_turn(
         git_user_name: None,
         git_user_email: None,
         session_id: None,
+        model_override,
     })
 }
 
@@ -63,51 +65,78 @@ pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
         config.git_user_email.as_deref(),
     )?;
 
-    // 注入 API token（Secret Manager 优先 → 父进程环境变量 fallback）
+    // ── Token resolution ──
+    // Look up API token from the configured AI provider via SecretManager.
+    // Falls back to env vars from runtimes.yml (already in launch_config.allowed_env
+    // from build_launch_config) if SecretManager doesn't have the token.
     if let Ok(sm) = SecretManager::new(&get_machine_id()) {
-        let token_refs = [
-            (
-                "claude_code",
-                "ANTHROPIC_AUTH_TOKEN",
-                "secret://claude_code/api_token",
-            ),
-            ("hermes", "HERMES_API_KEY", "secret://hermes/api_token"),
-            ("opencode", "OPENAI_API_KEY", "secret://opencode/api_token"),
-            ("openclaw", "OPENAI_API_KEY", "secret://openclaw/api_token"),
-        ];
-        for (rt, env_key, secret_ref) in &token_refs {
-            if config.runtime == *rt {
-                if let Ok(token) = sm.resolve(secret_ref) {
-                    launch_config.allowed_env.insert(env_key.to_string(), token);
-                }
+        let provider_id = entry.provider_id.as_deref().unwrap_or(&config.runtime);
+        let token_key = match config.runtime.as_str() {
+            "claude_code" => "ANTHROPIC_AUTH_TOKEN",
+            "hermes" => "HERMES_API_KEY",
+            _ => "OPENAI_API_KEY",
+        };
+        trace_fmt!("turn", "Token lookup: provider_id={} runtime={} token_key={}", provider_id, config.runtime, token_key);
+
+        // Try provider_id first (e.g. "deepseek"), then runtime name (e.g. "claude_code")
+        for lookup in &[provider_id, config.runtime.as_str()] {
+            if launch_config.allowed_env.contains_key(token_key) && !launch_config.allowed_env[token_key].is_empty() {
+                break; // Already have a token from runtimes.yml env vars
             }
-        }
-    }
-    // 无论 SecretManager 是否可用，都尝试从父进程环境注入 token
-    let env_token_keys = [
-        ("claude_code", "ANTHROPIC_AUTH_TOKEN"),
-        ("hermes", "HERMES_API_KEY"),
-        ("opencode", "OPENAI_API_KEY"),
-        ("openclaw", "OPENAI_API_KEY"),
-    ];
-    for (rt, env_key) in &env_token_keys {
-        if config.runtime == *rt {
-            if !launch_config.allowed_env.contains_key(*env_key) {
-                if let Ok(token) = std::env::var(env_key) {
-                    launch_config.allowed_env.insert(env_key.to_string(), token);
+            match sm.get(lookup, "api_token") {
+                Ok(token) if !token.is_empty() => {
+                    trace_fmt!("turn", "Token resolved via provider={}", lookup);
+                    launch_config.allowed_env.insert(token_key.to_string(), token);
+                    break;
                 }
+                Ok(_) => { trace_fmt!("turn", "Token for provider={} is empty", lookup); }
+                Err(e) => { trace_fmt!("turn", "No token for provider={}: {}", lookup, e); }
             }
         }
     }
 
-    // 注入父进程中的 runtime 配置类环境变量（如 ANTHROPIC_BASE_URL、模型名等）
-    let config_env_keys = ["ANTHROPIC_BASE_URL", "ANTHROPIC_MODEL", "OPENAI_BASE_URL", "OPENAI_MODEL"];
-    for key in &config_env_keys {
+    // Fallback: parent process environment
+    for key in &["ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "ANTHROPIC_MODEL",
+                  "OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_MODEL"] {
         if !launch_config.allowed_env.contains_key(*key) {
             if let Ok(val) = std::env::var(key) {
+                trace_fmt!("turn", "Injecting {} from parent env", key);
                 launch_config.allowed_env.insert(key.to_string(), val);
             }
         }
+    }
+
+    // Derive ANTHROPIC_BASE_URL from AI provider config — always override the default.
+    // Claude Code needs Anthropic-format URL. For DeepSeek:
+    //   provider base_url = https://api.deepseek.com/v1 (OpenAI format)
+    //   → ANTHROPIC_BASE_URL = https://api.deepseek.com/anthropic
+    if let Ok(providers) = crate::ai_config::load_providers_raw() {
+        let provider_id = entry.provider_id.as_deref().unwrap_or(&config.runtime);
+        if let Some(p) = providers.iter().find(|p| p.id == provider_id) {
+            let anthropic_url = if p.base_url.ends_with("/v1") {
+                format!("{}/anthropic", p.base_url.trim_end_matches("/v1"))
+            } else if p.base_url.ends_with("/anthropic") {
+                p.base_url.clone()
+            } else {
+                format!("{}/anthropic", p.base_url.trim_end_matches('/'))
+            };
+            let old = launch_config.allowed_env.insert("ANTHROPIC_BASE_URL".to_string(), anthropic_url.clone());
+            if old.as_deref() != Some(&anthropic_url) {
+                trace_fmt!("turn", "ANTHROPIC_BASE_URL {}→ {} (from provider {})",
+                    old.as_deref().unwrap_or("(not set)"), anthropic_url, provider_id);
+            }
+        }
+    }
+
+    // 模型覆盖：用户在 UI 中选择的模型优先于所有默认值
+    if let Some(ref model) = config.model_override {
+        let model_key = match config.runtime.as_str() {
+            "claude_code" => "ANTHROPIC_MODEL",
+            "hermes" => "HERMES_MODEL_NAME",
+            _ => "OPENAI_MODEL",
+        };
+        trace_fmt!("turn", "Model override: {}={}", model_key, model);
+        launch_config.allowed_env.insert(model_key.to_string(), model.clone());
     }
 
     // 3. 初始化隔离 HOME
@@ -161,6 +190,14 @@ pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
     if !result_md_path.exists() && !stdout.trim().is_empty() {
         fs::write(&result_md_path, &stdout).ok();
     }
+    // Read actual result content from result.md
+    let result_content = if result_md_path.exists() {
+        fs::read_to_string(&result_md_path).unwrap_or_default()
+    } else if !stdout.trim().is_empty() {
+        stdout.clone()
+    } else {
+        String::new()
+    };
     let result_md = if result_md_path.exists() {
         Some(result_md_path.to_string_lossy().to_string())
     } else {
@@ -224,6 +261,7 @@ pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
         status: status_str,
         stdout_tail,
         result_md_path: result_md,
+        result_content,
         file_changes,
         audit_violations,
         duration_ms,
@@ -429,6 +467,11 @@ fn emit_ndjson_event(
 
 fn turn_directory(workspace_root: &str, turn_id: &str) -> Result<PathBuf, String> {
     let root = PathBuf::from(workspace_root);
+    // Auto-create workspace if it doesn't exist (e.g. chat mode uses /tmp/archbot-chat)
+    if !root.exists() {
+        fs::create_dir_all(&root)
+            .map_err(|e| format!("Failed to create workspace {}: {}", workspace_root, e))?;
+    }
     let canonical = root.canonicalize().map_err(|_| {
         format!(
             "Invalid workspace_root (not found or inaccessible): {}",
@@ -707,6 +750,7 @@ mod tests {
             git_user_name: None,
             git_user_email: None,
             session_id: None,
+            model_override: None,
         };
 
         let result = execute_turn(config);

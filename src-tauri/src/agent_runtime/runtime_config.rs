@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::agent_runtime::config::{IsolatedHomeConfig, RuntimeLaunchConfig};
+use crate::trace_fmt;
 
 /// runtimes.yml 顶层结构
 #[derive(Debug, Deserialize, Serialize)]
@@ -88,21 +89,46 @@ pub fn build_launch_config(
         .as_ref()
         .ok_or_else(|| format!("[config] Missing isolation section for {}", runtime_type))?;
 
-    // 从 env 中筛选出白名单允许的 key
+    // Pass ALL env vars from config with denylist protection.
+    // User-configured env vars are trusted; only dangerous keys that could
+    // compromise process isolation (LD_PRELOAD, PATH, etc.) are blocked.
+    let blocked_keys: &[&str] = &[
+        "LD_PRELOAD", "LD_LIBRARY_PATH", "DYLD_INSERT_LIBRARIES",
+        "DYLD_LIBRARY_PATH", "PYTHONPATH", "NODE_OPTIONS",
+        "BASH_ENV", "ENV", "GIT_SSH_COMMAND", "IFS",
+        "HOME", "USER", "LOGNAME", "SHELL",
+        "PATH", "SYSTEMROOT", "TEMP", "TMP", "TMPDIR",
+        "XAUTHORITY", "DISPLAY", "WAYLAND_DISPLAY",
+    ];
     let mut allowed_env = HashMap::new();
     if let Some(env) = &entry.env {
-        for key in &isolation.allowed_env_keys {
-            if let Some(value) = env.get(key) {
-                allowed_env.insert(key.clone(), value.clone());
+        for (key, value) in env {
+            if blocked_keys.iter().any(|bk| bk.eq_ignore_ascii_case(key)) {
+                trace_fmt!("config", "Blocked dangerous env var: {}", key);
+                continue;
             }
+            allowed_env.insert(key.clone(), value.clone());
         }
     }
 
     let args = entry
         .args
         .as_ref()
-        .map(|a| a.default.clone())
-        .unwrap_or_default();
+        .and_then(|a| if a.default.is_empty() { None } else { Some(a.default.clone()) })
+        .unwrap_or_else(|| default_args_for(runtime_type));
+
+    // Apply default env vars from the built-in config when user config omits them
+    if let Ok(default_cfg) = load_default_config() {
+        if let Some(default_entry) = default_cfg.runtimes.get(runtime_type) {
+            if let Some(ref default_env) = default_entry.env {
+                for (key, value) in default_env {
+                    if !allowed_env.contains_key(key) {
+                        allowed_env.insert(key.clone(), value.clone());
+                    }
+                }
+            }
+        }
+    }
 
     Ok(RuntimeLaunchConfig {
         runtime_type: runtime_type.to_string(),
@@ -170,4 +196,28 @@ fn expand_home(path: &str) -> String {
         }
     }
     path.to_string()
+}
+
+/// Load the built-in default config (runtimes.default.yml).
+fn load_default_config() -> Result<RuntimesConfig, String> {
+    let path = default_runtimes_path()?;
+    let content = std::fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read default config: {}", e))?;
+    serde_yml::from_str::<RuntimesConfig>(&content)
+        .map_err(|e| format!("Failed to parse default config: {}", e))
+}
+
+/// Sensible default CLI args when user config omits them.
+fn default_args_for(runtime_type: &str) -> Vec<String> {
+    match runtime_type {
+        "claude_code" => vec![
+            "--output-format".into(), "stream-json".into(),
+            "--max-turns".into(), "10".into(),
+            "--permission-mode".into(), "acceptEdits".into(),
+        ],
+        "hermes" => vec!["--stream".into(), "--json".into()],
+        "opencode" => vec!["--mode".into(), "agent".into(), "--output-format".into(), "json".into()],
+        "openclaw" => vec!["agent".into(), "--json".into(), "--timeout".into(), "1800".into()],
+        _ => vec![],
+    }
 }

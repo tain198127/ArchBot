@@ -11,6 +11,8 @@ pub struct TurnConfig {
     pub git_user_email: Option<String>,
     /// Optional session context — enables SSE event streaming with session_id
     pub session_id: Option<String>,
+    /// Override the default model from config (e.g. user-selected model in UI dropdown)
+    pub model_override: Option<String>,
 }
 
 /// Turn 结果
@@ -21,6 +23,8 @@ pub struct TurnResult {
     pub status: String, // "completed" | "failed" | "timeout"
     pub stdout_tail: String,
     pub result_md_path: Option<String>,
+    /// Content of result.md (the actual Claude Code output)
+    pub result_content: String,
     pub file_changes: Vec<FileChange>,
     pub audit_violations: Vec<String>,
     pub duration_ms: u64,
@@ -40,6 +44,7 @@ impl TurnResult {
             status: format!("failed: {}", reason),
             stdout_tail: String::new(),
             result_md_path: None,
+            result_content: String::new(),
             file_changes: vec![],
             audit_violations: vec![],
             duration_ms,
