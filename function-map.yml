@@ -21,7 +21,7 @@ function_map:
     schema: "function-map-v1"
     module: "requirements"
     description: "需求模块功能地图 — 面板树 + 右键操作 + 页面跳转 + 数据流转"
-    updated: "2026-05-30"
+    updated: "2026-05-31"
 
 # ============================================================================
 # 数据上下文 — 功能间传递的数据结构定义
@@ -1721,3 +1721,91 @@ traceability_chains:
   - name: "逆向工程→数据模型"
     path: external(ddl|database|java_code) → ctx.data_model
     desc: "DDL文件/数据库连接/Java Mapper→数字员工解析→实体关系模型(反向工程流)"
+
+# ============================================================================
+# 系统基础设施模块 (System Infrastructure Modules)
+# ============================================================================
+# 以下模块为系统级功能，不属于项目级需求树，记录于此用于全局 trace。
+
+system_modules:
+
+  # ── AI Provider 配置 ──
+  module.ai_config:
+    description: "AI 大模型配置面板 — 管理 Provider 定义、API Key、连接验证"
+    code:
+      rust: src-tauri/src/ai_config.rs（CRUD + 验证 Tauri commands）
+      vue: src/components/domain/AIConfigPanel.vue
+    storage:
+      - ~/.archbot/config/providers.yml（Provider 定义）
+      - secret://{provider_id}/api_token（AES-256-GCM 加密密钥，machine_id 派生 key）
+    features:
+      - 9 个内置 Provider + 自定义添加
+      - 模型管理（添加/删除/设默认）
+      - 设为默认 Provider → settings.json defaultProviderId
+      - 只显示已验证 Provider 到 Agent 配置页
+
+  # ── Agent Runtime 管理 ──
+  module.agent_runtime:
+    description: "外部 Agent 运行时控制平面 — 版本管理 + 会话/回合 + 适配器 + 文件/Shell 安全"
+    code:
+      rust: src-tauri/src/agent_runtime/（17 模块）
+      vue: src/components/domain/AgentConfigPanel.vue + src/components/domain/BottomPanel.vue（Agent 标签页）
+      stores: src/stores/agentStore.ts（Pinia）
+    database:
+      orm: SeaORM + SQLite（~/.archbot/data/archbot.db）
+      entities: 11 张 agent_* 表（src-tauri/src/db/entities/）
+    config:
+      default: src-tauri/config/runtimes.default.yml
+      user: ~/.archbot/config/runtimes.yml
+    key_modules:
+      - turn_executor: 端到端执行引擎 — 构建 stdin prompt（内联 input.yml）→ 快照 → 启动 Runtime → 等待超时 → 事件发射 → 差异扫描 → TurnResult。支持 SecretManager + 父进程环境变量 fallback 双通道 token 注入
+      - launcher: 子进程隔离启动（env_clear + 白名单注入 + stdin 管道 + 隔离 HOME）
+      - version_manager: 安装/更新/回滚，三层版本检测，runtime_name 白名单校验
+      - session_manager: AgentSession + AgentTurn CRUD，会话/回合状态机
+      - adapter_manager: AgentAdapter trait 统一接口，ClaudeCodeAdapter + 3 个 Stub
+      - event_stream: StandardEvent 事件总线（16 种类型）+ SSE 推送，关联 turn_executor
+      - context_assembly: 滑动窗口 + 历史压缩
+      - file_control: 文件快照/差异扫描/回滚（含路径穿越防护），关联 turn_executor
+      - shell_control: 命令白名单 + 危险命令拦截
+    security:
+      - validate_runtime_name() 白名单（6 个公共函数）
+      - validate_path_in_project() 路径校验
+      - extract_command_name() + validate() 命令白名单
+
+  # ── Agent 配置面板 ──
+  module.agent_config_panel:
+    description: "每个 Runtime 选择 AI Provider + 模型，自动持久化到 runtimes.yml"
+    code:
+      vue: src/components/domain/AgentConfigPanel.vue
+    data_flow:
+      save: selectProvider()/selectModel() → autoSaveConfig() → invoke(agent_save_config) → RuntimeEntry.provider_id + env → runtimes.yml
+      restore: onMounted → invoke(agent_get_status) → config.provider_id + model → 恢复 selectedProviderId + selectedModel
+    key_behaviors:
+      - 只显示 has_api_key=true 的 Provider（API Key 在 AIConfigPanel 配置）
+      - 点击 Provider 卡片 → 自动选择默认模型 → 自动保存
+      - 切换模型下拉 → 自动保存
+      - 无手动的 Save 按钮（全自动持久化）
+
+  # ── E2E 测试基础设施 ──
+  module.e2e_testing:
+    description: "端到端测试框架 — 浏览器模式 + 原生 Tauri 窗口模式"
+    browser_mode:
+      config: playwright.config.ts
+      webServer: npx vite --port 1430
+      tests: e2e/*.spec.ts
+      scope: Pure frontend UI (no Tauri API)
+    native_mode:
+      config: playwright.native.config.ts
+      prerequisite: cargo tauri dev --features e2e-test
+      plugin: src-tauri/plugins/playwright/（tauri-plugin-playwright）
+      bridge: eval-with-callback（oneshot channel + window.eval() + invoke 回调）
+      endpoints: 12 HTTP API（/api/playwright/*）
+      fixtures: e2e/fixtures/（TauriPage, TauriLocator, http-client, claude-check）
+      tests: e2e/native/*.spec.ts
+      security: e2e-test Cargo feature flag，生产构建排除全部 plugin 代码
+    test_suites:
+      - toolbar-panels（面板开关、分屏）
+      - agent-config（Runtime Tab、Provider 恢复、窗口信息）
+      - ai-config（Vue 挂载检查、Tauri invoke 桥、Provider 列表）
+      - menu-navigation（菜单栏、文件文本、按钮交互）
+      - open-recent-projects（localStorage 注入、飞出面板、空状态、清除）

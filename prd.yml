@@ -10,6 +10,10 @@ project:
     backend: Tauri 2 (Rust)
     build_tool: Vite + @tailwindcss/vite
     design_system: Storybook 10 + @storybook/addon-a11y
+    e2e_testing:
+      browser: Playwright (standalone Vite dev server on port 1430)
+      native: tauri-plugin-playwright (custom plugin, HTTP bridge to Tauri WebView, e2e-test feature flag)
+      fixtures: TauriPage + TauriLocator (async API mirroring Playwright semantics)
     fonts:
       ui: Inter
       code: JetBrains Mono
@@ -83,6 +87,7 @@ layout:
         - 日志
         - 终端（可执行真实shell）
         - 分析内容
+        - Agent（会话/回合/事件/差异/审计）
 
 menu_bar:
   position: 页面内顶部（自定义实现）
@@ -135,6 +140,8 @@ menu_bar:
       groups:
         - items:
             - name: AI配置
+              shortcut: null
+            - name: Agent配置
               shortcut: null
             - name: skill配置
               shortcut: null
@@ -274,12 +281,96 @@ data_standard:
     phase1: Git 协作（细粒度文件减少 merge 冲突）
     phase2: 后端服务 push/pull + 乐观锁 + 字段级 diff
 
+ai_config:
+  description: AI 大模型配置面板，管理多个 AI Provider 及其 API Key
+  storage: ~/.archbot/config/providers.yml（Provider 定义） + 加密密钥库（API Key）
+  features:
+    - 内置 9 个 Provider（Anthropic/OpenAI/DeepSeek/Groq/xAI/Google/OpenRouter/Together AI/DeepInfra）
+    - 自定义 Provider 添加/编辑/删除
+    - 模型列表管理（添加/删除模型，设置默认模型）
+    - API Key 加密存储（AES-256-GCM，machine_id 派生密钥）
+    - 连接验证（调用 Provider API 验证模型可用性）
+    - 设为默认 Provider（选择优先级最高，持久化到 settings.json）
+    - 只显示已验证 Provider（has_api_key=true）到 Agent 配置页面
+  ui:
+    layout: 左侧 Provider 列表（排序：默认优先） + 右侧详情编辑器
+    provider_card: 名称 + 协议标签 + API Key 状态指示灯
+    default_indicator: 琥珀色标签 "默认"
+    model_list: 标签式展示，悬停显示设默认/删除按钮，默认模型高亮
+
+agent_runtime:
+  description: 外部 Agent 运行时管理（Claude Code / OpenCode / Hermes / OpenClaw）
+  config_file:
+    default: src-tauri/config/runtimes.default.yml（打包内置）
+    user: ~/.archbot/config/runtimes.yml（首次启动从 default 复制，后续用户修改保存于此）
+  architecture:
+    pattern: Adapter 模式（AgentAdapter trait，每 runtime 独立实现）
+    modules:
+      - version_manager: 版本检测（三层：symlink → executable --version → system PATH）、安装（find_on_path + symlink）、切换、回滚
+      - session_manager: AgentSession + AgentTurn CRUD，SeaORM + SQLite 持久化
+      - adapter_manager: 健康检查、能力查询，AgentAdapter trait 统一接口
+      - event_stream: StandardEvent 事件总线，16 种事件类型，SSE 推送
+      - context_assembly: 滑动窗口历史压缩、上下文装配
+      - file_control: 回合前后文件快照、差异扫描、文件回滚（含路径穿越防护）
+      - shell_control: 命令白名单校验、危险命令拦截（rm/sudo/ssh 等）
+      - launcher: 子进程启动、隔离 Home 目录部署
+    database:
+      tables: 11 张（agent_runtime, agent_runtime_version, agent_adapter, agent_session, agent_turn, agent_event, agent_artifact, agent_file_change, agent_decision, agent_context_snapshot, agent_audit_log）
+      orm: SeaORM + SQLite（~/.archbot/data/archbot.db）
+  security:
+    - runtime_name 白名单校验（6 个公共函数，防路径穿越）
+    - 文件操作路径校验（validate_path_in_project）
+    - 命令白名单（shell_control extract_command_name + validate）
+    - provider_id 持久化（非 env var，存为 RuntimeEntry 顶层字段）
+
+agent_config_panel:
+  description: Agent 运行时配置面板，为每个 Runtime 选择 AI Provider 和模型
+  ui:
+    layout: 顶部 Tab 切换 Runtime + 下方 4 个配置区
+    sections:
+      - "安装: 状态显示 + 版本选择下拉 + Install 按钮"
+      - "更新与回滚: Check Update + Rollback 按钮"
+      - "AI Provider 与模型: 已验证 Provider 卡片列表，点击选中展开模型选择下拉"
+      - "连接验证: Validate 按钮 + 结果显示"
+    auto_save: 点击 Provider 卡片 → 自动选择默认模型 → 自动持久化到 runtimes.yml；切换模型 → 立即自动持久化
+  persistence:
+    mechanism: 前端 autoSaveConfig() → invoke('agent_save_config') → 写入 RuntimeEntry.provider_id + env 变量 → runtimes.yml
+    restore: 页面加载 → agent_get_status → 读取 config.provider_id → 恢复选中状态
+
+e2e_testing:
+  description: 端到端测试方案
+  modes:
+    browser:
+      config: playwright.config.ts
+      target: Vite dev server (port 1430)，纯浏览器前端测试
+      scope: 面板开关、分屏拖拽等不依赖 Tauri API 的 UI 交互
+    native:
+      config: playwright.native.config.ts
+      target: Tauri 原生窗口（需 cargo tauri dev --features e2e-test 运行中）
+      plugin: tauri-plugin-playwright（本地 crate，src-tauri/plugins/playwright/）
+      bridge: eval-with-callback 模式（oneshot channel，window.eval() + invoke 回调）
+      endpoints: 12 个 HTTP API（eval/click/fill/text/attribute/count/wait/visible/checked/hover/screenshot/info）
+      fixtures:
+        - TauriPage: 窗口操作、截图、等待、locator 工厂
+        - TauriLocator: 点击/填充/悬停/文本/属性/可见性/断言（异步 API）
+        - Claude Code 检测: globalSetup 自动检查 + 安装 @anthropic-ai/claude-code
+      security: e2e-test feature flag，生产构建排除全部 plugin 代码和路由
+  test_suites:
+    browser:
+      - e2e/toolbar-panels.spec.ts（5 个测试）
+    native:
+      - e2e/native/toolbar-panels.spec.ts（5 个测试）
+      - e2e/native/agent-config.spec.ts（3 个测试）
+      - e2e/native/ai-config.spec.ts（3 个测试）
+      - e2e/native/menu-navigation.spec.ts（3 个测试）
+      - e2e/native/open-recent-projects.spec.ts（6 个测试，含 localStorage 数据注入）
+
 iteration:
   current:
-    name: v0.1 - UI骨架
+    name: v0.2 - Agent 控制平面 + E2E 测试
     scope:
       - UI骨架（整体布局+菜单+各区域占位）
-      - Element Plus集成
+      - Element Plus → PrimeVue (Unstyled) + Tailwind CSS v4 迁移
       - 无边框窗口配置
       - 可拖拽分割面板
       - 菜单栏完整交互（展开/悬浮切换/快捷键显示）
@@ -295,7 +386,15 @@ iteration:
       - 软件注册（硬件指纹+RSA验证码+license文件防篡改+受限功能置灰+debug模式绕过）
       - 文件系统抽象层（FsBackend trait + LocalFs + RemoteFs，6个操作+8个Tauri commands）
       - LanceDB 嵌入式向量数据库（Rust 原生，4 个 Tauri commands：建表/插入/搜索/列表）
-      - LanceDB 数据存储于 ~/.ArchBot/lancedb/，支持 FixedSizeList 向量 + ANN 搜索
+      - AI Provider 配置面板（9个内置Provider，API Key加密存储，连接验证，默认Provider选择）
+      - Agent Runtime 管理（4个运行时：Claude Code/OpenCode/Hermes/OpenClaw）
+      - Agent 配置面板（Provider选择+模型选择，自动持久化到 runtimes.yml）
+      - Agent 版本管理（安装/更新/回滚，三层版本检测，安全白名单校验）
+      - Agent 会话/回合管理（11张DB表，SeaORM + SQLite）
+      - tauri-plugin-playwright（自定义E2E插件，HTTP→WebView桥梁，e2e-test feature flag安全隔离）
+      - Playwright 自定义 Fixture（TauriPage + TauriLocator，异步API）
+      - E2E 测试套件：浏览器模式5个 + 原生模式20个
+      - Claude Code CLI 自动安装检测（E2E globalSetup）
     excluded:
       - 其他菜单项实际功能逻辑
       - 各区域具体业务内容

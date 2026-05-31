@@ -86,7 +86,7 @@
 - [x] 10.3 Run `cargo check` and `cargo clippy` — fix all warnings
 - [x] 10.4 Run `cargo test` — ensure all unit tests pass with 80%+ coverage on new modules
 - [x] 10.5 Run `cargo fmt` — format all Rust source files
-- [ ] 10.6 End-to-end test: create session → execute turn → verify SSE events → verify file changes → verify audit log
-- [ ] 10.7 Update `prd.yml` with agent control plane integration details
-- [ ] 10.8 Update `function-map.yml` with new module mappings
-- [ ] 10.9 Security review: verify no hardcoded secrets, input validation at boundaries, audit log completeness
+- [x] 10.6 End-to-end test: create session → execute turn → verify SSE events → verify file changes → verify audit log
+- [x] 10.7 Update `prd.yml` with agent control plane integration details
+- [x] 10.8 Update `function-map.yml` with new module mappings
+- [x] 10.9 Security review: verify no hardcoded secrets, input validation at boundaries, audit log completeness
