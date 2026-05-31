@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use std::sync::OnceLock;
+use tokio::sync::broadcast;
 use uuid::Uuid;
 
 // ─── Standard Event Types ───
@@ -90,122 +91,69 @@ impl StandardEvent {
     }
 
     pub fn session_created(session_id: &str, runtime: &str) -> Self {
-        Self::new(
-            session_id,
-            "",
-            runtime,
-            EventType::SessionCreated,
-            serde_json::json!({}),
-        )
+        Self::new(session_id, "", runtime, EventType::SessionCreated, serde_json::json!({}))
     }
 
     pub fn session_closed(session_id: &str) -> Self {
-        Self::new(
-            session_id,
-            "",
-            "",
-            EventType::SessionClosed,
-            serde_json::json!({}),
-        )
+        Self::new(session_id, "", "", EventType::SessionClosed, serde_json::json!({}))
     }
 
     pub fn turn_started(session_id: &str, turn_id: &str, runtime: &str) -> Self {
-        Self::new(
-            session_id,
-            turn_id,
-            runtime,
-            EventType::TurnStarted,
-            serde_json::json!({}),
-        )
+        Self::new(session_id, turn_id, runtime, EventType::TurnStarted, serde_json::json!({}))
     }
 
     pub fn turn_delta(session_id: &str, turn_id: &str, text: &str, runtime: &str) -> Self {
         Self::new(
-            session_id,
-            turn_id,
-            runtime,
-            EventType::TurnDelta,
+            session_id, turn_id, runtime, EventType::TurnDelta,
             serde_json::json!({"text": text}),
         )
     }
 
     pub fn turn_tool_started(session_id: &str, turn_id: &str, tool: &str, runtime: &str) -> Self {
         Self::new(
-            session_id,
-            turn_id,
-            runtime,
-            EventType::TurnToolStarted,
+            session_id, turn_id, runtime, EventType::TurnToolStarted,
             serde_json::json!({"tool": tool}),
         )
     }
 
     pub fn turn_tool_finished(session_id: &str, turn_id: &str, tool: &str, runtime: &str) -> Self {
         Self::new(
-            session_id,
-            turn_id,
-            runtime,
-            EventType::TurnToolFinished,
+            session_id, turn_id, runtime, EventType::TurnToolFinished,
             serde_json::json!({"tool": tool}),
         )
     }
 
     pub fn turn_file_changed(
-        session_id: &str,
-        turn_id: &str,
-        path: &str,
-        change_type: &str,
-        runtime: &str,
+        session_id: &str, turn_id: &str, path: &str, change_type: &str, runtime: &str,
     ) -> Self {
         Self::new(
-            session_id,
-            turn_id,
-            runtime,
-            EventType::TurnFileChanged,
+            session_id, turn_id, runtime, EventType::TurnFileChanged,
             serde_json::json!({"path": path, "change_type": change_type}),
         )
     }
 
     pub fn turn_completed(session_id: &str, turn_id: &str) -> Self {
-        Self::new(
-            session_id,
-            turn_id,
-            "",
-            EventType::TurnCompleted,
-            serde_json::json!({}),
-        )
+        Self::new(session_id, turn_id, "", EventType::TurnCompleted, serde_json::json!({}))
     }
 
     pub fn turn_failed(session_id: &str, turn_id: &str, error: &str) -> Self {
-        Self::new(
-            session_id,
-            turn_id,
-            "",
-            EventType::TurnFailed,
-            serde_json::json!({"error": error}),
-        )
+        Self::new(session_id, turn_id, "", EventType::TurnFailed, serde_json::json!({"error": error}))
     }
 
     pub fn turn_error(session_id: &str, turn_id: &str, error: &str, runtime: &str) -> Self {
         Self::new(
-            session_id,
-            turn_id,
-            runtime,
-            EventType::TurnError,
+            session_id, turn_id, runtime, EventType::TurnError,
             serde_json::json!({"error": error}),
         )
     }
 
     pub fn runtime_health_changed(runtime: &str, available: bool) -> Self {
         Self::new(
-            "",
-            "",
-            runtime,
-            EventType::RuntimeHealthChanged,
+            "", "", runtime, EventType::RuntimeHealthChanged,
             serde_json::json!({"available": available}),
         )
     }
 
-    // SSE formatted output
     pub fn to_sse(&self) -> String {
         format!(
             "event: {}\ndata: {}\n\n",
@@ -221,10 +169,12 @@ pub type EventQuery = StandardEvent;
 
 // ─── Event Bus ───
 
-/// In-process event bus using tokio broadcast for fan-out to SSE clients.
-/// Events are also stored in an in-memory backlog for late-join/replay.
+/// In-process event bus with tokio broadcast for fan-out to SSE clients.
+/// Events are stored in an in-memory backlog for late-join/replay and
+/// broadcast to all active subscribers in real-time.
 pub struct EventBus {
-    events: Mutex<Vec<StandardEvent>>,
+    tx: broadcast::Sender<StandardEvent>,
+    backlog: Mutex<Vec<StandardEvent>>,
 }
 
 static EVENT_BUS: OnceLock<EventBus> = OnceLock::new();
@@ -232,26 +182,35 @@ static EVENT_BUS: OnceLock<EventBus> = OnceLock::new();
 impl EventBus {
     pub fn global() -> &'static EventBus {
         EVENT_BUS.get_or_init(|| EventBus {
-            events: Mutex::new(Vec::new()),
+            tx: broadcast::channel(1024).0,
+            backlog: Mutex::new(Vec::new()),
         })
     }
 
-    /// Publish an event to the backlog (and in v2, to broadcast channel).
+    /// Publish an event to all subscribers and persist to the backlog.
     pub fn publish(&self, event: StandardEvent) {
-        if let Ok(mut events) = self.events.lock() {
-            // Keep last 10,000 events max
-            if events.len() > 10_000 {
-                let split_point = events.len() - 5_000;
-                *events = events.split_off(split_point);
+        // Store in backlog
+        if let Ok(mut backlog) = self.backlog.lock() {
+            if backlog.len() > 10_000 {
+                let split_point = backlog.len() - 5_000;
+                *backlog = backlog.split_off(split_point);
             }
-            events.push(event);
+            backlog.push(event.clone());
         }
+        // Broadcast to all subscribers (non-blocking; ignored if no receivers)
+        let _ = self.tx.send(event);
+    }
+
+    /// Subscribe to new events via broadcast channel.
+    /// Returns a receiver that gets every event published after this call.
+    pub fn subscribe(&self) -> broadcast::Receiver<StandardEvent> {
+        self.tx.subscribe()
     }
 
     /// Query events for a specific turn (for replay / late join).
     pub fn query_by_turn(&self, turn_id: &str) -> Vec<StandardEvent> {
-        if let Ok(events) = self.events.lock() {
-            events
+        if let Ok(backlog) = self.backlog.lock() {
+            backlog
                 .iter()
                 .filter(|e| e.turn_id == turn_id)
                 .cloned()
@@ -263,8 +222,8 @@ impl EventBus {
 
     /// Query events for a session.
     pub fn query_by_session(&self, session_id: &str) -> Vec<StandardEvent> {
-        if let Ok(events) = self.events.lock() {
-            events
+        if let Ok(backlog) = self.backlog.lock() {
+            backlog
                 .iter()
                 .filter(|e| e.session_id == session_id)
                 .cloned()
@@ -276,15 +235,21 @@ impl EventBus {
 
     /// Get events after a specific event_id (for Last-Event-Id replay).
     pub fn query_after(&self, last_event_id: &str) -> Vec<StandardEvent> {
-        if let Ok(events) = self.events.lock() {
-            let maybe_idx = events.iter().position(|e| e.event_id == last_event_id);
+        if let Ok(backlog) = self.backlog.lock() {
+            let maybe_idx = backlog.iter().position(|e| e.event_id == last_event_id);
             match maybe_idx {
-                Some(idx) => events[(idx + 1)..].to_vec(),
+                Some(idx) => backlog[(idx + 1)..].to_vec(),
                 None => vec![],
             }
         } else {
             vec![]
         }
+    }
+
+    /// Count of events in the backlog.
+    #[allow(dead_code)]
+    pub fn backlog_len(&self) -> usize {
+        self.backlog.lock().map(|b| b.len()).unwrap_or(0)
     }
 }
 
@@ -297,18 +262,52 @@ use axum::{
 use futures::stream;
 use std::convert::Infallible;
 use std::time::Duration;
+use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
+use tokio_stream::StreamExt;
 
+/// SSE handler that replays existing turn events then streams new ones in real-time.
+///
+/// The handler first replays all events for the given turn from the backlog,
+/// then subscribes to the broadcast channel for live events filtered to this turn.
 pub async fn sse_handler(
     Path((_session_id, turn_id)): Path<(String, String)>,
-) -> Sse<impl futures::Stream<Item = Result<Event, Infallible>>> {
+) -> Sse<impl stream::Stream<Item = Result<Event, Infallible>>> {
     let bus = EventBus::global();
+
+    // Subscribe BEFORE querying backlog to avoid race-condition gaps.
+    // Events published between subscribe and query will be in both backlog and
+    // broadcast stream — near-instant replay means duplicates are unlikely in practice.
+    let rx = bus.subscribe();
     let existing = bus.query_by_turn(&turn_id);
 
-    let event_stream = stream::iter(existing.into_iter().map(|evt| {
-        Ok(Event::default()
-            .event(evt.event_type.clone())
-            .data(serde_json::to_string(&evt).unwrap_or_default()))
-    }));
+    // Phase 1: replay existing events
+    let replay = stream::iter(existing.into_iter().map(event_to_sse));
 
-    Sse::new(event_stream).keep_alive(KeepAlive::new().interval(Duration::from_secs(15)))
+    // Phase 2: stream live events, filtered to this turn
+    let turn_id_clone = turn_id.clone();
+    let live = BroadcastStream::new(rx).filter_map(move |result| {
+        match result {
+            Ok(evt) if evt.turn_id == turn_id_clone => Some(event_to_sse(evt)),
+            Ok(_) => None, // skip events for other turns
+            Err(BroadcastStreamRecvError::Lagged(skipped)) => {
+                Some(Ok(Event::default()
+                    .event("turn.warning")
+                    .data(serde_json::json!({
+                        "event_id": Uuid::new_v4().to_string(),
+                        "event_type": "turn.warning",
+                        "payload": {"message": format!("Event stream lagged, {} events skipped", skipped)}
+                    }).to_string())))
+            }
+        }
+    });
+
+    let combined = replay.chain(live);
+    Sse::new(combined).keep_alive(KeepAlive::new().interval(Duration::from_secs(15)))
+}
+
+fn event_to_sse(evt: StandardEvent) -> Result<Event, Infallible> {
+    Ok(Event::default()
+        .event(evt.event_type.clone())
+        .data(serde_json::to_string(&evt).unwrap_or_default()))
 }

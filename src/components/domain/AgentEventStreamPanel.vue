@@ -22,7 +22,7 @@ const eventTypes = [
 
 function connect() {
   if (!agentStore.selectedSessionId || !agentStore.selectedTurnId) return
-  const url = `http://127.0.0.1:1421/api/agent/sessions/${agentStore.selectedSessionId}/turns/${agentStore.selectedTurnId}/events`
+  const url = `http://127.0.0.1:1421/api/agent/sessions/${agentStore.selectedSessionId}/turns/${agentStore.selectedTurnId}/stream`
 
   eventSource = new EventSource(url)
   connected.value = true

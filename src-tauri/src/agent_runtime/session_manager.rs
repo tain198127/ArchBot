@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::sync::{Mutex, OnceLock};
 use uuid::Uuid;
 
 use super::audit::{AuditEntry, AuditSeverity};
@@ -7,6 +8,13 @@ use super::turn_config::{FileChange, TurnResult};
 use super::turn_executor::execute_turn;
 use crate::db::{self, DbBackend};
 use serde_json::Value;
+
+/// In-memory session store — fallback when DB is not connected (e.g. no project open).
+static SESSION_STORE: OnceLock<Mutex<Vec<AgentSession>>> = OnceLock::new();
+
+fn session_store() -> &'static Mutex<Vec<AgentSession>> {
+    SESSION_STORE.get_or_init(|| Mutex::new(Vec::new()))
+}
 
 // ─── Session ───
 
@@ -91,6 +99,38 @@ impl SessionManager {
             updated_at: now,
         };
 
+        // Persist to DB if available
+        if let Ok(rt) = tokio::runtime::Handle::try_current() {
+            let s = session.clone();
+            let _ = rt.block_on(async {
+                let db_cell = db::local_db_cell().lock().await;
+                if let Some(backend) = db_cell.as_ref() {
+                    let mut data = db::DbRow::new();
+                    data.insert("session_id".into(), Value::String(s.session_id.clone()));
+                    data.insert("title".into(), Value::String(s.title.clone()));
+                    data.insert("goal".into(), Value::String(s.goal.clone()));
+                    data.insert("project_id".into(), Value::String(s.project_id.clone()));
+                    data.insert("runtime_type".into(), Value::String(s.runtime_type.clone()));
+                    data.insert("default_model".into(), Value::String(s.default_model.clone()));
+                    data.insert("current_state".into(), Value::String(s.current_state.clone()));
+                    data.insert("status".into(), Value::String(s.status.clone()));
+                    data.insert("created_at".into(), Value::String(s.created_at.clone()));
+                    data.insert("updated_at".into(), Value::String(s.updated_at.clone()));
+                    let _ = backend.insert("agent_session", data).await;
+                }
+                Ok::<_, String>(())
+            });
+        }
+
+        // Persist to in-memory store (always works)
+        if let Ok(mut store) = session_store().lock() {
+            store.push(session.clone());
+            if store.len() > 1000 {
+                let split = store.len() - 500;
+                *store = store.split_off(split);
+            }
+        }
+
         // Emit event
         let bus = EventBus::global();
         bus.publish(StandardEvent::session_created(
@@ -102,135 +142,86 @@ impl SessionManager {
     }
 
     pub fn get(&self, session_id: &str) -> Result<Option<AgentSession>, String> {
-        // Query from DB via the generic DbBackend
-        let rt = tokio::runtime::Handle::current();
-        let session_id = session_id.to_string();
+        // 1. Check in-memory store first
+        if let Ok(store) = session_store().lock() {
+            if let Some(s) = store.iter().find(|s| s.session_id == session_id) {
+                return Ok(Some(s.clone()));
+            }
+        }
+
+        // 2. Fall back to DB
+        let rt = match tokio::runtime::Handle::try_current() {
+            Ok(rt) => rt,
+            Err(_) => return Ok(None),
+        };
+        let sid = session_id.to_string();
         rt.block_on(async {
             let db_cell = db::local_db_cell().lock().await;
-            let backend = db_cell.as_ref().ok_or("db not connected")?;
-            backend.find_by_id("agent_session", &session_id).await
-        })
-        .map(|row_opt| {
-            row_opt.map(|row| AgentSession {
-                session_id: row
-                    .get("session_id")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .into(),
-                title: row
-                    .get("title")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .into(),
-                goal: row
-                    .get("goal")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .into(),
-                project_id: row
-                    .get("project_id")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .into(),
-                runtime_type: row
-                    .get("runtime_type")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .into(),
-                default_model: row
-                    .get("default_model")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .into(),
-                current_state: row
-                    .get("current_state")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .into(),
-                status: row
-                    .get("status")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("active")
-                    .into(),
-                created_at: row
-                    .get("created_at")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .into(),
-                updated_at: row
-                    .get("updated_at")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .into(),
-            })
+            let backend = match db_cell.as_ref() {
+                Some(b) => b,
+                None => return Ok(None),
+            };
+            let row_opt = backend.find_by_id("agent_session", &sid).await?;
+            Ok(row_opt.map(|row| AgentSession {
+                session_id: row.get("session_id").and_then(|v| v.as_str()).unwrap_or("").into(),
+                title: row.get("title").and_then(|v| v.as_str()).unwrap_or("").into(),
+                goal: row.get("goal").and_then(|v| v.as_str()).unwrap_or("").into(),
+                project_id: row.get("project_id").and_then(|v| v.as_str()).unwrap_or("").into(),
+                runtime_type: row.get("runtime_type").and_then(|v| v.as_str()).unwrap_or("").into(),
+                default_model: row.get("default_model").and_then(|v| v.as_str()).unwrap_or("").into(),
+                current_state: row.get("current_state").and_then(|v| v.as_str()).unwrap_or("").into(),
+                status: row.get("status").and_then(|v| v.as_str()).unwrap_or("active").into(),
+                created_at: row.get("created_at").and_then(|v| v.as_str()).unwrap_or("").into(),
+                updated_at: row.get("updated_at").and_then(|v| v.as_str()).unwrap_or("").into(),
+            }))
         })
     }
 
     pub fn list_all(&self) -> Result<Vec<AgentSession>, String> {
-        let rt = tokio::runtime::Handle::current();
-        rt.block_on(async {
-            let db_cell = db::local_db_cell().lock().await;
-            let backend = db_cell.as_ref().ok_or("db not connected")?;
-            let result = backend
-                .find_all("agent_session", db::QueryParams::default())
-                .await?;
-            Ok(result
-                .rows
-                .iter()
-                .map(|row| AgentSession {
-                    session_id: row
-                        .get("session_id")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .into(),
-                    title: row
-                        .get("title")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .into(),
-                    goal: row
-                        .get("goal")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .into(),
-                    project_id: row
-                        .get("project_id")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .into(),
-                    runtime_type: row
-                        .get("runtime_type")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .into(),
-                    default_model: row
-                        .get("default_model")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .into(),
-                    current_state: row
-                        .get("current_state")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .into(),
-                    status: row
-                        .get("status")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("active")
-                        .into(),
-                    created_at: row
-                        .get("created_at")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .into(),
-                    updated_at: row
-                        .get("updated_at")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .into(),
-                })
-                .collect())
-        })
+        let mut sessions: Vec<AgentSession> = Vec::new();
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+        // 1. In-memory store
+        if let Ok(store) = session_store().lock() {
+            for s in store.iter() {
+                seen.insert(s.session_id.clone());
+                sessions.push(s.clone());
+            }
+        }
+
+        // 2. DB (skip duplicates)
+        if let Ok(rt) = tokio::runtime::Handle::try_current() {
+            let _ = rt.block_on(async {
+                let db_cell = db::local_db_cell().lock().await;
+                if let Some(backend) = db_cell.as_ref() {
+                    if let Ok(result) = backend
+                        .find_all("agent_session", db::QueryParams::default())
+                        .await
+                    {
+                        for row in &result.rows {
+                            let sid = row.get("session_id").and_then(|v| v.as_str()).unwrap_or("");
+                            if seen.insert(sid.to_string()) {
+                                sessions.push(AgentSession {
+                                    session_id: sid.into(),
+                                    title: row.get("title").and_then(|v| v.as_str()).unwrap_or("").into(),
+                                    goal: row.get("goal").and_then(|v| v.as_str()).unwrap_or("").into(),
+                                    project_id: row.get("project_id").and_then(|v| v.as_str()).unwrap_or("").into(),
+                                    runtime_type: row.get("runtime_type").and_then(|v| v.as_str()).unwrap_or("").into(),
+                                    default_model: row.get("default_model").and_then(|v| v.as_str()).unwrap_or("").into(),
+                                    current_state: row.get("current_state").and_then(|v| v.as_str()).unwrap_or("").into(),
+                                    status: row.get("status").and_then(|v| v.as_str()).unwrap_or("active").into(),
+                                    created_at: row.get("created_at").and_then(|v| v.as_str()).unwrap_or("").into(),
+                                    updated_at: row.get("updated_at").and_then(|v| v.as_str()).unwrap_or("").into(),
+                                });
+                            }
+                        }
+                    }
+                }
+                Ok::<_, String>(())
+            });
+        }
+
+        Ok(sessions)
     }
 
     pub fn update_status(&self, session_id: &str, new_status: &str) -> Result<(), String> {
@@ -251,20 +242,33 @@ impl SessionManager {
             ));
         }
 
-        let rt = tokio::runtime::Handle::current();
-        let sid = session_id.to_string();
         let status = new_status.to_string();
-        rt.block_on(async {
-            let db_cell = db::local_db_cell().lock().await;
-            let backend = db_cell.as_ref().ok_or("db not connected")?;
-            let mut data = db::DbRow::new();
-            data.insert("status".into(), Value::String(status.clone()));
-            data.insert(
-                "updated_at".into(),
-                Value::String(chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()),
-            );
-            backend.update("agent_session", &sid, data).await
-        })?;
+        let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+
+        // Try DB update
+        if let Ok(rt) = tokio::runtime::Handle::try_current() {
+            let sid = session_id.to_string();
+            let s = status.clone();
+            let n = now.clone();
+            let _ = rt.block_on(async {
+                let db_cell = db::local_db_cell().lock().await;
+                if let Some(backend) = db_cell.as_ref() {
+                    let mut data = db::DbRow::new();
+                    data.insert("status".into(), Value::String(s));
+                    data.insert("updated_at".into(), Value::String(n));
+                    let _ = backend.update("agent_session", &sid, data).await;
+                }
+                Ok::<_, String>(())
+            });
+        }
+
+        // Update in-memory store
+        if let Ok(mut store) = session_store().lock() {
+            if let Some(s) = store.iter_mut().find(|s| s.session_id == session_id) {
+                s.status = status.clone();
+                s.updated_at = now;
+            }
+        }
 
         // Emit event
         if new_status == "closed" {
@@ -314,6 +318,7 @@ impl SessionManager {
             context_files: req.context_files.clone(),
             git_user_name: None,
             git_user_email: None,
+            session_id: Some(req.session_id.clone()),
         })?;
 
         // Emit turn.completed or turn.failed

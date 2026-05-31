@@ -35,6 +35,8 @@ runtimes:
 
     args:
       default:
+        - "--output-format"
+        - "stream-json"
         - "--max-turns"
         - "10"
         - "--permission-mode"

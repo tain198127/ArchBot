@@ -330,11 +330,20 @@ mod tests {
     }
 
     #[test]
-    fn test_detect_versions_empty() {
-        // 使用合法 runtime 名但该 runtime 未安装过 → 应该返回空列表
+    fn test_detect_versions_ok() {
+        // Valid runtime name should return Ok (may have versions or be empty)
         let result = detect_versions("opencode");
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_empty());
+        assert!(result.is_ok(), "detect_versions should succeed for valid runtime name");
+        // Versions may or may not be installed — just verify we get a Vec
+        let versions = result.unwrap();
+        assert!(!versions.iter().any(|v| v.contains("..") || v.contains("/")),
+            "version strings should be clean");
+    }
+
+    #[test]
+    fn test_detect_versions_invalid_name() {
+        let result = detect_versions("../etc");
+        assert!(result.is_err(), "should reject path traversal in runtime name");
     }
 
     #[test]

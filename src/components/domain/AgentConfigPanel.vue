@@ -95,8 +95,9 @@ async function loadProviders() {
   providerLoading.value = true
   try {
     providers.value = await invoke('ai_list_providers')
-  } catch { /* keep defaults */ }
-  finally { providerLoading.value = false }
+  } catch (e: any) {
+    pushLog('error', 'agent:providers', String(e))
+  } finally { providerLoading.value = false }
 }
 
 onMounted(async () => {
@@ -120,7 +121,9 @@ async function refreshRuntimeStatus(runtime: string) {
         state[runtime].selectedProviderId = result.config.provider_id
       }
     }
-  } catch { /* backend not ready */ }
+  } catch (e: any) {
+    pushLog('warn', 'agent:status', `Failed to load ${runtime} status: ${String(e)}`)
+  }
 
   // Set default provider if none selected
   if (!state[runtime].selectedProviderId) {
@@ -225,9 +228,15 @@ function selectModel(rt: string, model: string) {
 async function validateRuntime(runtime: string) {
   const s = state[runtime]
   const provider = providers.value.find(p => p.id === s.selectedProviderId)
-  if (!provider) { toast.error('Please select a provider first'); return }
+  if (!provider) {
+    const msg = 'Please select a provider first'
+    toast.error(msg)
+    pushLog('error', 'agent:validate', msg)
+    return
+  }
   s.validateLoading = true
   s.validateResult = ''
+  pushLog('info', 'agent:validate', `Validating ${runtime} via ${provider.name} (${provider.protocol})...`)
   try {
     const result: any = await invoke('ai_validate_provider', {
       id: s.selectedProviderId,
@@ -236,9 +245,20 @@ async function validateRuntime(runtime: string) {
       baseUrl: provider.base_url,
       model: s.selectedModel,
     })
-    s.validateResult = result.valid ? '✅ Connected' : `❌ ${result.error || 'Validation failed'}`
+    // Backend returns `ok`, not `valid`
+    if (result.ok) {
+      const modelInfo = result.response ? ` — ${result.response}` : ''
+      s.validateResult = `✅ Connected${modelInfo}`
+      pushLog('info', 'agent:validate', `${runtime} connection validated successfully`)
+    } else {
+      const errMsg = result.error || 'Validation failed'
+      s.validateResult = `❌ ${errMsg}`
+      pushLog('error', 'agent:validate', errMsg)
+    }
   } catch (e: any) {
-    s.validateResult = `❌ ${e}`
+    const msg = String(e)
+    s.validateResult = `❌ ${msg}`
+    pushLog('error', 'agent:validate', msg)
   } finally { s.validateLoading = false }
 }
 </script>

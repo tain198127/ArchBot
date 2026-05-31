@@ -30,6 +30,7 @@ pub fn agent_execute_turn(
         context_files,
         git_user_name: None,
         git_user_email: None,
+        session_id: None,
     })
 }
 
@@ -130,14 +131,21 @@ pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
 
     // 7. 发射事件 + 启动子进程
     let bus = EventBus::global();
-    bus.publish(StandardEvent::session_created(&turn_id, &config.runtime)); // 占位 session
-    bus.publish(StandardEvent::turn_started("", &turn_id, &config.runtime));
+    let session_anchor = config.session_id.clone().unwrap_or_else(|| turn_id.clone());
+    bus.publish(StandardEvent::session_created(&session_anchor, &config.runtime));
+    bus.publish(StandardEvent::turn_started(&session_anchor, &turn_id, &config.runtime));
 
     let mut child = launch_isolated_runtime(&launch_config)?;
 
-    // 8. 等待进程退出（带超时）
+    // 8. 等待进程退出（带超时），同时解析 NDJSON 流并实时发射 SSE 事件
     let timeout = std::time::Duration::from_secs(launch_config.timeout_seconds);
-    let (stdout, stderr, status) = wait_with_timeout(&mut child, timeout)?;
+    let (stdout, stderr, status) = wait_with_timeout(
+        &mut child,
+        timeout,
+        &session_anchor,
+        &turn_id,
+        &config.runtime,
+    )?;
 
     fs::write(turn_dir.join("stdout.log"), &stdout).ok();
     fs::write(turn_dir.join("stderr.log"), &stderr).ok();
@@ -173,7 +181,7 @@ pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
     // 对每个文件变更发射事件
     for fc in &file_changes {
         bus.publish(StandardEvent::turn_file_changed(
-            "", &turn_id, &fc.path, &fc.change_type, &config.runtime,
+            &session_anchor, &turn_id, &fc.path, &fc.change_type, &config.runtime,
         ));
     }
 
@@ -194,11 +202,11 @@ pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
 
     let duration_ms = start.elapsed().as_millis() as u64;
     let status_str = if status.success() {
-        bus.publish(StandardEvent::turn_completed("", &turn_id));
+        bus.publish(StandardEvent::turn_completed(&session_anchor, &turn_id));
         "completed".to_string()
     } else {
         let err = format!("failed: exit code {:?}", status.code());
-        bus.publish(StandardEvent::turn_failed("", &turn_id, &err));
+        bus.publish(StandardEvent::turn_failed(&session_anchor, &turn_id, &err));
         err
     };
 
@@ -214,16 +222,20 @@ pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
     })
 }
 
-/// 带超时的进程等待 — 边等边读 stdout/stderr，防止管道缓冲区满导致死锁。
+/// 带超时的进程等待 — 边等边读 stdout/stderr，解析 NDJSON 流并实时发射 SSE 事件。
 fn wait_with_timeout(
     child: &mut Child,
     timeout: std::time::Duration,
+    session_id: &str,
+    turn_id: &str,
+    runtime: &str,
 ) -> Result<(String, String, std::process::ExitStatus), String> {
     let mut stdout_buf = Vec::new();
     let mut stderr_buf = Vec::new();
+    let mut line_buf = Vec::new();
     let start = Instant::now();
+    let bus = EventBus::global();
 
-    // 取出读写句柄，在循环中增量读取
     let mut out_reader = child.stdout.take();
     let mut err_reader = child.stderr.take();
 
@@ -237,6 +249,8 @@ fn wait_with_timeout(
                 if let Some(ref mut r) = err_reader {
                     let _ = r.read_to_end(&mut stderr_buf);
                 }
+                // Parse any remaining lines
+                parse_ndjson_events(&stdout_buf, &mut line_buf, session_id, turn_id, runtime, bus);
                 let stdout = String::from_utf8_lossy(&stdout_buf).to_string();
                 let stderr = String::from_utf8_lossy(&stderr_buf).to_string();
                 return Ok((stdout, stderr, status));
@@ -244,17 +258,19 @@ fn wait_with_timeout(
             Ok(None) => {
                 if start.elapsed() > timeout {
                     let _ = child.kill();
-                    // 超时后仍尝试读已有输出
                     let stdout = String::from_utf8_lossy(&stdout_buf).to_string();
-                    let _stderr = String::from_utf8_lossy(&stderr_buf).to_string();
+                    bus.publish(StandardEvent::turn_error(
+                        session_id, turn_id, "Turn timed out", runtime,
+                    ));
                     return Err(format!(
                         "Turn timed out after {:?}. stdout: {}...",
                         timeout,
                         &stdout[..stdout.len().min(200)]
                     ));
                 }
-                // 增量读取避免管道满
+                // 增量读取避免管道满，同时解析已到达的 NDJSON 行
                 let mut buf = [0u8; 8192];
+                let prev_len = stdout_buf.len();
                 if let Some(ref mut r) = out_reader {
                     match r.read(&mut buf) {
                         Ok(0) => {} // EOF
@@ -271,9 +287,134 @@ fn wait_with_timeout(
                         Err(_) => {}
                     }
                 }
+                // 仅当有新数据时才解析，减少重复工作
+                if stdout_buf.len() > prev_len {
+                    parse_ndjson_events(&stdout_buf, &mut line_buf, session_id, turn_id, runtime, bus);
+                }
                 std::thread::sleep(std::time::Duration::from_millis(100));
             }
             Err(e) => return Err(format!("Failed to wait on child process: {}", e)),
+        }
+    }
+}
+
+/// Parse NDJSON lines from the buffered stdout and emit SSE events for each complete line.
+///
+/// Claude Code `--output-format stream-json` outputs one JSON object per line.
+/// We extract text content and tool use events, mapping them to ArchBot standard events.
+fn parse_ndjson_events(
+    stdout_buf: &[u8],
+    line_buf: &mut Vec<u8>,
+    session_id: &str,
+    turn_id: &str,
+    runtime: &str,
+    bus: &EventBus,
+) {
+    let bus_ref = bus; // borrow checker helper
+    // Process every byte in the buffer, treating line_buf as carry-over from last call
+    for &byte in stdout_buf {
+        line_buf.push(byte);
+        if byte == b'\n' {
+            let line = std::str::from_utf8(line_buf).unwrap_or("");
+            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(line.trim()) {
+                emit_ndjson_event(&parsed, session_id, turn_id, runtime, bus_ref);
+            }
+            line_buf.clear();
+        }
+    }
+}
+
+fn emit_ndjson_event(
+    line: &serde_json::Value,
+    session_id: &str,
+    turn_id: &str,
+    runtime: &str,
+    bus: &EventBus,
+) {
+    let event_type = line.get("type").and_then(|v| v.as_str()).unwrap_or("");
+
+    match event_type {
+        // stream_event with text delta → turn.delta
+        "stream_event" => {
+            if let Some(event) = line.get("event") {
+                // Content block delta (text increment)
+                if let Some(delta) = event.get("delta") {
+                    if let Some(text) = delta.get("text").and_then(|v| v.as_str()) {
+                        if !text.is_empty() {
+                            bus.publish(StandardEvent::turn_delta(session_id, turn_id, text, runtime));
+                        }
+                    }
+                }
+                // Tool use block start
+                if let Some(content_block) = event.get("content_block") {
+                    if content_block.get("type").and_then(|v| v.as_str()) == Some("tool_use") {
+                        let tool_name = content_block
+                            .get("name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("unknown");
+                        bus.publish(StandardEvent::turn_tool_started(
+                            session_id, turn_id, tool_name, runtime,
+                        ));
+                    }
+                }
+            }
+        }
+        // assistant message — extract text as turn.delta
+        "assistant" => {
+            if let Some(message) = line.get("message") {
+                if let Some(content) = message.get("content").and_then(|v| v.as_array()) {
+                    for block in content {
+                        if block.get("type").and_then(|v| v.as_str()) == Some("text") {
+                            if let Some(text) = block.get("text").and_then(|v| v.as_str()) {
+                                if !text.is_empty() {
+                                    bus.publish(StandardEvent::turn_delta(
+                                        session_id, turn_id, text, runtime,
+                                    ));
+                                }
+                            }
+                        }
+                        // Tool use in assistant message
+                        if block.get("type").and_then(|v| v.as_str()) == Some("tool_use") {
+                            let tool_name = block
+                                .get("name")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("unknown");
+                            bus.publish(StandardEvent::turn_tool_started(
+                                session_id, turn_id, tool_name, runtime,
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        // user message with tool result → turn.tool_finished
+        "user" => {
+            if let Some(message) = line.get("message") {
+                if let Some(content) = message.get("content").and_then(|v| v.as_array()) {
+                    for block in content {
+                        if block.get("type").and_then(|v| v.as_str()) == Some("tool_result") {
+                            let tool_id = block
+                                .get("tool_use_id")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("unknown");
+                            bus.publish(StandardEvent::turn_tool_finished(
+                                session_id, turn_id, tool_id, runtime,
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        // error event
+        "error" => {
+            let msg = line
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown error");
+            bus.publish(StandardEvent::turn_error(session_id, turn_id, msg, runtime));
+        }
+        _ => {
+            // Unknown event types are silently ignored (heartbeat, ping, etc.)
         }
     }
 }
@@ -557,6 +698,7 @@ mod tests {
             context_files: vec!["README.md".into()],
             git_user_name: None,
             git_user_email: None,
+            session_id: None,
         };
 
         let result = execute_turn(config);

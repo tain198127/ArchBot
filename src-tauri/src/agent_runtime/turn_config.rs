@@ -9,6 +9,8 @@ pub struct TurnConfig {
     pub context_files: Vec<String>,
     pub git_user_name: Option<String>,
     pub git_user_email: Option<String>,
+    /// Optional session context — enables SSE event streaming with session_id
+    pub session_id: Option<String>,
 }
 
 /// Turn 结果

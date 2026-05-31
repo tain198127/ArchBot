@@ -164,6 +164,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-playwright",
  "tokio",
+ "tokio-stream",
  "tower-http",
  "url",
  "uuid",
@@ -8540,6 +8541,7 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]
