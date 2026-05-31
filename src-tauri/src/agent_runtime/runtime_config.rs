@@ -112,6 +112,7 @@ pub fn build_launch_config(
         allowed_env,
         args,
         timeout_seconds: exec.default_timeout_seconds,
+        stdin_content: None,
     })
 }
 

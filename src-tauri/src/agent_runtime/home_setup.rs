@@ -23,6 +23,10 @@ pub fn setup_isolated_home(config: &IsolatedHomeConfig) -> Result<(), String> {
         let git_name = config.git_user_name.as_deref().unwrap_or("ArchBot");
         let git_email = config.git_user_email.as_deref().unwrap_or("archbot@local");
 
+        // 防注入：换行符会破坏 .gitconfig INI 结构
+        let git_name = git_name.replace(['\n', '\r'], " ");
+        let git_email = git_email.replace(['\n', '\r'], " ");
+
         let gitconfig = format!("[user]\n  name = {}\n  email = {}\n", git_name, git_email);
         fs::write(config.home_path.join(".gitconfig"), &gitconfig).map_err(|e| {
             format!(

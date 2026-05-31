@@ -36,9 +36,9 @@ runtimes:
     args:
       default:
         - "--max-turns"
-        - "1"
-        - "--no-interactive"
-        - "--json-output"
+        - "10"
+        - "--permission-mode"
+        - "acceptEdits"
 
     execution:
       default_timeout_seconds: 1800

@@ -16,6 +16,8 @@ pub struct RuntimeLaunchConfig {
     pub args: Vec<String>,
     /// 超时秒数
     pub timeout_seconds: u64,
+    /// 可选：写入子进程 stdin 的内容（用于传递大段 prompt）
+    pub stdin_content: Option<String>,
 }
 
 /// 隔离 HOME 初始化配置

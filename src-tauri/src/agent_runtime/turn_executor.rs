@@ -1,10 +1,12 @@
 use std::fs;
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Child;
 use std::time::Instant;
 
 use crate::agent_runtime::audit::AuditManager;
+use crate::agent_runtime::event_stream::{EventBus, StandardEvent};
+use crate::agent_runtime::file_control::{self, PreTurnSnapshot};
 use crate::agent_runtime::home_setup::setup_isolated_home;
 use crate::agent_runtime::launcher::launch_isolated_runtime;
 use crate::agent_runtime::runtime_config::{
@@ -56,7 +58,7 @@ pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
         config.git_user_email.as_deref(),
     )?;
 
-    // 注入 API token（从 Secret Manager）
+    // 注入 API token（Secret Manager 优先 → 父进程环境变量 fallback）
     if let Ok(sm) = SecretManager::new(&get_machine_id()) {
         let token_refs = [
             (
@@ -76,58 +78,104 @@ pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
             }
         }
     }
+    // 无论 SecretManager 是否可用，都尝试从父进程环境注入 token
+    let env_token_keys = [
+        ("claude_code", "ANTHROPIC_AUTH_TOKEN"),
+        ("hermes", "HERMES_API_KEY"),
+        ("opencode", "OPENAI_API_KEY"),
+        ("openclaw", "OPENAI_API_KEY"),
+    ];
+    for (rt, env_key) in &env_token_keys {
+        if config.runtime == *rt {
+            if !launch_config.allowed_env.contains_key(*env_key) {
+                if let Ok(token) = std::env::var(env_key) {
+                    launch_config.allowed_env.insert(env_key.to_string(), token);
+                }
+            }
+        }
+    }
+
+    // 注入父进程中的 runtime 配置类环境变量（如 ANTHROPIC_BASE_URL、模型名等）
+    let config_env_keys = ["ANTHROPIC_BASE_URL", "ANTHROPIC_MODEL", "OPENAI_BASE_URL", "OPENAI_MODEL"];
+    for key in &config_env_keys {
+        if !launch_config.allowed_env.contains_key(*key) {
+            if let Ok(val) = std::env::var(key) {
+                launch_config.allowed_env.insert(key.to_string(), val);
+            }
+        }
+    }
 
     // 3. 初始化隔离 HOME
     let home_config = build_home_config(entry)?;
     setup_isolated_home(&home_config)?;
 
-    // 4. 生成输入文件
+    // 4. 创建 turn 目录 + 写入 input.yml（审计用，不传给 Runtime CLI）
     let turn_dir = turn_directory(&config.workspace_root, &turn_id)?;
     fs::create_dir_all(&turn_dir)
         .map_err(|e| format!("Failed to create turn dir {:?}: {}", turn_dir, e))?;
 
-    let input_yml_path = turn_dir.join("input.yml");
-    let prompt_txt_path = turn_dir.join("prompt.txt");
-
     let input_yml = generate_input_yml(&config, &turn_id);
-    let prompt_txt = generate_prompt_txt(&turn_dir);
-
-    fs::write(&input_yml_path, &input_yml)
+    fs::write(turn_dir.join("input.yml"), &input_yml)
         .map_err(|e| format!("Failed to write input.yml: {}", e))?;
-    fs::write(&prompt_txt_path, &prompt_txt)
+    fs::write(turn_dir.join("prompt.txt"), generate_prompt_txt(&turn_dir))
         .map_err(|e| format!("Failed to write prompt.txt: {}", e))?;
 
-    // 5. 构建 Runtime 启动参数
-    let mut args = launch_config.args.clone();
-    // 插入输入/输出路径参数
-    args.push("--input-file".into());
-    args.push(input_yml_path.to_string_lossy().to_string());
-    args.push("--prompt-file".into());
-    args.push(prompt_txt_path.to_string_lossy().to_string());
-    args.push("--output-dir".into());
-    args.push(turn_dir.to_string_lossy().to_string());
-    launch_config.args = args;
+    // 5. 构建自包含 prompt，写入 stdin（不传文件路径 CLI 参数）
+    let stdin_prompt = build_stdin_prompt(&config, &input_yml, &turn_dir);
+    launch_config.stdin_content = Some(stdin_prompt);
 
-    // 6. 启动 Runtime 子进程
+    // 6. 捕获执行前快照
+    let project_root = Path::new(&config.workspace_root);
+    let snapshot = PreTurnSnapshot::capture(&turn_id, project_root).ok();
+
+    // 7. 发射事件 + 启动子进程
+    let bus = EventBus::global();
+    bus.publish(StandardEvent::session_created(&turn_id, &config.runtime)); // 占位 session
+    bus.publish(StandardEvent::turn_started("", &turn_id, &config.runtime));
+
     let mut child = launch_isolated_runtime(&launch_config)?;
 
-    // 7. 等待进程退出（带超时）
+    // 8. 等待进程退出（带超时）
     let timeout = std::time::Duration::from_secs(launch_config.timeout_seconds);
     let (stdout, stderr, status) = wait_with_timeout(&mut child, timeout)?;
 
-    // 写入 stdout/stderr 日志
-    let _ = fs::write(turn_dir.join("stdout.log"), &stdout);
-    let _ = fs::write(turn_dir.join("stderr.log"), &stderr);
+    fs::write(turn_dir.join("stdout.log"), &stdout).ok();
+    fs::write(turn_dir.join("stderr.log"), &stderr).ok();
 
-    // 8. 解析结果
+    // 9. 解析结果 — 优先读 Runtime 写入的 result.md，否则回退到 stdout
     let result_md_path = turn_dir.join("result.md");
+    if !result_md_path.exists() && !stdout.trim().is_empty() {
+        fs::write(&result_md_path, &stdout).ok();
+    }
     let result_md = if result_md_path.exists() {
         Some(result_md_path.to_string_lossy().to_string())
     } else {
         None
     };
 
-    let file_changes = parse_file_changes(&turn_dir.join("file_changes.json"));
+    // 10. 扫描文件变更（与快照对比）
+    let file_changes = match &snapshot {
+        Some(snap) => {
+            match file_control::scan_file_changes(project_root, snap) {
+                Ok(diffs) => diffs
+                    .into_iter()
+                    .map(|d| FileChange {
+                        path: d.path,
+                        change_type: d.change_type,
+                    })
+                    .collect(),
+                Err(_) => parse_file_changes(&turn_dir.join("file_changes.json")),
+            }
+        }
+        None => parse_file_changes(&turn_dir.join("file_changes.json")),
+    };
+
+    // 对每个文件变更发射事件
+    for fc in &file_changes {
+        bus.publish(StandardEvent::turn_file_changed(
+            "", &turn_id, &fc.path, &fc.change_type, &config.runtime,
+        ));
+    }
 
     let stdout_tail = if stdout.len() > 2000 {
         format!("...(truncated)\n{}", &stdout[stdout.len() - 2000..])
@@ -135,7 +183,7 @@ pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
         stdout.clone()
     };
 
-    // 9. 文件访问审计
+    // 11. 审计
     let audit_manager = AuditManager::new();
     let accessed = collect_accessed_paths(&turn_dir);
     let violations = audit_manager.audit(&accessed);
@@ -144,10 +192,14 @@ pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
         .map(|v| format!("{:?}: {}", v.rule.severity, v.accessed_path))
         .collect();
 
+    let duration_ms = start.elapsed().as_millis() as u64;
     let status_str = if status.success() {
+        bus.publish(StandardEvent::turn_completed("", &turn_id));
         "completed".to_string()
     } else {
-        format!("failed: exit code {:?}", status.code())
+        let err = format!("failed: exit code {:?}", status.code());
+        bus.publish(StandardEvent::turn_failed("", &turn_id, &err));
+        err
     };
 
     Ok(TurnResult {
@@ -158,35 +210,68 @@ pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
         result_md_path: result_md,
         file_changes,
         audit_violations,
-        duration_ms: start.elapsed().as_millis() as u64,
+        duration_ms,
     })
 }
 
-/// 带超时的进程等待
+/// 带超时的进程等待 — 边等边读 stdout/stderr，防止管道缓冲区满导致死锁。
 fn wait_with_timeout(
     child: &mut Child,
     timeout: std::time::Duration,
 ) -> Result<(String, String, std::process::ExitStatus), String> {
+    let mut stdout_buf = Vec::new();
+    let mut stderr_buf = Vec::new();
     let start = Instant::now();
+
+    // 取出读写句柄，在循环中增量读取
+    let mut out_reader = child.stdout.take();
+    let mut err_reader = child.stderr.take();
+
     loop {
         match child.try_wait() {
             Ok(Some(status)) => {
-                let mut stdout = String::new();
-                let mut stderr = String::new();
-                if let Some(mut out) = child.stdout.take() {
-                    let _ = out.read_to_string(&mut stdout);
+                // 进程已退出，读完剩余数据
+                if let Some(ref mut r) = out_reader {
+                    let _ = r.read_to_end(&mut stdout_buf);
                 }
-                if let Some(mut err) = child.stderr.take() {
-                    let _ = err.read_to_string(&mut stderr);
+                if let Some(ref mut r) = err_reader {
+                    let _ = r.read_to_end(&mut stderr_buf);
                 }
+                let stdout = String::from_utf8_lossy(&stdout_buf).to_string();
+                let stderr = String::from_utf8_lossy(&stderr_buf).to_string();
                 return Ok((stdout, stderr, status));
             }
             Ok(None) => {
                 if start.elapsed() > timeout {
                     let _ = child.kill();
-                    return Err(format!("Turn timed out after {:?}", timeout));
+                    // 超时后仍尝试读已有输出
+                    let stdout = String::from_utf8_lossy(&stdout_buf).to_string();
+                    let _stderr = String::from_utf8_lossy(&stderr_buf).to_string();
+                    return Err(format!(
+                        "Turn timed out after {:?}. stdout: {}...",
+                        timeout,
+                        &stdout[..stdout.len().min(200)]
+                    ));
                 }
-                std::thread::sleep(std::time::Duration::from_millis(500));
+                // 增量读取避免管道满
+                let mut buf = [0u8; 8192];
+                if let Some(ref mut r) = out_reader {
+                    match r.read(&mut buf) {
+                        Ok(0) => {} // EOF
+                        Ok(n) => stdout_buf.extend_from_slice(&buf[..n]),
+                        Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
+                        Err(_) => {}
+                    }
+                }
+                if let Some(ref mut r) = err_reader {
+                    match r.read(&mut buf) {
+                        Ok(0) => {}
+                        Ok(n) => stderr_buf.extend_from_slice(&buf[..n]),
+                        Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
+                        Err(_) => {}
+                    }
+                }
+                std::thread::sleep(std::time::Duration::from_millis(100));
             }
             Err(e) => return Err(format!("Failed to wait on child process: {}", e)),
         }
@@ -364,6 +449,54 @@ fn generate_prompt_txt(turn_dir: &PathBuf) -> String {
     )
 }
 
+/// 构建自包含的 stdin prompt — 把所有上下文内联到一段文本中，
+/// 通过管道传给 Runtime 子进程的 stdin（而非依赖虚构的 CLI 参数）。
+fn build_stdin_prompt(config: &TurnConfig, input_yml: &str, turn_dir: &PathBuf) -> String {
+    let files = if config.context_files.is_empty() {
+        String::from("（无额外上下文文件）")
+    } else {
+        config
+            .context_files
+            .iter()
+            .map(|f| format!("  - {}", f))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+
+    format!(
+        r#"You are executing a turn in an ArchBot agent session.
+
+## Structured Input (YAML)
+{input_yml}
+
+## Output Contract
+- Write your final result (markdown) to: {turn_dir}/result.md
+- If you modified, created, or deleted any files, list them in JSON array format at: {turn_dir}/file_changes.json
+  Example: [{{"path": "src/main.rs", "change_type": "modified"}}, ...]
+
+## User Message
+{user_message}
+
+## Context Files
+{context_files}
+
+## Instructions
+1. Read the structured YAML input above — it defines the session header, current turn, working context, and execution policy.
+2. Your current working directory is the project root. Use Read/Write/Edit/Bash tools as needed.
+3. Follow the execution_policy: timeout={timeout}s, allow_file_write=true, allow_shell=false.
+4. Process the user's message and produce a thorough result.
+5. Write result.md and file_changes.json as specified above.
+
+Proceed with execution now.
+"#,
+        input_yml = input_yml,
+        turn_dir = turn_dir.display(),
+        user_message = config.user_message,
+        context_files = files,
+        timeout = 1800u32,
+    )
+}
+
 fn parse_file_changes(path: &PathBuf) -> Vec<FileChange> {
     if !path.exists() {
         return vec![];
@@ -375,8 +508,6 @@ fn parse_file_changes(path: &PathBuf) -> Vec<FileChange> {
 }
 
 fn collect_accessed_paths(turn_dir: &PathBuf) -> Vec<String> {
-    // 第一版：扫描 stdout.log 中所有文件路径模式
-    // 后续可通过 strace/dtruss 包装获得更精确的列表
     let stdout_path = turn_dir.join("stdout.log");
     if !stdout_path.exists() {
         return vec![];
@@ -388,5 +519,76 @@ fn collect_accessed_paths(turn_dir: &PathBuf) -> Vec<String> {
             .map(|line| line.to_string())
             .collect(),
         Err(_) => vec![],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// End-to-end test: 用真实 claude 二进制执行一个简单 turn。
+    /// 需要 ANTHROPIC_AUTH_TOKEN 环境变量和 claude 在 /opt/homebrew/bin/claude。
+    #[test]
+    fn test_execute_turn_with_real_claude() {
+        // 跳过条件
+        if std::env::var("ANTHROPIC_AUTH_TOKEN").is_err() {
+            eprintln!("SKIP: ANTHROPIC_AUTH_TOKEN not set");
+            return;
+        }
+        let claude_path = "/opt/homebrew/bin/claude";
+        if !Path::new(claude_path).exists() {
+            eprintln!("SKIP: claude not found at {}", claude_path);
+            return;
+        }
+
+        // 创建临时"项目"目录
+        let tmp = std::env::temp_dir().join("archbot_e2e_test");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join("README.md"), "# Test Project\n").unwrap();
+
+        // 确保 runtimes.yml 指向可用的 claude 二进制（测试时覆盖）
+        // 注意：测试依赖于用户已正确配置 ~/.archbot/config/runtimes.yml
+
+        let config = TurnConfig {
+            runtime: "claude_code".into(),
+            workspace_root: tmp.to_string_lossy().to_string(),
+            user_message: "List the files in the current directory and write a one-line summary to result.md.".into(),
+            context_files: vec!["README.md".into()],
+            git_user_name: None,
+            git_user_email: None,
+        };
+
+        let result = execute_turn(config);
+
+        match &result {
+            Ok(r) => {
+                eprintln!(
+                    "Turn {} — status: {}, duration: {}ms",
+                    r.turn_id, r.status, r.duration_ms
+                );
+
+                // 验证基础条件
+                assert!(!r.stdout_tail.is_empty(), "stdout should not be empty");
+                assert!(r.duration_ms > 0, "duration should be positive");
+
+                // 如果 status 是 completed，验证 result.md 存在
+                if r.status == "completed" {
+                    if let Some(ref p) = r.result_md_path {
+                        let path = Path::new(p);
+                        assert!(path.exists(), "result.md should exist at {}", p);
+                        let content = fs::read_to_string(path).unwrap_or_default();
+                        assert!(!content.trim().is_empty(), "result.md should not be empty");
+                        eprintln!("result.md content (first 200 chars): {}", &content[..content.len().min(200)]);
+                    }
+                }
+            }
+            Err(ref e) => {
+                panic!("Turn execution failed: {}", e);
+            }
+        }
+
+        // 清理
+        let _ = fs::remove_dir_all(&tmp);
     }
 }
