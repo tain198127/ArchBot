@@ -6,11 +6,19 @@ import { FORM_ITEM_ID } from './formKeys'
 
 const inputId = inject(FORM_ITEM_ID, undefined)
 
+interface Option {
+  value: string | number
+  label: string
+  group?: string
+}
+
 interface Props {
   modelValue?: string | number | null
-  options: { value: string | number; label: string }[]
+  options: Option[]
   placeholder?: string
   disabled?: boolean
+  loading?: boolean
+  optionGroupLabel?: string
 }
 
 defineProps<Props>()
@@ -45,6 +53,8 @@ const emit = defineEmits<{
       :options="options"
       option-label="label"
       option-value="value"
+      :option-group-label="optionGroupLabel"
+      :loading="loading"
       :placeholder="placeholder"
       :disabled="disabled"
       @update:model-value="emit('update:modelValue', $event)"
