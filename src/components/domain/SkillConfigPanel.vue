@@ -130,23 +130,27 @@ async function handleGenerate() {
   }
   generating.value = true
   try {
-    // Use the everything-claude-code skill-create to generate SKILL.md content
-    const prompt = `Create a Claude Code skill with the following details:
-Name: ${editForm.value.name}
-Command: ${editForm.value.command || '/' + editForm.value.code}
-Description: ${editForm.value.description || 'No description provided'}
-${skillBodyInput.value ? 'Current draft content:\n' + skillBodyInput.value : 'Please generate the skill body content.'}
-
-Generate comprehensive SKILL.md content for this skill including usage instructions, examples, and tool coordination.`
+    // Escape XML-like sequences in user inputs to prevent prompt injection
+    const esc = (s: string) => s.replace(/<\/?(\w+)/g, (m) => '\\' + m)
+    const prompt = [
+      'Create a Claude Code skill with the following details.',
+      '',
+      '<skill_name>' + esc(editForm.value.name) + '</skill_name>',
+      '<skill_command>' + esc(editForm.value.command || '/' + editForm.value.code) + '</skill_command>',
+      '<skill_description>' + esc(editForm.value.description || 'No description provided') + '</skill_description>',
+    ]
+    if (skillBodyInput.value) {
+      prompt.push('<current_draft>' + esc(skillBodyInput.value) + '</current_draft>')
+    }
+    prompt.push('', 'Generate comprehensive SKILL.md content for this skill including usage instructions, examples, and tool coordination. Output ONLY the SKILL.md body — no explanations.')
 
     const result = await invoke<string>('agent_execute_turn', {
       runtime: 'claude_code',
       sessionId: '',
-      userMessage: prompt,
+      userMessage: prompt.join('\n'),
       contextFiles: [],
       workspaceRoot: '',
     })
-    // Parse result — the skill-create response should contain the generated content
     skillBodyInput.value = result || skillBodyInput.value
     toast.success('Skill content generated')
   } catch (e: any) {
