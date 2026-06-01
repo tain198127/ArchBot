@@ -360,6 +360,7 @@ function enumCount(domainCode: string): number { return domainEnums.value[domain
                               class="tree-item"
                               :class="{ 'bg-surface-200 dark:bg-surface-200': selectedNode === `entity.${domain.code}` }"
                               @click="handleEntityGroupClick(domain.code)"
+                              @contextmenu="showContextMenu($event, 'entity', { name: ds.entityGroup, code: domain.code, domainCode: domain.code })"
                             >
                               <svg class="tree-icon" viewBox="0 0 24 24" style="color: #67c23a">
                                 <path fill="currentColor" d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
@@ -371,6 +372,7 @@ function enumCount(domainCode: string): number { return domainEnums.value[domain
                               class="tree-item"
                               :class="{ 'bg-surface-200 dark:bg-surface-200': selectedNode === `enum.${domain.code}` }"
                               @click="handleDictGroupClick(domain.code)"
+                              @contextmenu="showContextMenu($event, 'dict', { name: ds.dictGroup, code: domain.code, domainCode: domain.code })"
                             >
                               <svg class="tree-icon" viewBox="0 0 24 24" style="color: #e6a23c">
                                 <path fill="currentColor" d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/>
@@ -410,7 +412,7 @@ function enumCount(domainCode: string): number { return domainEnums.value[domain
                   class="tree-item"
                   :class="{ 'bg-surface-200 dark:bg-surface-200': selectedNode === `dir.${child.key}` }"
                   @click="handleDirClick(child)"
-                  @contextmenu="showContextMenu($event, 'dataStandard')"
+                  @contextmenu="showContextMenu($event, 'item')"
                 >
                   <svg class="tree-icon" viewBox="0 0 24 24" :style="{ color: child.color }">
                     <path fill="currentColor" d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>

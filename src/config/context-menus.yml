@@ -127,6 +127,59 @@ contextMenus:
         label: contextMenu.export
         action: itm.export
 
+
+  # ── 实体节点 ──
+  - id: entity-node
+    appliesTo:
+      resourceType: entity
+    items:
+      - id: itm.analyze
+        label: contextMenu.analyze
+        action: itm.analyze
+      - id: itm.review
+        label: contextMenu.review
+        action: itm.review
+      - id: itm.write
+        label: contextMenu.write
+        action: itm.write
+      - type: separator
+      - id: itm.seal
+        label: contextMenu.seal
+        action: itm.seal
+      - type: separator
+      - id: itm.import
+        label: contextMenu.import
+        action: itm.import
+      - id: itm.export
+        label: contextMenu.export
+        action: itm.export
+
+  # ── 字典节点 ──
+  - id: dict-node
+    appliesTo:
+      resourceType: dict
+    items:
+      - id: itm.analyze
+        label: contextMenu.analyze
+        action: itm.analyze
+      - id: itm.review
+        label: contextMenu.review
+        action: itm.review
+      - id: itm.write
+        label: contextMenu.write
+        action: itm.write
+      - type: separator
+      - id: itm.seal
+        label: contextMenu.seal
+        action: itm.seal
+      - type: separator
+      - id: itm.import
+        label: contextMenu.import
+        action: itm.import
+      - id: itm.export
+        label: contextMenu.export
+        action: itm.export
+
   # ── 文件树节点（项目文件） ──
   - id: file-node
     appliesTo:

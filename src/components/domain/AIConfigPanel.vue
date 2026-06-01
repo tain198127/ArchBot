@@ -137,7 +137,6 @@ function removeModel(modelName: string) {
 async function saveProvider() {
   saving.value = true
   try {
-    console.log('[aiConfig] saving provider:', selectedId.value, 'models:', editModels.value, 'default:', editDefaultModel.value)
     await invoke('ai_save_provider', {
       id: selectedId.value,
       name: editName.value,
@@ -146,7 +145,6 @@ async function saveProvider() {
       models: editModels.value,
       defaultModel: editDefaultModel.value ?? undefined,
     })
-    console.log('[aiConfig] save succeeded')
     toast.success(t.value.aiConfig.saveSuccess)
     await loadProviders()
   } catch (e: any) {
