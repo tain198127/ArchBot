@@ -15,7 +15,7 @@ const { t, tt } = useI18n()
 const toast = useToast()
 const { currentProject } = useProject()
 const { preset, effectiveDimension } = useScenario()
-const de = computed(() => t.value.digitalEmployee as Record<string, string>)
+const de = computed(() => t.value.digitalEmployee as unknown as Record<string, string>)
 
 const DB_TYPE = 'local'
 
