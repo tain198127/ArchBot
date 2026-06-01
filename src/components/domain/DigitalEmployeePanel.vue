@@ -8,6 +8,11 @@ import VTextarea from '../base/VTextarea.vue'
 import VCheckbox from '../base/VCheckbox.vue'
 import { useToast } from '../../composables/useToast'
 import { useI18n } from '../../i18n'
+import {
+  Bot, Code2, FileCode, Palette, Search, Shield, Sparkles, TestTube,
+  Users, Zap, Brain, Eye, Hammer, Lightbulb, MessageCircle, Rocket,
+  Swords, Target, Wand2, Wrench
+} from '@lucide/vue'
 import { useProject } from '../../stores/project'
 import { useScenario } from '../../composables/useScenario'
 
@@ -293,6 +298,87 @@ function buildGroupedOptions(commands: SkillCommand[], customSkills: any[]): Cap
   return options
 }
 
+// ── Personality tags ──
+const presetPersonalityTags = ['系统思维','逻辑严密','创造力','感性','严谨','幽默','果断','沉稳','热情','耐心','完美主义','极简主义','激进','保守']
+const TAG_COLORS = [
+  'bg-gradient-to-r from-violet-500 to-purple-600 text-white',
+  'bg-gradient-to-r from-blue-500 to-cyan-500 text-white',
+  'bg-gradient-to-r from-emerald-500 to-teal-500 text-white',
+  'bg-gradient-to-r from-amber-500 to-orange-500 text-white',
+  'bg-gradient-to-r from-rose-500 to-pink-500 text-white',
+  'bg-gradient-to-r from-indigo-500 to-blue-600 text-white',
+  'bg-gradient-to-r from-teal-500 to-green-500 text-white',
+  'bg-gradient-to-r from-fuchsia-500 to-purple-500 text-white',
+]
+
+function tagColor(tag: string): string {
+  let hash = 0
+  for (let i = 0; i < tag.length; i++) hash = tag.charCodeAt(i) + ((hash << 5) - hash)
+  return TAG_COLORS[Math.abs(hash) % TAG_COLORS.length]
+}
+
+function addTag(tag: string) {
+  const trimmed = tag.trim()
+  if (!trimmed) return
+  const tags = parseJsonArray(editForm.value.personality_tags)
+  if (!tags.includes(trimmed)) {
+    tags.push(trimmed)
+    editForm.value.personality_tags = toJsonArray(tags)
+  }
+  tagInput.value = ''
+}
+
+function removeTag(tag: string) {
+  const tags = parseJsonArray(editForm.value.personality_tags)
+  editForm.value.personality_tags = toJsonArray(tags.filter(t => t !== tag))
+}
+
+function togglePresetTag(tag: string) {
+  const tags = parseJsonArray(editForm.value.personality_tags)
+  if (tags.includes(tag)) {
+    editForm.value.personality_tags = toJsonArray(tags.filter(t => t !== tag))
+  } else {
+    tags.push(tag)
+    editForm.value.personality_tags = toJsonArray(tags)
+  }
+}
+
+const tagInput = ref('')
+const showAvatarPicker = ref(false)
+
+// ── Avatar picker ──
+const avatarIcons = [
+  { name: 'bot', icon: Bot },
+  { name: 'code2', icon: Code2 },
+  { name: 'brain', icon: Brain },
+  { name: 'sparkles', icon: Sparkles },
+  { name: 'zap', icon: Zap },
+  { name: 'shield', icon: Shield },
+  { name: 'search', icon: Search },
+  { name: 'rocket', icon: Rocket },
+  { name: 'palette', icon: Palette },
+  { name: 'lightbulb', icon: Lightbulb },
+  { name: 'wand2', icon: Wand2 },
+  { name: 'wrench', icon: Wrench },
+  { name: 'swords', icon: Swords },
+  { name: 'target', icon: Target },
+  { name: 'eye', icon: Eye },
+  { name: 'messageCircle', icon: MessageCircle },
+  { name: 'users', icon: Users },
+  { name: 'testTube', icon: TestTube },
+  { name: 'hammer', icon: Hammer },
+  { name: 'fileCode', icon: FileCode },
+]
+
+function selectAvatar(iconName: string) {
+  editForm.value.avatar = iconName
+  showAvatarPicker.value = false
+}
+
+function getAvatarIcon(iconName: string) {
+  return avatarIcons.find(a => a.name === iconName)?.icon || Bot
+}
+
 onMounted(async () => { await loadEmployees(); await loadLookups(); await loadCapabilities() })
 </script>
 
@@ -378,16 +464,72 @@ onMounted(async () => { await loadEmployees(); await loadLookups(); await loadCa
           </div>
           <div class="flex items-center gap-3">
             <label class="w-[100px] text-sm text-text-secondary shrink-0 text-right">{{ de.avatar || '头像' }}</label>
-            <div class="flex-1 max-w-[120px]"><VInput v-model="editForm.avatar" /></div>
+            <div class="relative">
+              <button
+                class="w-10 h-10 rounded-lg border-2 border-border-default hover:border-primary-400 flex items-center justify-center bg-surface-1 transition-colors cursor-pointer"
+                @click="showAvatarPicker = !showAvatarPicker"
+              >
+                <component :is="getAvatarIcon(editForm.avatar)" class="w-5 h-5 text-primary-500" />
+              </button>
+              <!-- Avatar picker popover -->
+              <div v-if="showAvatarPicker" class="absolute top-12 left-0 z-50 p-3 bg-surface-0 dark:bg-surface-50 border border-border-default rounded-xl shadow-xl w-[260px]">
+                <div class="grid grid-cols-5 gap-2">
+                  <button
+                    v-for="a in avatarIcons"
+                    :key="a.name"
+                    class="w-9 h-9 rounded-lg flex items-center justify-center cursor-pointer transition-all hover:scale-110"
+                    :class="editForm.avatar === a.name ? 'bg-primary-100 dark:bg-primary-900 ring-2 ring-primary-500' : 'bg-surface-50 dark:bg-surface-100 hover:bg-surface-100 dark:hover:bg-surface-200'"
+                    :title="a.name"
+                    @click="selectAvatar(a.name)"
+                  >
+                    <component :is="a.icon" class="w-4 h-4" :class="editForm.avatar === a.name ? 'text-primary-600' : 'text-text-secondary'" />
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </fieldset>
 
         <!-- Personality -->
         <fieldset class="border border-border-default rounded-lg px-4 py-3 mb-3">
           <legend class="text-sm font-semibold text-text-secondary px-1.5">{{ de.personality || '人格特征' }}</legend>
-          <div class="flex items-center gap-3 mb-2">
-            <label class="w-[100px] text-sm text-text-secondary shrink-0 text-right">{{ de.personalityTags || '性格标签' }}</label>
-            <div class="flex-1 max-w-[360px]"><VInput v-model="editForm.personality_tags" /></div>
+          <!-- Selected tags -->
+          <div class="flex items-start gap-3 mb-3">
+            <label class="w-[100px] text-sm text-text-secondary shrink-0 text-right pt-1">{{ de.personalityTags || '性格标签' }}</label>
+            <div class="flex-1 max-w-[400px]">
+              <div class="flex flex-wrap gap-1.5 mb-2">
+                <span
+                  v-for="tag in parseJsonArray(editForm.personality_tags)"
+                  :key="tag"
+                  class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium shadow-sm cursor-default"
+                  :class="tagColor(tag)"
+                >
+                  {{ tag }}
+                  <button class="ml-0.5 hover:bg-white/20 rounded-full w-3.5 h-3.5 flex items-center justify-center text-[10px] cursor-pointer" @click="removeTag(tag)">&times;</button>
+                </span>
+              </div>
+              <!-- Tag input -->
+              <div class="flex gap-1.5">
+                <input
+                  v-model="tagInput"
+                  class="flex-1 px-2.5 py-1 text-[13px] rounded-md border bg-surface-0 text-text-primary border-border-default hover:border-primary-300 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:bg-surface-100 dark:text-text-primary"
+                  placeholder="输入标签后回车..."
+                  @keydown.enter.prevent="addTag(tagInput)"
+                />
+              </div>
+              <!-- Preset tags -->
+              <div class="flex flex-wrap gap-1 mt-2">
+                <button
+                  v-for="pt in presetPersonalityTags"
+                  :key="pt"
+                  class="px-2 py-0.5 text-[11px] rounded-full border transition-colors cursor-pointer"
+                  :class="parseJsonArray(editForm.personality_tags).includes(pt) ? 'bg-primary-100 dark:bg-primary-900 border-primary-300 text-primary-700' : 'bg-surface-0 dark:bg-surface-100 border-border-default text-text-muted hover:border-primary-300 hover:text-text-primary'"
+                  @click="togglePresetTag(pt)"
+                >
+                  {{ pt }}
+                </button>
+              </div>
+            </div>
           </div>
           <div class="flex items-center gap-3 mb-2">
             <label class="w-[100px] text-sm text-text-secondary shrink-0 text-right">{{ de.personalityDesc || '性格描述' }}</label>
