@@ -237,16 +237,19 @@ async function loadCapabilities() {
   capabilityLoading.value = true
   try {
     const commands = await invoke<SkillCommand[]>('agent_list_skill_commands', { runtime: 'claude_code' })
-    capabilityOptions.value = buildGroupedOptions(commands)
+    capabilityOptions.value = buildGroupedOptions(commands, skillOptions.value)
   } catch {
-    capabilityOptions.value = buildGroupedOptions([])
+    capabilityOptions.value = buildGroupedOptions([], skillOptions.value)
   } finally {
     capabilityLoading.value = false
   }
 }
 
-function buildGroupedOptions(commands: SkillCommand[]): CapabilityOption[] {
+function buildGroupedOptions(commands: SkillCommand[], customSkills: any[]): CapabilityOption[] {
   const options: CapabilityOption[] = []
+  const guerrillasGroup = tt('digitalEmployee.guerrillas') || 'Guerrillas'
+
+  // Installed skill commands grouped by package
   const grouped = new Map<string, SkillCommand[]>()
   for (const cmd of commands) {
     if (!grouped.has(cmd.package)) grouped.set(cmd.package, [])
@@ -266,6 +269,19 @@ function buildGroupedOptions(commands: SkillCommand[]): CapabilityOption[] {
       })
     }
   }
+
+  // Custom skills from DB → 游击队 (Guerrillas)
+  for (const cs of customSkills) {
+    const code = cs.code || cs.id || ''
+    const name = cs.name || cs.label || code
+    options.push({
+      value: `guerrillas/${code}`,
+      label: `${name} (/${code})`,
+      group: guerrillasGroup,
+      command: `/${code}`,
+    })
+  }
+
   return options
 }
 
