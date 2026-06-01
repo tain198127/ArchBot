@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS digital_employees (
   focus_areas       TEXT         NOT NULL DEFAULT '[]',
   deliverable_groups TEXT        NOT NULL DEFAULT '[]',
   default_op        VARCHAR(64)  NOT NULL DEFAULT 'write',
+  default_capability VARCHAR(256) NOT NULL DEFAULT '',
   sort_order        INTEGER      NOT NULL DEFAULT 0,
   created_at        VARCHAR(255) NOT NULL,
   updated_at        VARCHAR(255) NOT NULL

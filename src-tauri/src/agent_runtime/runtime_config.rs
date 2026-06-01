@@ -22,6 +22,49 @@ pub struct RuntimeEntry {
     pub env: Option<HashMap<String, String>>,
     pub args: Option<RuntimeArgs>,
     pub execution: Option<ExecutionConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skill_bundle: Option<SkillBundle>,
+    /// Extra CLI args appended after default args (space-separated).
+    /// Persisted from the Agent Config Panel's "Extra Arguments" field.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub extra_args: String,
+}
+
+/// Skill bundle configuration for a runtime.
+///
+/// Defines a curated list of skill repositories to install alongside
+/// the runtime binary into the isolated HOME's `.claude/skills/` directory.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct SkillBundle {
+    /// Whether skill installation is enabled for this runtime.
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
+    /// List of skill repositories to install.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub skills: Vec<SkillEntry>,
+}
+
+/// A single skill entry in the bundle configuration.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct SkillEntry {
+    /// Short name for the skill (used as directory name).
+    pub name: String,
+    /// Git repository URL.
+    pub repo: String,
+    /// Git ref to checkout (tag, branch, or commit hash).
+    #[serde(default = "default_ref")]
+    pub r#ref: String,
+    /// Human-readable description.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub description: String,
+}
+
+fn default_enabled() -> bool {
+    true
+}
+
+fn default_ref() -> String {
+    "main".to_string()
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -94,19 +137,42 @@ pub fn build_launch_config(
     // compromise process isolation (LD_PRELOAD, PATH, etc.) are blocked.
     let blocked_keys: &[&str] = &[
         // Dynamic linker / library injection
-        "LD_PRELOAD", "LD_LIBRARY_PATH", "LD_AUDIT", "LD_ORIGIN_PATH",
-        "DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH",
+        "LD_PRELOAD",
+        "LD_LIBRARY_PATH",
+        "LD_AUDIT",
+        "LD_ORIGIN_PATH",
+        "DYLD_INSERT_LIBRARIES",
+        "DYLD_LIBRARY_PATH",
         // Language runtime injection
-        "PYTHONPATH", "PYTHONSTARTUP", "GCONV_PATH",
-        "NODE_OPTIONS", "NODE_PATH",
-        "RUBYOPT", "RUBYLIB",
-        "PERL5OPT", "PERL5LIB", "MODULEPATH",
+        "PYTHONPATH",
+        "PYTHONSTARTUP",
+        "GCONV_PATH",
+        "NODE_OPTIONS",
+        "NODE_PATH",
+        "RUBYOPT",
+        "RUBYLIB",
+        "PERL5OPT",
+        "PERL5LIB",
+        "MODULEPATH",
         // Shell / process
-        "BASH_ENV", "ENV", "GIT_SSH_COMMAND", "IFS",
-        "HOME", "USER", "LOGNAME", "SHELL",
-        "PATH", "SYSTEMROOT", "TEMP", "TMP", "TMPDIR",
-        "XAUTHORITY", "DISPLAY", "WAYLAND_DISPLAY",
-        "DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR",
+        "BASH_ENV",
+        "ENV",
+        "GIT_SSH_COMMAND",
+        "IFS",
+        "HOME",
+        "USER",
+        "LOGNAME",
+        "SHELL",
+        "PATH",
+        "SYSTEMROOT",
+        "TEMP",
+        "TMP",
+        "TMPDIR",
+        "XAUTHORITY",
+        "DISPLAY",
+        "WAYLAND_DISPLAY",
+        "DBUS_SESSION_BUS_ADDRESS",
+        "XDG_RUNTIME_DIR",
     ];
     let mut allowed_env = HashMap::new();
     if let Some(env) = &entry.env {
@@ -119,11 +185,44 @@ pub fn build_launch_config(
         }
     }
 
-    let args = entry
+    let mut args = entry
         .args
         .as_ref()
-        .and_then(|a| if a.default.is_empty() { None } else { Some(a.default.clone()) })
+        .and_then(|a| {
+            if a.default.is_empty() {
+                None
+            } else {
+                Some(a.default.clone())
+            }
+        })
         .unwrap_or_else(|| default_args_for(runtime_type));
+
+    // Append extra_args from user config (space-separated, e.g. "--verbose --debug").
+    // Insert `--` before extra_args to prevent argument injection (flag smuggling).
+    // Reject tokens containing shell metacharacters to prevent command injection.
+    if !entry.extra_args.is_empty() {
+        let extra: Vec<&str> = entry.extra_args.split_whitespace().collect();
+        let dangerous_chars = [';', '|', '&', '$', '`', '(', ')', '<', '>', '\n', '\r'];
+        for token in &extra {
+            if token.contains(&dangerous_chars[..]) {
+                trace_fmt!(
+                    "config",
+                    "Rejected dangerous token in extra_args: {}",
+                    token
+                );
+                return Err(format!(
+                    "extra_args contains unsafe characters in token: '{}'",
+                    token
+                ));
+            }
+        }
+        if !extra.is_empty() {
+            args.push("--".to_string());
+            for token in extra {
+                args.push(token.to_string());
+            }
+        }
+    }
 
     // Apply default env vars from the built-in config when user config omits them
     if let Ok(default_cfg) = load_default_config() {
@@ -197,7 +296,7 @@ fn default_runtimes_path() -> Result<PathBuf, String> {
     Err("[config] Cannot find runtimes.default.yml".to_string())
 }
 
-fn expand_home(path: &str) -> String {
+pub(crate) fn expand_home(path: &str) -> String {
     if let Some(rest) = path.strip_prefix("~/") {
         if let Some(home) = dirs::home_dir() {
             return home.join(rest).to_string_lossy().to_string();
@@ -219,13 +318,26 @@ fn load_default_config() -> Result<RuntimesConfig, String> {
 fn default_args_for(runtime_type: &str) -> Vec<String> {
     match runtime_type {
         "claude_code" => vec![
-            "--output-format".into(), "stream-json".into(),
-            "--max-turns".into(), "10".into(),
-            "--permission-mode".into(), "acceptEdits".into(),
+            "--output-format".into(),
+            "stream-json".into(),
+            "--max-turns".into(),
+            "10".into(),
+            "--permission-mode".into(),
+            "acceptEdits".into(),
         ],
         "hermes" => vec!["--stream".into(), "--json".into()],
-        "opencode" => vec!["--mode".into(), "agent".into(), "--output-format".into(), "json".into()],
-        "openclaw" => vec!["agent".into(), "--json".into(), "--timeout".into(), "1800".into()],
+        "opencode" => vec![
+            "--mode".into(),
+            "agent".into(),
+            "--output-format".into(),
+            "json".into(),
+        ],
+        "openclaw" => vec![
+            "agent".into(),
+            "--json".into(),
+            "--timeout".into(),
+            "1800".into(),
+        ],
         _ => vec![],
     }
 }

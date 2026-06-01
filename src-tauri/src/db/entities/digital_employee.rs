@@ -17,6 +17,7 @@ pub struct Model {
     pub focus_areas: String,
     pub deliverable_groups: String,
     pub default_op: String,
+    pub default_capability: String,
     pub sort_order: i32,
     pub created_at: String,
     pub updated_at: String,

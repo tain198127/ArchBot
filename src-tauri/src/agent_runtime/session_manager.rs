@@ -111,8 +111,14 @@ impl SessionManager {
                     data.insert("goal".into(), Value::String(s.goal.clone()));
                     data.insert("project_id".into(), Value::String(s.project_id.clone()));
                     data.insert("runtime_type".into(), Value::String(s.runtime_type.clone()));
-                    data.insert("default_model".into(), Value::String(s.default_model.clone()));
-                    data.insert("current_state".into(), Value::String(s.current_state.clone()));
+                    data.insert(
+                        "default_model".into(),
+                        Value::String(s.default_model.clone()),
+                    );
+                    data.insert(
+                        "current_state".into(),
+                        Value::String(s.current_state.clone()),
+                    );
                     data.insert("status".into(), Value::String(s.status.clone()));
                     data.insert("created_at".into(), Value::String(s.created_at.clone()));
                     data.insert("updated_at".into(), Value::String(s.updated_at.clone()));
@@ -163,16 +169,56 @@ impl SessionManager {
             };
             let row_opt = backend.find_by_id("agent_session", &sid).await?;
             Ok(row_opt.map(|row| AgentSession {
-                session_id: row.get("session_id").and_then(|v| v.as_str()).unwrap_or("").into(),
-                title: row.get("title").and_then(|v| v.as_str()).unwrap_or("").into(),
-                goal: row.get("goal").and_then(|v| v.as_str()).unwrap_or("").into(),
-                project_id: row.get("project_id").and_then(|v| v.as_str()).unwrap_or("").into(),
-                runtime_type: row.get("runtime_type").and_then(|v| v.as_str()).unwrap_or("").into(),
-                default_model: row.get("default_model").and_then(|v| v.as_str()).unwrap_or("").into(),
-                current_state: row.get("current_state").and_then(|v| v.as_str()).unwrap_or("").into(),
-                status: row.get("status").and_then(|v| v.as_str()).unwrap_or("active").into(),
-                created_at: row.get("created_at").and_then(|v| v.as_str()).unwrap_or("").into(),
-                updated_at: row.get("updated_at").and_then(|v| v.as_str()).unwrap_or("").into(),
+                session_id: row
+                    .get("session_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .into(),
+                title: row
+                    .get("title")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .into(),
+                goal: row
+                    .get("goal")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .into(),
+                project_id: row
+                    .get("project_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .into(),
+                runtime_type: row
+                    .get("runtime_type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .into(),
+                default_model: row
+                    .get("default_model")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .into(),
+                current_state: row
+                    .get("current_state")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .into(),
+                status: row
+                    .get("status")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("active")
+                    .into(),
+                created_at: row
+                    .get("created_at")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .into(),
+                updated_at: row
+                    .get("updated_at")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .into(),
             }))
         })
     }
@@ -203,15 +249,51 @@ impl SessionManager {
                             if seen.insert(sid.to_string()) {
                                 sessions.push(AgentSession {
                                     session_id: sid.into(),
-                                    title: row.get("title").and_then(|v| v.as_str()).unwrap_or("").into(),
-                                    goal: row.get("goal").and_then(|v| v.as_str()).unwrap_or("").into(),
-                                    project_id: row.get("project_id").and_then(|v| v.as_str()).unwrap_or("").into(),
-                                    runtime_type: row.get("runtime_type").and_then(|v| v.as_str()).unwrap_or("").into(),
-                                    default_model: row.get("default_model").and_then(|v| v.as_str()).unwrap_or("").into(),
-                                    current_state: row.get("current_state").and_then(|v| v.as_str()).unwrap_or("").into(),
-                                    status: row.get("status").and_then(|v| v.as_str()).unwrap_or("active").into(),
-                                    created_at: row.get("created_at").and_then(|v| v.as_str()).unwrap_or("").into(),
-                                    updated_at: row.get("updated_at").and_then(|v| v.as_str()).unwrap_or("").into(),
+                                    title: row
+                                        .get("title")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("")
+                                        .into(),
+                                    goal: row
+                                        .get("goal")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("")
+                                        .into(),
+                                    project_id: row
+                                        .get("project_id")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("")
+                                        .into(),
+                                    runtime_type: row
+                                        .get("runtime_type")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("")
+                                        .into(),
+                                    default_model: row
+                                        .get("default_model")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("")
+                                        .into(),
+                                    current_state: row
+                                        .get("current_state")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("")
+                                        .into(),
+                                    status: row
+                                        .get("status")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("active")
+                                        .into(),
+                                    created_at: row
+                                        .get("created_at")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("")
+                                        .into(),
+                                    updated_at: row
+                                        .get("updated_at")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("")
+                                        .into(),
                                 });
                             }
                         }

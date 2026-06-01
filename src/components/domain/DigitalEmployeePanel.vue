@@ -15,7 +15,7 @@ const { t, tt } = useI18n()
 const toast = useToast()
 const { currentProject } = useProject()
 const { preset, effectiveDimension } = useScenario()
-const de = computed(() => t.value.digitalEmployee as Record<string, string>)
+const de = computed(() => t.value.digitalEmployee as unknown as Record<string, string>)
 
 const DB_TYPE = 'local'
 
@@ -26,53 +26,27 @@ const selectedIds = ref<Set<number>>(new Set())
 const loading = ref(false)
 
 // ── edit state ──
-const editMode = ref<'list' | 'edit' | 'view'>('list')
+const editMode = ref<'list' | 'edit'>('list')
 const isNew = ref(false)
 const editForm = ref<any>({})
 const editSkills = ref<string[]>([])
-const editAgents = ref<string[]>([])
-const editMcps = ref<string[]>([])
 const skillPick = ref('')
-const agentPick = ref('')
-const mcpPick = ref('')
 
 function onPickSkill(val: string | number) {
   const v = String(val)
   if (v && !editSkills.value.includes(v)) editSkills.value.push(v)
   skillPick.value = ''
 }
-function onPickAgent(val: string | number) {
-  const v = String(val)
-  if (v && !editAgents.value.includes(v)) editAgents.value.push(v)
-  agentPick.value = ''
-}
-function onPickMcp(val: string | number) {
-  const v = String(val)
-  if (v && !editMcps.value.includes(v)) editMcps.value.push(v)
-  mcpPick.value = ''
-}
-
 function toSelectOptions(arr: any[]) {
   return arr.map((x: any) => ({ value: x.code || x.id, label: x.name || x.label || String(x.code || x.id) }))
 }
-const editHandoffs = ref<any[]>([])
-
 // ── lookup data ──
-const employeeOptions = ref<any[]>([])
 const skillOptions = ref<any[]>([])
-const agentOptions = ref<any[]>([])
-const mcpOptions = ref<any[]>([])
 
 const commStyleOptions = ['正式', '亲和', '幽默', '严谨', '睿智']
 const decisionPrefOptions = ['逻辑+规则', '经验+直觉', '数据+分析', '协作+共识']
 const focusAreaOptions = ['需求分析', '系统设计', '代码开发', '测试验证', '部署运维', '项目管理', '数据治理', '安全管理']
 const deliverableOptions = ['PRD', 'SRS', '架构设计', '详细设计', '代码实现', '测试用例', '部署方案', '运维手册']
-const operationOptions = ['read', 'write', 'review', 'analyze', 'brainstorm', 'design', 'code', 'test', 'deploy']
-const transferModeOptions = [
-  { value: 'notify', label: '通知' },
-  { value: 'consult', label: '咨询' },
-  { value: 'delegate', label: '委托' },
-]
 
 const scenarioRoles = computed<string[]>(() => {
   return effectiveDimension.value?.digitalEmployees || []
@@ -117,24 +91,16 @@ async function loadEmployees() {
 
 async function loadLookups() {
   try {
-    const [emps, skills, agents, mcps] = await Promise.all([
-      invoke<any[]>('de_list', { dbType: DB_TYPE }),
-      invoke<any[]>('db_find_all', { table: 'skills', params: { filters: [], orderBy: [], limit: null, offset: null }, dbType: DB_TYPE }),
-      invoke<any[]>('db_find_all', { table: 'agents', params: { filters: [], orderBy: [], limit: null, offset: null }, dbType: DB_TYPE }),
-      invoke<any[]>('db_find_all', { table: 'mcps', params: { filters: [], orderBy: [], limit: null, offset: null }, dbType: DB_TYPE }),
-    ])
-    employeeOptions.value = emps
+    const skills = await invoke<any[]>('db_find_all', { table: 'skills', params: { filters: [], orderBy: [], limit: null, offset: null }, dbType: DB_TYPE })
     skillOptions.value = (skills as any).rows || skills
-    agentOptions.value = (agents as any).rows || agents
-    mcpOptions.value = (mcps as any).rows || mcps
   } catch { /* ignore */ }
 }
 
 // ── list actions ──
 function handleNew() {
   isNew.value = true; editMode.value = 'edit'
-  editForm.value = { code: '', name: '', is_builtin: false, role: '', personality_tags: '[]', personality_desc: '', comm_style: '', decision_pref: '', focus_areas: '[]', deliverable_groups: '[]', default_op: 'read', avatar: '' }
-  editSkills.value = []; editAgents.value = []; editMcps.value = []; editHandoffs.value = []
+  editForm.value = { code: '', name: '', is_builtin: false, role: '', personality_tags: '[]', personality_desc: '', comm_style: '', decision_pref: '', focus_areas: '[]', deliverable_groups: '[]', default_capability: '', avatar: '' }
+  editSkills.value = []
 }
 
 function handleEdit() {
@@ -145,32 +111,13 @@ function handleEdit() {
   isNew.value = false; editMode.value = 'edit'
   editForm.value = { ...emp }
   editSkills.value = parseJsonArray(emp.skills)
-  editAgents.value = parseJsonArray(emp.agents)
-  editMcps.value = parseJsonArray(emp.mcps)
-  editHandoffs.value = (parseJsonArray(emp.handoffs) as any[]).map((h: any) => typeof h === 'string' ? JSON.parse(h) : h)
-}
-
-function handleView() {
-  if (selectedIds.value.size !== 1) { toast.warning(de.value.selectOneHint || '请选择一个员工'); return }
-  const id = [...selectedIds.value][0]
-  const emp = employees.value.find((e: any) => e.id === id)
-  if (!emp) return
-  isNew.value = false; editMode.value = 'view'
-  editForm.value = { ...emp }
-  editSkills.value = parseJsonArray(emp.skills)
-  editAgents.value = parseJsonArray(emp.agents)
-  editMcps.value = parseJsonArray(emp.mcps)
-  editHandoffs.value = (parseJsonArray(emp.handoffs) as any[]).map((h: any) => typeof h === 'string' ? JSON.parse(h) : h)
 }
 
 function handleRowClick(row: any) {
   selectedIds.value = new Set([row.id])
-  isNew.value = false; editMode.value = 'view'
+  isNew.value = false; editMode.value = 'edit'
   editForm.value = { ...row }
   editSkills.value = parseJsonArray(row.skills)
-  editAgents.value = parseJsonArray(row.agents)
-  editMcps.value = parseJsonArray(row.mcps)
-  editHandoffs.value = (parseJsonArray(row.handoffs) as any[]).map((h: any) => typeof h === 'string' ? JSON.parse(h) : h)
 }
 
 // ── edit actions ──
@@ -193,9 +140,6 @@ function handleCopy() {
   isNew.value = true
   editForm.value = { ...editForm.value, id: undefined, code: '', name: editForm.value.name + ' (副本)', is_builtin: false }
   editSkills.value = [...editSkills.value]
-  editAgents.value = [...editAgents.value]
-  editMcps.value = [...editMcps.value]
-  editHandoffs.value = editHandoffs.value.map((h: any) => ({ ...h, id: undefined }))
 }
 
 function handleDelete() {
@@ -218,20 +162,138 @@ function backToList() {
   selectedIds.value = new Set()
   loadEmployees()
 }
-
-// ── handoff helpers ──
-function addHandoff() {
-  editHandoffs.value.push({ employee_code: editForm.value.code, trigger_op: 'write', target_employee_code: '', transfer_data: '[]', transfer_mode: 'notify', context_ref: '' })
+// ── capability dropdown (Task 7) ──
+interface SkillCommand {
+  package: string
+  skill_name: string
+  command: string
+  display_name_en: string
 }
 
-function removeHandoff(idx: number) {
-  editHandoffs.value = editHandoffs.value.filter((_: any, i: number) => i !== idx)
+interface CapabilityOption {
+  value: string
+  label: string
+  group: string
+  command: string
 }
 
-const opOptions = computed(() => operationOptions.map(o => ({ value: o, label: o })))
-const empOptions = computed(() => employeeOptions.value.map((e: any) => ({ value: e.code, label: e.name })))
-const tmOptions = computed(() => transferModeOptions.map(t => ({ value: t.value, label: t.label })))
-onMounted(async () => { await loadEmployees(); await loadLookups() })
+const PACKAGE_DISPLAY_NAMES: Record<string, string> = {
+  'superpowers':            'Super Power',
+  'gstack':                 'Gstack',
+  'everything-claude-code': 'Everything Claude Code',
+  'super-claude':           'Super Claude',
+  'claude-official-skills': 'OpenSpec',
+}
+
+const SKILL_NAME_MAP: Record<string, string> = {
+  'superpowers/brainstorming':              'de.cap.brainstorming',
+  'superpowers/writing-plans':              'de.cap.writingPlans',
+  'superpowers/executing-plans':            'de.cap.executingPlans',
+  'superpowers/test-driven-development':    'de.cap.testDrivenDevelopment',
+  'superpowers/systematic-debugging':       'de.cap.systematicDebugging',
+  'superpowers/subagent-driven-development':'de.cap.subagentDrivenDev',
+  'superpowers/verification-before-completion':'de.cap.verificationCheck',
+  'superpowers/requesting-code-review':     'de.cap.requestingCodeReview',
+  'superpowers/dispatching-parallel-agents':'de.cap.dispatchingAgents',
+  'superpowers/using-git-worktrees':       'de.cap.gitWorktrees',
+  'superpowers/graphify':                  'de.cap.graphify',
+  'gstack/browse':              'de.cap.browse',
+  'gstack/qa':                  'de.cap.qa',
+  'gstack/ship':                'de.cap.ship',
+  'gstack/plan-eng-review':     'de.cap.planEngReview',
+  'gstack/cso':                 'de.cap.cso',
+  'gstack/document-generate':   'de.cap.documentGenerate',
+  'gstack/office-hours':        'de.cap.officeHours',
+  'gstack/review':              'de.cap.gstackReview',
+  'gstack/land-and-deploy':     'de.cap.landAndDeploy',
+  'gstack/design-consultation': 'de.cap.designConsultation',
+  'gstack/investigate':         'de.cap.investigate',
+  'gstack/retro':               'de.cap.retro',
+  'everything-claude-code/code-review':      'de.cap.codeReview',
+  'everything-claude-code/arch-review':      'de.cap.archReview',
+  'everything-claude-code/security-review':  'de.cap.securityReview',
+  'everything-claude-code/sc:design':        'de.cap.scDesign',
+  'everything-claude-code/sc:implement':     'de.cap.scImplement',
+  'everything-claude-code/sc:analyze':       'de.cap.scAnalyze',
+  'everything-claude-code/e2e':              'de.cap.e2e',
+  'everything-claude-code/deep-research':    'de.cap.deepResearch',
+  'everything-claude-code/orchestrate':      'de.cap.orchestrate',
+  'everything-claude-code/tdd':              'de.cap.tdd',
+  'everything-claude-code/docs':             'de.cap.docs',
+  'everything-claude-code/plan':             'de.cap.plan',
+  'everything-claude-code/loop':             'de.cap.loop',
+  // ── super-claude ──
+  'super-claude/brainstorm':        'de.cap.scBrainstorm',
+  'super-claude/confidence-check':  'de.cap.scConfidenceCheck',
+  'super-claude/deep-research':     'de.cap.scDeepResearch',
+  'super-claude/pm':                'de.cap.scPm',
+  'super-claude/token-efficiency':  'de.cap.scTokenEfficiency',
+  'super-claude/troubleshoot':      'de.cap.scTroubleshoot',
+  // ── claude-official-skills (OpenSpec) ──
+  'claude-official-skills/openspec-propose':       'de.cap.openspecPropose',
+  'claude-official-skills/openspec-apply-change':  'de.cap.openspecApply',
+  'claude-official-skills/openspec-explore':       'de.cap.openspecExplore',
+  'claude-official-skills/openspec-new-change':    'de.cap.openspecNewChange',
+  'claude-official-skills/openspec-archive-change':'de.cap.openspecArchive',
+  'claude-official-skills/openspec-verify-change': 'de.cap.openspecVerify',
+}
+
+const capabilityOptions = ref<CapabilityOption[]>([])
+const capabilityLoading = ref(false)
+
+async function loadCapabilities() {
+  capabilityLoading.value = true
+  try {
+    const commands = await invoke<SkillCommand[]>('agent_list_skill_commands', { runtime: 'claude_code' })
+    capabilityOptions.value = buildGroupedOptions(commands, skillOptions.value)
+  } catch {
+    capabilityOptions.value = buildGroupedOptions([], skillOptions.value)
+  } finally {
+    capabilityLoading.value = false
+  }
+}
+
+function buildGroupedOptions(commands: SkillCommand[], customSkills: any[]): CapabilityOption[] {
+  const options: CapabilityOption[] = []
+  const guerrillasGroup = tt('digitalEmployee.guerrillas') || 'Guerrillas'
+
+  // Installed skill commands grouped by package
+  const grouped = new Map<string, SkillCommand[]>()
+  for (const cmd of commands) {
+    if (!grouped.has(cmd.package)) grouped.set(cmd.package, [])
+    grouped.get(cmd.package)!.push(cmd)
+  }
+  for (const [pkg, cmds] of grouped) {
+    const pkgDisplayName = PACKAGE_DISPLAY_NAMES[pkg] || pkg
+    for (const cmd of cmds) {
+      const mapKey = `${cmd.package}/${cmd.skill_name}`
+      const i18nKey = SKILL_NAME_MAP[mapKey]
+      const displayName = i18nKey ? tt(i18nKey) : (cmd.display_name_en || cmd.skill_name)
+      options.push({
+        value: mapKey,
+        label: `${displayName} (${cmd.command})`,
+        group: pkgDisplayName,
+        command: cmd.command,
+      })
+    }
+  }
+
+  // Custom skills from DB → 游击队 (Guerrillas)
+  for (const cs of customSkills) {
+    const code = cs.code || cs.id || ''
+    const name = cs.name || cs.label || code
+    options.push({
+      value: `guerrillas/${code}`,
+      label: `${name} (/${code})`,
+      group: guerrillasGroup,
+      command: `/${code}`,
+    })
+  }
+
+  return options
+}
+
+onMounted(async () => { await loadEmployees(); await loadLookups(); await loadCapabilities() })
 </script>
 
 <template>
@@ -252,7 +314,6 @@ onMounted(async () => { await loadEmployees(); await loadLookups() })
         </div>
         <VButton size="sm" @click="handleNew">{{ de.new || '新增' }}</VButton>
         <VButton size="sm" variant="secondary" @click="handleEdit">{{ de.edit || '编辑' }}</VButton>
-        <VButton size="sm" variant="ghost" @click="handleView">{{ de.view || '查看' }}</VButton>
       </div>
       <table class="w-full border-collapse text-sm">
         <thead>
@@ -296,7 +357,7 @@ onMounted(async () => { await loadEmployees(); await loadLookups() })
     <template v-else>
       <div class="flex gap-3 items-center mb-4">
         <VButton size="sm" variant="ghost" @click="backToList">&larr; {{ de.back || '返回列表' }}</VButton>
-        <span class="text-base font-semibold text-text-primary">{{ isNew ? (de.newEmployee || '新增数字员工') : (editMode === 'view' ? (de.viewEmployee || '查看数字员工') : (de.editEmployee || '编辑数字员工')) }}</span>
+        <span class="text-base font-semibold text-text-primary">{{ isNew ? de.newEmployee : de.editEmployee }}</span>
       </div>
 
       <div class="flex-1 overflow-y-auto">
@@ -305,11 +366,11 @@ onMounted(async () => { await loadEmployees(); await loadLookups() })
           <legend class="text-sm font-semibold text-text-secondary px-1.5">{{ de.basicInfo || '基础信息' }}</legend>
           <div class="flex items-center gap-3 mb-2">
             <label class="w-[100px] text-sm text-text-secondary shrink-0 text-right">{{ de.name || '姓名' }}</label>
-            <div class="flex-1 max-w-[360px]"><VInput v-model="editForm.name" :disabled="editMode === 'view'" /></div>
+            <div class="flex-1 max-w-[360px]"><VInput v-model="editForm.name" /></div>
           </div>
           <div class="flex items-center gap-3 mb-2">
             <label class="w-[100px] text-sm text-text-secondary shrink-0 text-right">{{ de.code || '编码' }}</label>
-            <div class="flex-1 max-w-[360px]"><VInput v-model="editForm.code" :disabled="editMode === 'view' || (!isNew && editForm.is_builtin)" /></div>
+            <div class="flex-1 max-w-[360px]"><VInput v-model="editForm.code" :disabled="!isNew && editForm.is_builtin" /></div>
           </div>
           <div class="flex items-center gap-3 mb-2">
             <label class="w-[100px] text-sm text-text-secondary shrink-0 text-right">{{ de.type || '类型' }}</label>
@@ -317,7 +378,7 @@ onMounted(async () => { await loadEmployees(); await loadLookups() })
           </div>
           <div class="flex items-center gap-3">
             <label class="w-[100px] text-sm text-text-secondary shrink-0 text-right">{{ de.avatar || '头像' }}</label>
-            <div class="flex-1 max-w-[120px]"><VInput v-model="editForm.avatar" :disabled="editMode === 'view'" /></div>
+            <div class="flex-1 max-w-[120px]"><VInput v-model="editForm.avatar" /></div>
           </div>
         </fieldset>
 
@@ -326,19 +387,19 @@ onMounted(async () => { await loadEmployees(); await loadLookups() })
           <legend class="text-sm font-semibold text-text-secondary px-1.5">{{ de.personality || '人格特征' }}</legend>
           <div class="flex items-center gap-3 mb-2">
             <label class="w-[100px] text-sm text-text-secondary shrink-0 text-right">{{ de.personalityTags || '性格标签' }}</label>
-            <div class="flex-1 max-w-[360px]"><VInput v-model="editForm.personality_tags" :disabled="editMode === 'view'" /></div>
+            <div class="flex-1 max-w-[360px]"><VInput v-model="editForm.personality_tags" /></div>
           </div>
           <div class="flex items-center gap-3 mb-2">
             <label class="w-[100px] text-sm text-text-secondary shrink-0 text-right">{{ de.personalityDesc || '性格描述' }}</label>
-            <div class="flex-1 max-w-[360px]"><VTextarea v-model="editForm.personality_desc" :disabled="editMode === 'view'" /></div>
+            <div class="flex-1 max-w-[360px]"><VTextarea v-model="editForm.personality_desc" /></div>
           </div>
           <div class="flex items-center gap-3 mb-2">
             <label class="w-[100px] text-sm text-text-secondary shrink-0 text-right">{{ de.commStyle || '沟通风格' }}</label>
-            <VSelect v-model="editForm.comm_style" :options="commStyleOptions.map(s => ({ value: s, label: s }))" class="!w-[200px]" :disabled="editMode === 'view'" />
+            <VSelect v-model="editForm.comm_style" :options="commStyleOptions.map(s => ({ value: s, label: s }))" class="!w-[200px]" />
           </div>
           <div class="flex items-center gap-3">
             <label class="w-[100px] text-sm text-text-secondary shrink-0 text-right">{{ de.decisionPref || '决策偏好' }}</label>
-            <VSelect v-model="editForm.decision_pref" :options="decisionPrefOptions.map(s => ({ value: s, label: s }))" class="!w-[200px]" :disabled="editMode === 'view'" />
+            <VSelect v-model="editForm.decision_pref" :options="decisionPrefOptions.map(s => ({ value: s, label: s }))" class="!w-[200px]" />
           </div>
         </fieldset>
 
@@ -349,21 +410,19 @@ onMounted(async () => { await loadEmployees(); await loadLookups() })
             <label class="w-[100px] text-sm text-text-secondary shrink-0 text-right">{{ de.focusAreas || '专注领域' }}</label>
             <div class="flex gap-3 flex-wrap">
               <VCheckbox v-for="a in focusAreaOptions" :key="a" :model-value="parseJsonArray(editForm.focus_areas).includes(a)" :label="a"
-                :disabled="editMode === 'view'"
-                @update:model-value="(v: boolean) => { const arr = parseJsonArray(editForm.focus_areas); if (v) arr.push(a); else arr.splice(arr.indexOf(a), 1); editForm.focus_areas = toJsonArray(arr) }" />
+                                @update:model-value="(v: boolean) => { const arr = parseJsonArray(editForm.focus_areas); if (v) arr.push(a); else arr.splice(arr.indexOf(a), 1); editForm.focus_areas = toJsonArray(arr) }" />
             </div>
           </div>
           <div class="flex items-center gap-3 mb-2">
             <label class="w-[100px] text-sm text-text-secondary shrink-0 text-right">{{ de.deliverableGroups || '交付物组' }}</label>
             <div class="flex gap-3 flex-wrap">
               <VCheckbox v-for="d in deliverableOptions" :key="d" :model-value="parseJsonArray(editForm.deliverable_groups).includes(d)" :label="d"
-                :disabled="editMode === 'view'"
-                @update:model-value="(v: boolean) => { const arr = parseJsonArray(editForm.deliverable_groups); if (v) arr.push(d); else arr.splice(arr.indexOf(d), 1); editForm.deliverable_groups = toJsonArray(arr) }" />
+                                @update:model-value="(v: boolean) => { const arr = parseJsonArray(editForm.deliverable_groups); if (v) arr.push(d); else arr.splice(arr.indexOf(d), 1); editForm.deliverable_groups = toJsonArray(arr) }" />
             </div>
           </div>
           <div class="flex items-center gap-3">
-            <label class="w-[100px] text-sm text-text-secondary shrink-0 text-right">{{ de.defaultOp || '默认操作' }}</label>
-            <VSelect v-model="editForm.default_op" :options="opOptions" class="!w-[200px]" :disabled="editMode === 'view'" />
+            <label class="w-[100px] text-sm text-text-secondary shrink-0 text-right">{{ de.defaultCapability || '默认能力' }}</label>
+            <VSelect v-model="editForm.default_capability" :options="capabilityOptions" option-group-label="group" :loading="capabilityLoading" class="!w-[200px]" />
           </div>
         </fieldset>
 
@@ -387,53 +446,6 @@ onMounted(async () => { await loadEmployees(); await loadLookups() })
               />
             </div>
           </div>
-          <div class="flex items-center gap-3 mb-2">
-            <label class="w-[100px] text-sm text-text-secondary shrink-0 text-right">Agent</label>
-            <div class="flex gap-1.5 flex-wrap items-center">
-              <span v-for="a in editAgents" :key="a" class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded text-xs text-primary-500">
-                {{ a }}
-                <button v-if="editMode === 'edit'" class="border-0 bg-transparent text-text-muted cursor-pointer text-xs px-0.5 hover:text-danger-500" @click="editAgents = editAgents.filter(x => x !== a)">&#10005;</button>
-              </span>
-              <VSelect
-                v-if="editMode === 'edit'"
-                v-model="agentPick"
-                :options="toSelectOptions(agentOptions)"
-                placeholder="+ 添加"
-                class="w-[140px]"
-                @update:model-value="onPickAgent"
-              />
-            </div>
-          </div>
-          <div class="flex items-center gap-3">
-            <label class="w-[100px] text-sm text-text-secondary shrink-0 text-right">MCP</label>
-            <div class="flex gap-1.5 flex-wrap items-center">
-              <span v-for="m in editMcps" :key="m" class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded text-xs text-primary-500">
-                {{ m }}
-                <button v-if="editMode === 'edit'" class="border-0 bg-transparent text-text-muted cursor-pointer text-xs px-0.5 hover:text-danger-500" @click="editMcps = editMcps.filter(x => x !== m)">&#10005;</button>
-              </span>
-              <VSelect
-                v-if="editMode === 'edit'"
-                v-model="mcpPick"
-                :options="toSelectOptions(mcpOptions)"
-                placeholder="+ 添加"
-                class="w-[140px]"
-                @update:model-value="onPickMcp"
-              />
-            </div>
-          </div>
-        </fieldset>
-
-        <!-- Handoff Rules -->
-        <fieldset class="border border-border-default rounded-lg px-4 py-3 mb-3">
-          <legend class="text-sm font-semibold text-text-secondary px-1.5">{{ de.handoffRules || '交互规则' }}</legend>
-          <div v-for="(h, idx) in editHandoffs" :key="idx" class="flex gap-2 items-center mb-1.5">
-            <VSelect v-model="h.trigger_op" :options="opOptions" class="!h-7 !text-xs !w-[100px]" :disabled="editMode === 'view'" />
-            <span class="text-text-muted text-sm">&rarr;</span>
-            <VSelect v-model="h.target_employee_code" :options="empOptions" class="!h-7 !text-xs !w-[140px]" :disabled="editMode === 'view'" placeholder="选择角色" />
-            <VSelect v-model="h.transfer_mode" :options="tmOptions" class="!h-7 !text-xs !w-[100px]" :disabled="editMode === 'view'" />
-            <button v-if="editMode === 'edit'" class="px-1.5 py-0.5 text-xs border border-border-default rounded cursor-pointer hover:bg-surface-100 dark:hover:bg-surface-100" @click="removeHandoff(idx)">&#10005;</button>
-          </div>
-          <VButton v-if="editMode === 'edit'" size="sm" variant="secondary" @click="addHandoff">+ {{ de.addHandoff || '添加交互规则' }}</VButton>
         </fieldset>
 
         <!-- Footer -->

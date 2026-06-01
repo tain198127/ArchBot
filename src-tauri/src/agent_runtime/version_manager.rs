@@ -159,8 +159,7 @@ pub fn install_runtime(runtime_name: &str, version: &str) -> Result<(), String> 
         return Ok(());
     }
 
-    fs::create_dir_all(&target_dir)
-        .map_err(|e| format!("failed to create install dir: {}", e))?;
+    fs::create_dir_all(&target_dir).map_err(|e| format!("failed to create install dir: {}", e))?;
 
     let exe_name = executable_name(runtime_name);
     let target_exe = target_dir.join(exe_name);
@@ -174,15 +173,21 @@ pub fn install_runtime(runtime_name: &str, version: &str) -> Result<(), String> 
         }
         #[cfg(not(unix))]
         {
-            fs::write(&target_exe, format!("@echo System {} found at: {:?}", exe_name, system_exe))
-                .map_err(|e| format!("failed to write stub: {}", e))?;
+            fs::write(
+                &target_exe,
+                format!("@echo System {} found at: {:?}", exe_name, system_exe),
+            )
+            .map_err(|e| format!("failed to write stub: {}", e))?;
         }
         let marker = target_dir.join(".installed");
-        let _ = fs::write(&marker, format!(
-            "installed at {}\nsource: {}\n",
-            chrono::Utc::now(),
-            system_exe.display()
-        ));
+        let _ = fs::write(
+            &marker,
+            format!(
+                "installed at {}\nsource: {}\n",
+                chrono::Utc::now(),
+                system_exe.display()
+            ),
+        );
         return Ok(());
     }
 
@@ -310,7 +315,12 @@ pub fn agent_test_runtime(runtime: String) -> Result<RuntimeTestResult, String> 
         Ok(output) => {
             let stdout = String::from_utf8_lossy(&output.stdout).to_string();
             let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-            trace_fmt!("runtime:test", "Exit={:?} stdout={}", output.status.code(), stdout.trim());
+            trace_fmt!(
+                "runtime:test",
+                "Exit={:?} stdout={}",
+                output.status.code(),
+                stdout.trim()
+            );
             Ok(RuntimeTestResult {
                 found: true,
                 executable: exe.display().to_string(),
@@ -320,7 +330,12 @@ pub fn agent_test_runtime(runtime: String) -> Result<RuntimeTestResult, String> 
             })
         }
         Err(e) => {
-            trace_fmt!("runtime:test", "FAIL — cannot spawn {}: {}", exe.display(), e);
+            trace_fmt!(
+                "runtime:test",
+                "FAIL — cannot spawn {}: {}",
+                exe.display(),
+                e
+            );
             Ok(RuntimeTestResult {
                 found: true,
                 executable: exe.display().to_string(),
@@ -397,24 +412,35 @@ mod tests {
     fn test_detect_versions_ok() {
         // Valid runtime name should return Ok (may have versions or be empty)
         let result = detect_versions("opencode");
-        assert!(result.is_ok(), "detect_versions should succeed for valid runtime name");
+        assert!(
+            result.is_ok(),
+            "detect_versions should succeed for valid runtime name"
+        );
         // Versions may or may not be installed — just verify we get a Vec
         let versions = result.unwrap();
-        assert!(!versions.iter().any(|v| v.contains("..") || v.contains("/")),
-            "version strings should be clean");
+        assert!(
+            !versions.iter().any(|v| v.contains("..") || v.contains("/")),
+            "version strings should be clean"
+        );
     }
 
     #[test]
     fn test_detect_versions_invalid_name() {
         let result = detect_versions("../etc");
-        assert!(result.is_err(), "should reject path traversal in runtime name");
+        assert!(
+            result.is_err(),
+            "should reject path traversal in runtime name"
+        );
     }
 
     #[test]
     fn test_find_claude_on_path() {
         let result = find_on_path("claude");
         // claude 应该在 PATH 上（通过 homebrew 安装）
-        assert!(result.is_some(), "claude not found on PATH — please install: npm i -g @anthropic-ai/claude-code");
+        assert!(
+            result.is_some(),
+            "claude not found on PATH — please install: npm i -g @anthropic-ai/claude-code"
+        );
     }
 
     /// E2E: 完整安装流程验证

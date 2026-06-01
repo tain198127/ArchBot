@@ -24,6 +24,8 @@ pub struct DigitalEmployee {
     pub focus_areas: String,
     pub deliverable_groups: String,
     pub default_op: String,
+    #[serde(default)]
+    pub default_capability: String,
     pub sort_order: i32,
     pub created_at: String,
     pub updated_at: String,
@@ -82,6 +84,11 @@ fn row_to_employee(row: &DbRow) -> DigitalEmployee {
             .get("default_op")
             .and_then(|v| v.as_str())
             .unwrap_or("write")
+            .to_string(),
+        default_capability: row
+            .get("default_capability")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
             .to_string(),
         sort_order: row.get("sort_order").and_then(|v| v.as_i64()).unwrap_or(0) as i32,
         created_at: row
@@ -272,6 +279,7 @@ pub async fn de_save(employee: DigitalEmployee, db_type: String) -> Result<(), S
         Value::String(employee.deliverable_groups),
     );
     data.insert("default_op".to_string(), Value::String(employee.default_op));
+    data.insert("default_capability".to_string(), Value::String(employee.default_capability.clone()));
     data.insert("sort_order".to_string(), Value::from(employee.sort_order));
     data.insert("updated_at".to_string(), Value::String(now.clone()));
 

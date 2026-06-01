@@ -65,14 +65,18 @@ pub fn agent_get_status(runtime: String) -> Result<AgentStatus, String> {
         available_versions.push(config_version.clone());
     }
 
-    let (installed, installed_version) = if !vm_version.is_empty() && vm_version != "not installed" {
+    let (installed, installed_version) = if !vm_version.is_empty() && vm_version != "not installed"
+    {
         (true, vm_version)
     } else {
         // 3. Fallback: check if the executable from runtimes.yml exists and run --version
         let exe_path = expand_home(&entry.executable);
         let exe_path = std::path::Path::new(&exe_path);
         if exe_path.exists() {
-            match std::process::Command::new(exe_path).arg("--version").output() {
+            match std::process::Command::new(exe_path)
+                .arg("--version")
+                .output()
+            {
                 Ok(output) if output.status.success() => {
                     let ver = String::from_utf8_lossy(&output.stdout).trim().to_string();
                     if !ver.is_empty() && !available_versions.contains(&ver) {
@@ -101,12 +105,17 @@ pub fn agent_get_status(runtime: String) -> Result<AgentStatus, String> {
                 .as_ref()
                 .map_or(false, |a| a.default.iter().any(|x| x.contains("claude")));
         // Build env_vars: include all env entries except the ones extracted as typed fields
-        let env_vars: HashMap<String, String> = env.iter()
+        let env_vars: HashMap<String, String> = env
+            .iter()
             .filter(|(k, _)| {
-                !matches!(k.as_str(),
-                    "ANTHROPIC_BASE_URL" | "ANTHROPIC_MODEL" |
-                    "ANTHROPIC_SMALL_MODEL" | "ANTHROPIC_LARGE_MODEL" |
-                    "OPENAI_BASE_URL" | "OPENAI_MODEL"
+                !matches!(
+                    k.as_str(),
+                    "ANTHROPIC_BASE_URL"
+                        | "ANTHROPIC_MODEL"
+                        | "ANTHROPIC_SMALL_MODEL"
+                        | "ANTHROPIC_LARGE_MODEL"
+                        | "OPENAI_BASE_URL"
+                        | "OPENAI_MODEL"
                 )
             })
             .map(|(k, v)| (k.clone(), v.clone()))

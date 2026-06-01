@@ -383,6 +383,7 @@ mod tests {
             ("focus_areas", Value::String("[]".into())),
             ("deliverable_groups", Value::String("[]".into())),
             ("default_op", Value::String("write".into())),
+            ("default_capability", Value::String("".into())),
             ("sort_order", Value::from(sort_order)),
             ("created_at", Value::String(now.into())),
             ("updated_at", Value::String(now.into())),
