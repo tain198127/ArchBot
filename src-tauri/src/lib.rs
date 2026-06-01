@@ -1,7 +1,6 @@
 mod agent_runtime;
 mod ai_config;
 mod context;
-mod trace;
 mod data_standard;
 mod db;
 mod digital_employee;
@@ -13,6 +12,7 @@ mod resource;
 mod scenario;
 mod secret;
 mod server;
+mod trace;
 mod vector;
 
 /// 获取当前 ISO 8601 格式 UTC 时间戳
@@ -193,6 +193,12 @@ pub fn run() {
             // agent_runtime — adapter manager
             agent_runtime::adapter_manager::agent_check_runtime_health,
             agent_runtime::adapter_manager::agent_get_runtime_capabilities,
+            // agent_runtime — skill installer
+            agent_runtime::skill_installer::agent_install_skills,
+            agent_runtime::skill_installer::agent_list_installed_skills,
+            agent_runtime::skill_installer::agent_update_skills,
+            // agent_runtime — skill discovery
+            agent_runtime::skill_discovery::agent_list_skill_commands,
             // ai_config
             ai_config::ai_list_providers,
             ai_config::ai_save_provider,

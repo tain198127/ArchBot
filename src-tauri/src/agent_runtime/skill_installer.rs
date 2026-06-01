@@ -614,8 +614,8 @@ fn resolve_skills_dir(entry: &runtime_config::RuntimeEntry) -> Result<PathBuf, S
     resolve_skills_dir_inner(entry)
 }
 
-/// Public version for use by other modules (e.g., version_manager).
-pub(crate) fn resolve_skills_dir_inner(
+/// Public version for use by other modules (e.g., version_manager, skill_discovery).
+pub fn resolve_skills_dir_inner(
     entry: &runtime_config::RuntimeEntry,
 ) -> Result<PathBuf, String> {
     let isolation = entry
