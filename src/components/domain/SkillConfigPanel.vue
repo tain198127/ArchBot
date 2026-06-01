@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { homeDir } from '@tauri-apps/api/path'
 import VButton from '../base/VButton.vue'
 import VInput from '../base/VInput.vue'
 import VSelect from '../base/VSelect.vue'
@@ -11,6 +12,7 @@ import { useToast } from '../../composables/useToast'
 const { t } = useI18n()
 const toast = useToast()
 const DB_TYPE = 'local'
+const chatWorkspace = ref('~/.archbot/chat-workspace')
 
 const skills = ref<any[]>([])
 const loading = ref(false)
@@ -149,7 +151,7 @@ async function handleGenerate() {
       sessionId: '',
       userMessage: prompt.join('\n'),
       contextFiles: [],
-      workspaceRoot: '',
+      workspaceRoot: chatWorkspace.value,
     })
     skillBodyInput.value = result || skillBodyInput.value
     toast.success('Skill content generated')
@@ -160,7 +162,10 @@ async function handleGenerate() {
   }
 }
 
-onMounted(() => { loadSkills() })
+onMounted(async () => {
+  chatWorkspace.value = (await homeDir()) + '/.archbot/chat-workspace'
+  loadSkills()
+})
 </script>
 
 <template>
