@@ -1786,6 +1786,81 @@ system_modules:
       - 点击 Provider 卡片 → 自动选择默认模型 → 自动保存
       - 切换模型下拉 → 自动保存
       - 无手动的 Save 按钮（全自动持久化）
+    skill_bundles:
+      added: "2026-06-02"
+      description: "Skill 合集显示 — 读取 runtimes.yml 中配置的 skill_bundle，显示安装状态"
+      code:
+        rust: src-tauri/src/agent_runtime/agent_config_handler.rs#agent_get_skill_bundles
+        vue: src/components/domain/AgentConfigPanel.vue（Skills 标签页）
+      key_behaviors:
+        - 显示所有已配置的 skill bundle（含安装状态指示器）
+        - 绿色圆点 = 已安装，琥珀色 = 未安装
+        - 每个 bundle 独立 Install 按钮
+        - 已安装的 skill 详情在下方折叠展示
+
+  # ── Skill 配置面板 ──
+  module.skill_config_panel:
+    added: "2026-06-02"
+    description: "Skill 的 CRUD 管理面板 — 创建/编辑/删除 Skill，支持 skill-create 自动生成内容"
+    code:
+      vue: src/components/domain/SkillConfigPanel.vue
+    menu: config.skill（菜单已存在，面板新增）
+    data_flow:
+      list: onMounted → invoke(db_find_all, {table: skills}) → 表格展示
+      create: 填写 code/name/command/description/body → invoke(db_insert) → 刷新列表
+      update: 点击行 → 编辑字段 → invoke(db_update) → 刷新列表
+      delete: 点击 Del → 确认 → invoke(db_delete) → 刷新列表
+      generate: 输入 name → 点击「⚡ Generate via skill-create」→ invoke(agent_execute_turn, {prompt}) → 填充 body
+    key_behaviors:
+      - code 和 name 为必填项
+      - command 默认为 /{code}
+      - group 可选：游击队/superpowers/gstack/everything-claude-code/super-claude/claude-official-skills
+      - SKILL.md body 区域为等宽字体文本框
+      - Generate 按钮调用 Claude Code 的 skill-create 自动生成内容（用户输入已 XML 转义防注入）
+
+  # ── 硅基军团面板增强 ──
+  module.silicon_corps_ux:
+    added: "2026-06-02"
+    description: "硅基军团编辑页 UX 优化 — 炫酷性格标签 + Lucide 头像选择器 + 默认能力分组下拉"
+    code:
+      vue: src/components/domain/DigitalEmployeePanel.vue
+    improvements:
+      personality_tags:
+        description: "多彩渐变标签 — 可输入自定义标签 + 14 个预设可选 + 8 色调色板"
+        preset_tags: ["系统思维","逻辑严密","创造力","感性","严谨","幽默","果断","沉稳","热情","耐心","完美主义","极简主义","激进","保守"]
+        colors: "8 色渐变色板，根据 tag 内容哈希分配稳定颜色"
+      avatar_picker:
+        description: "Lucide 图标选择器 — 20 个图标网格弹窗，点击选择"
+        icons: "Bot, Code2, Brain, Sparkles, Zap, Shield, Search, Rocket, Palette, Lightbulb, Wand2, Wrench, Swords, Target, Eye, MessageCircle, Users, TestTube, Hammer, FileCode"
+      default_capability:
+        description: "动态分组下拉 — 已安装技能包命令 + DB 自定义技能（游击队分组）"
+        data_source: "agent_list_skill_commands(runtime) + db_find_all({table: skills})"
+        display_format: "中文名 (/command)"
+
+  # ── 模型面板增强（@/# 提及 + 炼魂）──
+  module.model_panel_enhancements:
+    added: "2026-06-02"
+    description: "右边面板输入增强 — @提及硅基军团角色、#引用项目文件、炼魂按钮蒸馏对话为 Skill"
+    code:
+      vue: src/components/domain/ModelPanel.vue
+    features:
+      at_mention:
+        description: "输入 @ 触发下拉，搜索并选择硅基军团员工，插入 @员工名"
+        data_source: invoke(de_list)
+        interaction: "@ + 输入过滤 → 下拉选择 → 插入文本"
+      hash_ref:
+        description: "输入 # 触发下拉，搜索并选择项目文件，插入 #[文件路径]"
+        data_source: invoke(fs_list_tree, {root, maxDepth: 3})
+        interaction: "# + 输入过滤 → 下拉选择 → 插入文本"
+      refine_button:
+        description: "模型下拉右侧的 🔮 炼魂按钮，点击弹窗输入 Skill 名称（可选），将对话蒸馏为 SKILL.md"
+        i18n_key: model.refine / model.refineTitle / model.refineDesc / model.refineNameLabel / model.refineStart
+        flow: "收集对话 → 弹窗命名 → invoke(agent_execute_turn) 蒸馏 → invoke(db_insert) 保存到 skills 表 → 自动归入 guerrillas 分组"
+        key_behaviors:
+          - 无对话时按钮禁用
+          - 留空名称时由大模型自动生成
+          - 蒸馏结果自动加入游击队分组
+          - 完成后在对话中显示系统消息
 
   # ── E2E 测试基础设施 ──
   module.e2e_testing:

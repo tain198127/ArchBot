@@ -315,9 +315,84 @@ agent_runtime:
       - file_control: 回合前后文件快照、差异扫描、文件回滚（含路径穿越防护）
       - shell_control: 命令白名单校验、危险命令拦截（rm/sudo/ssh 等）
       - launcher: 子进程启动、隔离 Home 目录部署
+      - skill_discovery: 技能命令发现器 — 遍历已安装技能包目录，解析 SKILL.md frontmatter，提取命令和中文名映射
     database:
       tables: 11 张（agent_runtime, agent_runtime_version, agent_adapter, agent_session, agent_turn, agent_event, agent_artifact, agent_file_change, agent_decision, agent_context_snapshot, agent_audit_log）
       orm: SeaORM + SQLite（~/.archbot/data/archbot.db）
+
+  # ── Skill 配置面板 ──
+  skill_config_panel:
+    added: "2026-06-02"
+    description: "独立的 Skill CRUD 管理面板，支持创建/编辑/删除 Skill，可调用 Claude Code 自动生成 SKILL.md 内容"
+    menu: 配置 → skill配置
+    features:
+      - 列表展示所有 skills（来自 skills 表）
+      - 必填字段：code（唯一标识符）、name（显示名）
+      - 可选字段：command（触发命令）、description、group（所属分组）
+      - SKILL.md body 编辑区（等宽字体文本框）
+      - Generate 按钮：调用 everything-claude-code 的 skill-create 自动生成内容
+      - 分组选择：游击队 / Super Power / Gstack / Everything Claude Code / Super Claude / OpenSpec
+      - 删除确认对话框
+    data_source: skills 表（SQLite）
+
+  # ── 硅基军团 UX 增强 ──
+  silicon_corps_ux:
+    added: "2026-06-02"
+    description: "硅基军团编辑页面的 UX 优化"
+    features:
+      personality_tags:
+        description: "炫酷多彩性格标签选择器，替代原有纯文本输入框"
+        mechanics:
+          - 8 色渐变色板，标签颜色基于内容哈希稳定分配
+          - 支持自定义输入（回车添加）
+          - 14 个预设标签可点击切换
+          - 每个标签有 × 删除按钮
+        preset_tags: ["系统思维","逻辑严密","创造力","感性","严谨","幽默","果断","沉稳","热情","耐心","完美主义","极简主义","激进","保守"]
+      avatar_picker:
+        description: "Lucide 图标头像选择器，替代原有纯文本输入框"
+        mechanics:
+          - 点击头像按钮弹出 20 个图标的网格选择器
+          - 当前选中图标高亮显示
+          - 存储图标名称到 avatar 字段
+        icons: "Bot, Code2, Brain, Sparkles, Zap, Shield, Search, Rocket, Palette, Lightbulb, Wand2, Wrench, Swords, Target, Eye, MessageCircle, Users, TestTube, Hammer, FileCode"
+      default_capability:
+        description: "动态分组下拉，替代原有硬编码 default_op 下拉"
+        mechanics:
+          - 从 agent_list_skill_commands 加载已安装技能包的命令
+          - 从 skills 表加载自定义技能，归入「游击队」分组
+          - 按来源系统分组显示
+          - 每个选项格式：中文名 (/command)
+        groups: "Super Power / Gstack / Everything Claude Code / Super Claude / OpenSpec / 游击队"
+
+  # ── 模型面板增强 ──
+  model_panel_enhancements:
+    added: "2026-06-02"
+    description: "右边对话面板的输入增强功能"
+    features:
+      at_mention:
+        description: "@ 提及 — 在输入框中输入 @ 触发下拉，搜索并选择硅基军团角色"
+        mechanics:
+          - 监听 textarea input 事件，匹配 @xxx 模式
+          - 从 de_list 加载员工列表
+          - 下拉显示员工名和编码
+          - 选择后插入 @员工名
+      hash_ref:
+        description: "# 文件引用 — 在输入框中输入 # 触发下拉，搜索并选择项目文件"
+        mechanics:
+          - 监听 textarea input 事件，匹配 #xxx 模式
+          - 从 fs_list_tree 加载项目文件列表（最大深度 3 层）
+          - 下拉显示文件路径
+          - 选择后插入 #[文件路径]
+      refine_button:
+        description: "炼魂按钮 — 模型下拉右侧的 🔮 按钮，将对话内容蒸馏为可复用 Skill"
+        i18n: "model.refine / model.refineTitle / model.refineDesc / model.refineNameLabel / model.refineStart"
+        mechanics:
+          - 无对话时按钮禁用
+          - 点击弹窗输入 Skill 名称（可选，留空自动生成）
+          - 收集全部对话内容（上限 8000 字符）
+          - 调用 agent_execute_turn 蒸馏为 SKILL.md
+          - 自动保存到 skills 表，归入 guerrillas 分组
+          - 完成后在对话中显示系统消息
   security:
     - runtime_name 白名单校验（6 个公共函数，防路径穿越）
     - 文件操作路径校验（validate_path_in_project）
