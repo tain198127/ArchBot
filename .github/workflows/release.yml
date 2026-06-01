@@ -1,0 +1,44 @@
+name: Release
+on:
+  push:
+    tags:
+      - 'v*' # 当你推送 v1.0.0 等标签时触发打包
+
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        # 核心：这里同时指定了 windows 和 macos 两个云环境
+        platform: [windows-latest, macos-latest]
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Node.js setup
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Rust setup
+        uses: dtolnay/rust-toolchain@stable
+
+      # 如果是 macOS 环境，Tauri 编译需要一些系统级依赖（Windows 不需要，会自动跳过）
+      - name: install webkit2gtk (macOS)
+        if: matrix.platform == 'macos-latest'
+        run: |
+          echo "macOS native dependencies are pre-installed on GitHub runners"
+
+      - name: Install dependencies
+        run: npm install # 如果你使用 pnpm，请改为 pnpm install
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'App ${{ github.ref_name }}'
+          releaseBody: 'Automated multi-platform release from GitHub Actions.'
