@@ -30,6 +30,7 @@ pub type DbRow = std::collections::HashMap<String, Value>;
 
 /// 过滤条件
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct Filter {
     pub field: String,
     pub operator: String, // "eq", "neq", "gt", "gte", "lt", "lte", "like", "in"
@@ -38,6 +39,7 @@ pub struct Filter {
 
 /// 排序规则
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct OrderBy {
     pub field: String,
     pub descending: bool,
@@ -45,6 +47,7 @@ pub struct OrderBy {
 
 /// 查询参数
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct QueryParams {
     pub filters: Vec<Filter>,
     pub order_by: Vec<OrderBy>,
