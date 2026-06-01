@@ -345,11 +345,16 @@ pub async fn de_save(employee: DigitalEmployee, db_type: String) -> Result<(), S
     }
 
     // ── Sync employee_skills ──
-    // Delete existing skills for this employee, then re-insert
+    // Validate identifiers first to prevent SQL injection
+    if db::validate_identifier(&emp_code).is_err() {
+        return Ok(());
+    }
+    // Delete existing skills for this employee, then re-insert.
+    // Safe: emp_code passed validate_identifier (alphanumeric + underscore only).
     let _ = db::db_execute_raw(
         format!(
             "DELETE FROM employee_skills WHERE employee_code = '{}'",
-            emp_code.replace('\'', "''")
+            emp_code
         ),
         db_type.clone(),
     )
