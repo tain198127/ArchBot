@@ -303,8 +303,7 @@ function enumCount(domainCode: string): number { return domainEnums.value[domain
               <span class="text-sm text-text-primary">{{ getDirLabel(cat.labelKey) }}</span>
             </div>
 
-            <!-- expanded children: each nesting level adds pl-5 (20px) -->
-            <div v-if="isCategoryExpanded(cat.key)" class="pl-5 flex flex-col">
+            <div v-if="isCategoryExpanded(cat.key)" class="pl-8 flex flex-col">
               <!-- GROUPS -->
               <template v-if="cat.groups">
                 <template v-for="group in cat.groups" :key="group.key">
@@ -323,7 +322,7 @@ function enumCount(domainCode: string): number { return domainEnums.value[domain
                     <span class="text-sm text-text-primary">{{ getDirLabel(group.labelKey) }}</span>
                   </div>
 
-                  <div v-if="isGroupExpanded(group.key)" class="pl-5 flex flex-col">
+                  <div v-if="isGroupExpanded(group.key)" class="pl-8 flex flex-col">
                     <!-- dataStandard: children + domain tree -->
                     <template v-if="group.key === 'dataStandard'">
                       <div
@@ -356,7 +355,7 @@ function enumCount(domainCode: string): number { return domainEnums.value[domain
                             </svg>
                             <span class="text-sm text-text-primary">{{ domain.name || domain.code }}</span>
                           </div>
-                          <div v-if="isDomainExpanded(domain.code)" class="pl-5 flex flex-col">
+                          <div v-if="isDomainExpanded(domain.code)" class="pl-8 flex flex-col">
                             <div
                               class="tree-item"
                               :class="{ 'bg-surface-200 dark:bg-surface-200': selectedNode === `entity.${domain.code}` }"
