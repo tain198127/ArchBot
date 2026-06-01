@@ -29,6 +29,9 @@ pub struct DigitalEmployee {
     pub sort_order: i32,
     pub created_at: String,
     pub updated_at: String,
+    /// Transient: skill codes to sync to employee_skills table
+    #[serde(default)]
+    pub skills: Vec<String>,
 }
 
 fn row_to_employee(row: &DbRow) -> DigitalEmployee {
@@ -101,6 +104,7 @@ fn row_to_employee(row: &DbRow) -> DigitalEmployee {
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string(),
+        skills: vec![],
     }
 }
 
@@ -229,11 +233,42 @@ pub async fn de_list(db_type: String) -> Result<Vec<DigitalEmployee>, String> {
             }],
             ..Default::default()
         },
-        db_type,
+        db_type.clone(),
     )
     .await?;
 
-    Ok(result.rows.iter().map(row_to_employee).collect())
+    // Load all employee_skills in one query for merging
+    let skills_result = db::db_find_all(
+        "employee_skills".to_string(),
+        db::QueryParams::default(),
+        db_type,
+    )
+    .await
+    .unwrap_or(db::QueryResult {
+        rows: vec![],
+        total: 0,
+    });
+
+    // Group skills by employee_code
+    let mut skills_map: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+    for row in &skills_result.rows {
+        let emp_code = row.get("employee_code").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let skill_code = row.get("skill_code").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        if !emp_code.is_empty() && !skill_code.is_empty() {
+            skills_map.entry(emp_code).or_default().push(skill_code);
+        }
+    }
+
+    Ok(result
+        .rows
+        .iter()
+        .map(|row| {
+            let mut emp = row_to_employee(row);
+            let code = &emp.code;
+            emp.skills = skills_map.get(code).cloned().unwrap_or_default();
+            emp
+        })
+        .collect())
 }
 
 /// 按 code 获取单个数字员工
@@ -261,6 +296,7 @@ pub async fn de_get(code: String, db_type: String) -> Result<Option<DigitalEmplo
 #[tauri::command]
 pub async fn de_save(employee: DigitalEmployee, db_type: String) -> Result<(), String> {
     let now = crate::now_iso();
+    let emp_code = employee.code.clone(); // clone before move into data
     let mut data = std::collections::HashMap::new();
     data.insert("code".to_string(), Value::String(employee.code));
     data.insert("name".to_string(), Value::String(employee.name));
@@ -299,15 +335,38 @@ pub async fn de_save(employee: DigitalEmployee, db_type: String) -> Result<(), S
             "digital_employees".to_string(),
             employee.id.to_string(),
             data,
-            db_type,
+            db_type.clone(),
         )
-        .await
+        .await?;
     } else {
         // Create
-        data.insert("created_at".to_string(), Value::String(now));
-        db::db_insert("digital_employees".to_string(), data, db_type).await?;
-        Ok(())
+        data.insert("created_at".to_string(), Value::String(now.clone()));
+        db::db_insert("digital_employees".to_string(), data, db_type.clone()).await?;
     }
+
+    // ── Sync employee_skills ──
+    // Delete existing skills for this employee, then re-insert
+    let _ = db::db_execute_raw(
+        format!(
+            "DELETE FROM employee_skills WHERE employee_code = '{}'",
+            emp_code.replace('\'', "''")
+        ),
+        db_type.clone(),
+    )
+    .await;
+
+    for skill_code in &employee.skills {
+        let mut skill_data = std::collections::HashMap::new();
+        skill_data.insert(
+            "employee_code".to_string(),
+            Value::String(emp_code.clone()),
+        );
+        skill_data.insert("skill_code".to_string(), Value::String(skill_code.clone()));
+        skill_data.insert("created_at".to_string(), Value::String(now.clone()));
+        let _ = db::db_insert("employee_skills".to_string(), skill_data, db_type.clone()).await;
+    }
+
+    Ok(())
 }
 
 /// 按 id 删除数字员工

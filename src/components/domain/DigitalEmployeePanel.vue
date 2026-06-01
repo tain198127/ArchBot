@@ -132,6 +132,8 @@ async function handleSave() {
     return
   }
   editForm.value.updated_at = new Date().toISOString()
+  // Merge skills into form data for backend
+  editForm.value.skills = editSkills.value
   try {
     await invoke('de_save', { employee: editForm.value, dbType: DB_TYPE })
     toast.success(isNew.value ? de.value.createSuccess : de.value.saveSuccess)
