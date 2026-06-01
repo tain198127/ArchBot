@@ -98,12 +98,10 @@ struct UpdateStatusBody {
 async fn get_session(
     Path(session_id): Path<String>,
 ) -> Json<super::ApiResponse<crate::agent_runtime::session_manager::AgentSession>> {
-    let result = spawn_blocking_op(move || {
-        match SessionManager::new().get(&session_id) {
-            Ok(Some(s)) => Ok(s),
-            Ok(None) => Err("session not found".into()),
-            Err(e) => Err(e),
-        }
+    let result = spawn_blocking_op(move || match SessionManager::new().get(&session_id) {
+        Ok(Some(s)) => Ok(s),
+        Ok(None) => Err("session not found".into()),
+        Err(e) => Err(e),
     })
     .await;
     match result {
@@ -116,10 +114,9 @@ async fn update_session_status(
     Path(session_id): Path<String>,
     Json(b): Json<UpdateStatusBody>,
 ) -> Json<super::EmptyResponse> {
-    let result = spawn_blocking_op(move || {
-        SessionManager::new().update_status(&session_id, &b.status)
-    })
-    .await;
+    let result =
+        spawn_blocking_op(move || SessionManager::new().update_status(&session_id, &b.status))
+            .await;
     match result {
         Ok(()) => Json(super::EmptyResponse {
             success: true,
@@ -181,12 +178,10 @@ async fn list_turns(
 async fn get_turn(
     Path((_session_id, turn_id)): Path<(String, String)>,
 ) -> Json<super::ApiResponse<crate::agent_runtime::session_manager::AgentTurnInfo>> {
-    let result = spawn_blocking_op(move || {
-        match SessionManager::new().get_turn(&turn_id) {
-            Ok(Some(t)) => Ok(t),
-            Ok(None) => Err("turn not found".into()),
-            Err(e) => Err(e),
-        }
+    let result = spawn_blocking_op(move || match SessionManager::new().get_turn(&turn_id) {
+        Ok(Some(t)) => Ok(t),
+        Ok(None) => Err("turn not found".into()),
+        Err(e) => Err(e),
     })
     .await;
     match result {
@@ -206,7 +201,8 @@ struct EventListResponse {
 async fn get_events(
     Path((session_id, turn_id)): Path<(String, String)>,
 ) -> Json<super::ApiResponse<EventListResponse>> {
-    let result = spawn_blocking_op(move || SessionManager::new().get_events(&session_id, &turn_id)).await;
+    let result =
+        spawn_blocking_op(move || SessionManager::new().get_events(&session_id, &turn_id)).await;
     match result {
         Ok(events) => Json(super::ApiResponse::ok(EventListResponse {
             total: events.len(),

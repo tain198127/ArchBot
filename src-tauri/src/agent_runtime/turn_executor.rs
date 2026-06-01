@@ -44,7 +44,13 @@ pub async fn agent_execute_turn(
 pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
     let start = Instant::now();
     let turn_id = uuid::Uuid::new_v4().to_string();
-    trace_fmt!("turn", "START turn_id={} runtime={} workspace={}", turn_id, config.runtime, config.workspace_root);
+    trace_fmt!(
+        "turn",
+        "START turn_id={} runtime={} workspace={}",
+        turn_id,
+        config.runtime,
+        config.workspace_root
+    );
 
     // 1. 加载 Runtime 配置
     let rt_config = load_runtimes_config()?;
@@ -54,10 +60,19 @@ pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
         .ok_or_else(|| format!("Runtime not found in config: {}", config.runtime))?;
 
     if !entry.enabled {
-        trace_fmt!("turn", "FAIL turn_id={} — runtime disabled: {}", turn_id, config.runtime);
+        trace_fmt!(
+            "turn",
+            "FAIL turn_id={} — runtime disabled: {}",
+            turn_id,
+            config.runtime
+        );
         return Err(format!("Runtime disabled: {}", config.runtime));
     }
-    trace_fmt!("turn", "Runtime config loaded — executable={}", entry.executable);
+    trace_fmt!(
+        "turn",
+        "Runtime config loaded — executable={}",
+        entry.executable
+    );
 
     // 2. 获取 API token + 构造 launch config
     let mut launch_config = build_launch_config(
@@ -79,28 +94,48 @@ pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
             "hermes" => "HERMES_API_KEY",
             _ => "OPENAI_API_KEY",
         };
-        trace_fmt!("turn", "Token lookup: provider_id={} runtime={} token_key={}", provider_id, config.runtime, token_key);
+        trace_fmt!(
+            "turn",
+            "Token lookup: provider_id={} runtime={} token_key={}",
+            provider_id,
+            config.runtime,
+            token_key
+        );
 
         // Try provider_id first (e.g. "deepseek"), then runtime name (e.g. "claude_code")
         for lookup in &[provider_id, config.runtime.as_str()] {
-            if launch_config.allowed_env.contains_key(token_key) && !launch_config.allowed_env[token_key].is_empty() {
+            if launch_config.allowed_env.contains_key(token_key)
+                && !launch_config.allowed_env[token_key].is_empty()
+            {
                 break; // Already have a token from runtimes.yml env vars
             }
             match sm.get(lookup, "api_token") {
                 Ok(token) if !token.is_empty() => {
                     trace_fmt!("turn", "Token resolved via provider={}", lookup);
-                    launch_config.allowed_env.insert(token_key.to_string(), token);
+                    launch_config
+                        .allowed_env
+                        .insert(token_key.to_string(), token);
                     break;
                 }
-                Ok(_) => { trace_fmt!("turn", "Token for provider={} is empty", lookup); }
-                Err(e) => { trace_fmt!("turn", "No token for provider={}: {}", lookup, e); }
+                Ok(_) => {
+                    trace_fmt!("turn", "Token for provider={} is empty", lookup);
+                }
+                Err(e) => {
+                    trace_fmt!("turn", "No token for provider={}: {}", lookup, e);
+                }
             }
         }
     }
 
     // Fallback: parent process environment
-    for key in &["ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "ANTHROPIC_MODEL",
-                  "OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_MODEL"] {
+    for key in &[
+        "ANTHROPIC_AUTH_TOKEN",
+        "ANTHROPIC_BASE_URL",
+        "ANTHROPIC_MODEL",
+        "OPENAI_API_KEY",
+        "OPENAI_BASE_URL",
+        "OPENAI_MODEL",
+    ] {
         if !launch_config.allowed_env.contains_key(*key) {
             if let Ok(val) = std::env::var(key) {
                 trace_fmt!("turn", "Injecting {} from parent env", key);
@@ -123,10 +158,17 @@ pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
             } else {
                 format!("{}/anthropic", p.base_url.trim_end_matches('/'))
             };
-            let old = launch_config.allowed_env.insert("ANTHROPIC_BASE_URL".to_string(), anthropic_url.clone());
+            let old = launch_config
+                .allowed_env
+                .insert("ANTHROPIC_BASE_URL".to_string(), anthropic_url.clone());
             if old.as_deref() != Some(&anthropic_url) {
-                trace_fmt!("turn", "ANTHROPIC_BASE_URL {}→ {} (from provider {})",
-                    old.as_deref().unwrap_or("(not set)"), anthropic_url, provider_id);
+                trace_fmt!(
+                    "turn",
+                    "ANTHROPIC_BASE_URL {}→ {} (from provider {})",
+                    old.as_deref().unwrap_or("(not set)"),
+                    anthropic_url,
+                    provider_id
+                );
             }
         }
     }
@@ -139,7 +181,9 @@ pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
             _ => "OPENAI_MODEL",
         };
         trace_fmt!("turn", "Model override: {}={}", model_key, model);
-        launch_config.allowed_env.insert(model_key.to_string(), model.clone());
+        launch_config
+            .allowed_env
+            .insert(model_key.to_string(), model.clone());
     }
 
     // 3. 初始化隔离 HOME
@@ -166,11 +210,24 @@ pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
     let snapshot = PreTurnSnapshot::capture(&turn_id, project_root).ok();
 
     // 7. 发射事件 + 启动子进程
-    trace_fmt!("turn", "Launching runtime — executable={} cwd={} stdin_bytes={}", launch_config.executable, launch_config.workspace_root, launch_config.stdin_content.as_ref().map_or(0, |c| c.len()));
+    trace_fmt!(
+        "turn",
+        "Launching runtime — executable={} cwd={} stdin_bytes={}",
+        launch_config.executable,
+        launch_config.workspace_root,
+        launch_config.stdin_content.as_ref().map_or(0, |c| c.len())
+    );
     let bus = EventBus::global();
     let session_anchor = config.session_id.clone().unwrap_or_else(|| turn_id.clone());
-    bus.publish(StandardEvent::session_created(&session_anchor, &config.runtime));
-    bus.publish(StandardEvent::turn_started(&session_anchor, &turn_id, &config.runtime));
+    bus.publish(StandardEvent::session_created(
+        &session_anchor,
+        &config.runtime,
+    ));
+    bus.publish(StandardEvent::turn_started(
+        &session_anchor,
+        &turn_id,
+        &config.runtime,
+    ));
 
     let mut child = launch_isolated_runtime(&launch_config)?;
     trace_fmt!("turn", "Child process spawned — pid={:?}", child.id());
@@ -209,25 +266,27 @@ pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
 
     // 10. 扫描文件变更（与快照对比）
     let file_changes = match &snapshot {
-        Some(snap) => {
-            match file_control::scan_file_changes(project_root, snap) {
-                Ok(diffs) => diffs
-                    .into_iter()
-                    .map(|d| FileChange {
-                        path: d.path,
-                        change_type: d.change_type,
-                    })
-                    .collect(),
-                Err(_) => parse_file_changes(&turn_dir.join("file_changes.json")),
-            }
-        }
+        Some(snap) => match file_control::scan_file_changes(project_root, snap) {
+            Ok(diffs) => diffs
+                .into_iter()
+                .map(|d| FileChange {
+                    path: d.path,
+                    change_type: d.change_type,
+                })
+                .collect(),
+            Err(_) => parse_file_changes(&turn_dir.join("file_changes.json")),
+        },
         None => parse_file_changes(&turn_dir.join("file_changes.json")),
     };
 
     // 对每个文件变更发射事件
     for fc in &file_changes {
         bus.publish(StandardEvent::turn_file_changed(
-            &session_anchor, &turn_id, &fc.path, &fc.change_type, &config.runtime,
+            &session_anchor,
+            &turn_id,
+            &fc.path,
+            &fc.change_type,
+            &config.runtime,
         ));
     }
 
@@ -248,7 +307,13 @@ pub fn execute_turn(config: TurnConfig) -> Result<TurnResult, String> {
 
     let duration_ms = start.elapsed().as_millis() as u64;
     let status_str = if status.success() {
-        trace_fmt!("turn", "COMPLETED turn_id={} duration={}ms file_changes={}", turn_id, duration_ms, file_changes.len());
+        trace_fmt!(
+            "turn",
+            "COMPLETED turn_id={} duration={}ms file_changes={}",
+            turn_id,
+            duration_ms,
+            file_changes.len()
+        );
         bus.publish(StandardEvent::turn_completed(&session_anchor, &turn_id));
         "completed".to_string()
     } else {
@@ -299,7 +364,14 @@ fn wait_with_timeout(
                     let _ = r.read_to_end(&mut stderr_buf);
                 }
                 // Parse any remaining lines
-                parse_ndjson_events(&stdout_buf, &mut line_buf, session_id, turn_id, runtime, bus);
+                parse_ndjson_events(
+                    &stdout_buf,
+                    &mut line_buf,
+                    session_id,
+                    turn_id,
+                    runtime,
+                    bus,
+                );
                 let stdout = String::from_utf8_lossy(&stdout_buf).to_string();
                 let stderr = String::from_utf8_lossy(&stderr_buf).to_string();
                 return Ok((stdout, stderr, status));
@@ -309,7 +381,10 @@ fn wait_with_timeout(
                     let _ = child.kill();
                     let stdout = String::from_utf8_lossy(&stdout_buf).to_string();
                     bus.publish(StandardEvent::turn_error(
-                        session_id, turn_id, "Turn timed out", runtime,
+                        session_id,
+                        turn_id,
+                        "Turn timed out",
+                        runtime,
                     ));
                     return Err(format!(
                         "Turn timed out after {:?}. stdout: {}...",
@@ -338,7 +413,14 @@ fn wait_with_timeout(
                 }
                 // 仅当有新数据时才解析，减少重复工作
                 if stdout_buf.len() > prev_len {
-                    parse_ndjson_events(&stdout_buf, &mut line_buf, session_id, turn_id, runtime, bus);
+                    parse_ndjson_events(
+                        &stdout_buf,
+                        &mut line_buf,
+                        session_id,
+                        turn_id,
+                        runtime,
+                        bus,
+                    );
                 }
                 std::thread::sleep(std::time::Duration::from_millis(100));
             }
@@ -360,7 +442,7 @@ fn parse_ndjson_events(
     bus: &EventBus,
 ) {
     let bus_ref = bus; // borrow checker helper
-    // Process every byte in the buffer, treating line_buf as carry-over from last call
+                       // Process every byte in the buffer, treating line_buf as carry-over from last call
     for &byte in stdout_buf {
         line_buf.push(byte);
         if byte == b'\n' {
@@ -390,7 +472,9 @@ fn emit_ndjson_event(
                 if let Some(delta) = event.get("delta") {
                     if let Some(text) = delta.get("text").and_then(|v| v.as_str()) {
                         if !text.is_empty() {
-                            bus.publish(StandardEvent::turn_delta(session_id, turn_id, text, runtime));
+                            bus.publish(StandardEvent::turn_delta(
+                                session_id, turn_id, text, runtime,
+                            ));
                         }
                     }
                 }
@@ -748,7 +832,9 @@ mod tests {
         let config = TurnConfig {
             runtime: "claude_code".into(),
             workspace_root: tmp.to_string_lossy().to_string(),
-            user_message: "List the files in the current directory and write a one-line summary to result.md.".into(),
+            user_message:
+                "List the files in the current directory and write a one-line summary to result.md."
+                    .into(),
             context_files: vec!["README.md".into()],
             git_user_name: None,
             git_user_email: None,
@@ -776,7 +862,10 @@ mod tests {
                         assert!(path.exists(), "result.md should exist at {}", p);
                         let content = fs::read_to_string(path).unwrap_or_default();
                         assert!(!content.trim().is_empty(), "result.md should not be empty");
-                        eprintln!("result.md content (first 200 chars): {}", &content[..content.len().min(200)]);
+                        eprintln!(
+                            "result.md content (first 200 chars): {}",
+                            &content[..content.len().min(200)]
+                        );
                     }
                 }
             }

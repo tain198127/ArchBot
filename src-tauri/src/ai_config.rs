@@ -390,13 +390,23 @@ pub async fn ai_validate_provider(
     base_url: String,
     model: String,
 ) -> Result<ValidateResult, String> {
-    trace_fmt!("ai:validate", "START — provider={} protocol={} base_url={}", id, protocol, base_url);
+    trace_fmt!(
+        "ai:validate",
+        "START — provider={} protocol={} base_url={}",
+        id,
+        protocol,
+        base_url
+    );
 
     let sm = SecretManager::new(&machine_id())?;
     let api_key = sm.get(&id, "api_token").unwrap_or_default();
 
     if api_key.is_empty() {
-        trace_fmt!("ai:validate", "FAIL — no API key configured for provider={}", id);
+        trace_fmt!(
+            "ai:validate",
+            "FAIL — no API key configured for provider={}",
+            id
+        );
         return Ok(ValidateResult {
             ok: false,
             response: None,
@@ -449,7 +459,16 @@ pub async fn ai_validate_provider(
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
-    trace_fmt!("ai:validate", "Sending HTTP {} to {}", if protocol == "anthropic" { "POST (anthropic)" } else { "POST (openai)" }, endpoint);
+    trace_fmt!(
+        "ai:validate",
+        "Sending HTTP {} to {}",
+        if protocol == "anthropic" {
+            "POST (anthropic)"
+        } else {
+            "POST (openai)"
+        },
+        endpoint
+    );
     let req = if protocol == "anthropic" {
         client
             .post(&endpoint)
@@ -467,13 +486,23 @@ pub async fn ai_validate_provider(
         Ok(resp) => {
             let status = resp.status();
             let body_text = resp.text().await.unwrap_or_default();
-            trace_fmt!("ai:validate", "HTTP response — status={} body_len={}", status.as_u16(), body_text.len());
+            trace_fmt!(
+                "ai:validate",
+                "HTTP response — status={} body_len={}",
+                status.as_u16(),
+                body_text.len()
+            );
 
             if status.is_success() {
                 let reply = parse_chat_reply(&protocol, &body_text);
                 let remote_models =
                     fetch_remote_models(&protocol, &base_url, &api_key, &client).await;
-                trace_fmt!("ai:validate", "SUCCESS — reply={:?} remote_models_count={}", reply, remote_models.len());
+                trace_fmt!(
+                    "ai:validate",
+                    "SUCCESS — reply={:?} remote_models_count={}",
+                    reply,
+                    remote_models.len()
+                );
                 Ok(ValidateResult {
                     ok: true,
                     response: Some(reply),
@@ -486,7 +515,12 @@ pub async fn ai_validate_provider(
                 } else {
                     body_text
                 };
-                trace_fmt!("ai:validate", "FAIL — HTTP {} body={}", status.as_u16(), short);
+                trace_fmt!(
+                    "ai:validate",
+                    "FAIL — HTTP {} body={}",
+                    status.as_u16(),
+                    short
+                );
                 Ok(ValidateResult {
                     ok: false,
                     response: None,
@@ -503,7 +537,7 @@ pub async fn ai_validate_provider(
                 remote_models: None,
                 error: Some(format!("Connection failed: {}", e)),
             })
-        },
+        }
     }
 }
 

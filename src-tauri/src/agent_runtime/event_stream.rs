@@ -91,65 +91,117 @@ impl StandardEvent {
     }
 
     pub fn session_created(session_id: &str, runtime: &str) -> Self {
-        Self::new(session_id, "", runtime, EventType::SessionCreated, serde_json::json!({}))
+        Self::new(
+            session_id,
+            "",
+            runtime,
+            EventType::SessionCreated,
+            serde_json::json!({}),
+        )
     }
 
     pub fn session_closed(session_id: &str) -> Self {
-        Self::new(session_id, "", "", EventType::SessionClosed, serde_json::json!({}))
+        Self::new(
+            session_id,
+            "",
+            "",
+            EventType::SessionClosed,
+            serde_json::json!({}),
+        )
     }
 
     pub fn turn_started(session_id: &str, turn_id: &str, runtime: &str) -> Self {
-        Self::new(session_id, turn_id, runtime, EventType::TurnStarted, serde_json::json!({}))
+        Self::new(
+            session_id,
+            turn_id,
+            runtime,
+            EventType::TurnStarted,
+            serde_json::json!({}),
+        )
     }
 
     pub fn turn_delta(session_id: &str, turn_id: &str, text: &str, runtime: &str) -> Self {
         Self::new(
-            session_id, turn_id, runtime, EventType::TurnDelta,
+            session_id,
+            turn_id,
+            runtime,
+            EventType::TurnDelta,
             serde_json::json!({"text": text}),
         )
     }
 
     pub fn turn_tool_started(session_id: &str, turn_id: &str, tool: &str, runtime: &str) -> Self {
         Self::new(
-            session_id, turn_id, runtime, EventType::TurnToolStarted,
+            session_id,
+            turn_id,
+            runtime,
+            EventType::TurnToolStarted,
             serde_json::json!({"tool": tool}),
         )
     }
 
     pub fn turn_tool_finished(session_id: &str, turn_id: &str, tool: &str, runtime: &str) -> Self {
         Self::new(
-            session_id, turn_id, runtime, EventType::TurnToolFinished,
+            session_id,
+            turn_id,
+            runtime,
+            EventType::TurnToolFinished,
             serde_json::json!({"tool": tool}),
         )
     }
 
     pub fn turn_file_changed(
-        session_id: &str, turn_id: &str, path: &str, change_type: &str, runtime: &str,
+        session_id: &str,
+        turn_id: &str,
+        path: &str,
+        change_type: &str,
+        runtime: &str,
     ) -> Self {
         Self::new(
-            session_id, turn_id, runtime, EventType::TurnFileChanged,
+            session_id,
+            turn_id,
+            runtime,
+            EventType::TurnFileChanged,
             serde_json::json!({"path": path, "change_type": change_type}),
         )
     }
 
     pub fn turn_completed(session_id: &str, turn_id: &str) -> Self {
-        Self::new(session_id, turn_id, "", EventType::TurnCompleted, serde_json::json!({}))
+        Self::new(
+            session_id,
+            turn_id,
+            "",
+            EventType::TurnCompleted,
+            serde_json::json!({}),
+        )
     }
 
     pub fn turn_failed(session_id: &str, turn_id: &str, error: &str) -> Self {
-        Self::new(session_id, turn_id, "", EventType::TurnFailed, serde_json::json!({"error": error}))
+        Self::new(
+            session_id,
+            turn_id,
+            "",
+            EventType::TurnFailed,
+            serde_json::json!({"error": error}),
+        )
     }
 
     pub fn turn_error(session_id: &str, turn_id: &str, error: &str, runtime: &str) -> Self {
         Self::new(
-            session_id, turn_id, runtime, EventType::TurnError,
+            session_id,
+            turn_id,
+            runtime,
+            EventType::TurnError,
             serde_json::json!({"error": error}),
         )
     }
 
     pub fn runtime_health_changed(runtime: &str, available: bool) -> Self {
         Self::new(
-            "", "", runtime, EventType::RuntimeHealthChanged,
+            "",
+            "",
+            runtime,
+            EventType::RuntimeHealthChanged,
             serde_json::json!({"available": available}),
         )
     }
@@ -262,8 +314,8 @@ use axum::{
 use futures::stream;
 use std::convert::Infallible;
 use std::time::Duration;
-use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
+use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::StreamExt;
 
 /// SSE handler that replays existing turn events then streams new ones in real-time.

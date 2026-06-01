@@ -17,7 +17,11 @@ pub type LaunchResult = Result<Child, String>;
 pub fn launch_isolated_runtime(config: &RuntimeLaunchConfig) -> LaunchResult {
     trace_fmt!("launcher", "Checking executable: {}", config.executable);
     if !std::path::Path::new(&config.executable).exists() {
-        trace_fmt!("launcher", "FAIL — executable not found: {}", config.executable);
+        trace_fmt!(
+            "launcher",
+            "FAIL — executable not found: {}",
+            config.executable
+        );
         return Err(format!(
             "[launcher] Executable not found: {}",
             config.executable
@@ -70,12 +74,22 @@ pub fn launch_isolated_runtime(config: &RuntimeLaunchConfig) -> LaunchResult {
     // Ensure workspace directory exists
     let ws = std::path::Path::new(&config.workspace_root);
     if !ws.exists() {
-        std::fs::create_dir_all(ws).map_err(|e| format!(
-            "[launcher] Failed to create workspace {}: {}", config.workspace_root, e
-        ))?;
+        std::fs::create_dir_all(ws).map_err(|e| {
+            format!(
+                "[launcher] Failed to create workspace {}: {}",
+                config.workspace_root, e
+            )
+        })?;
     }
 
-    trace_fmt!("launcher", "Spawning: {} {:?} in {} ({} env vars)", config.executable, config.args, config.workspace_root, config.allowed_env.len());
+    trace_fmt!(
+        "launcher",
+        "Spawning: {} {:?} in {} ({} env vars)",
+        config.executable,
+        config.args,
+        config.workspace_root,
+        config.allowed_env.len()
+    );
     for k in config.allowed_env.keys() {
         trace_fmt!("launcher", "  env: {} = <redacted>", k);
     }
@@ -83,7 +97,11 @@ pub fn launch_isolated_runtime(config: &RuntimeLaunchConfig) -> LaunchResult {
         .spawn()
         .map_err(|e| format!("[launcher] Failed to spawn {}: {}", config.runtime_type, e))?;
 
-    trace_fmt!("launcher", "Subprocess pid={:?} spawned successfully", child.id());
+    trace_fmt!(
+        "launcher",
+        "Subprocess pid={:?} spawned successfully",
+        child.id()
+    );
 
     // 写入 stdin 内容后关闭管道（EOF 信号）
     if let Some(ref content) = config.stdin_content {
@@ -91,7 +109,11 @@ pub fn launch_isolated_runtime(config: &RuntimeLaunchConfig) -> LaunchResult {
             stdin
                 .write_all(content.as_bytes())
                 .map_err(|e| format!("[launcher] Failed to write to stdin: {}", e))?;
-            trace_fmt!("launcher", "Stdin pipe written ({} bytes) and closed", content.len());
+            trace_fmt!(
+                "launcher",
+                "Stdin pipe written ({} bytes) and closed",
+                content.len()
+            );
             // stdin 在此处 drop，管道关闭，子进程收到 EOF
         }
     }
