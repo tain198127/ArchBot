@@ -49,6 +49,10 @@ runtimes:
         - "--permission-mode"
         - "acceptEdits"
 
+    # Extra CLI arguments appended at runtime (space-separated).
+    # User can customize this from the Agent Config Panel UI.
+    extra_args: "--dangerously-skip-permissions"
+
     execution:
       default_timeout_seconds: 1800
       max_concurrent_turns: 2
@@ -83,6 +87,38 @@ runtimes:
         audit:
           enabled: true
           severity_threshold: medium
+
+    # ── Skill Bundle ──
+    # Curated skill packs installed alongside Claude Code into the
+    # isolated HOME's .claude/skills/ directory. Each skill is
+    # shallow-cloned from its git repository.
+    skill_bundle:
+      enabled: true
+      skills:
+        - name: superpowers
+          repo: https://github.com/superpowers/superpowers.git
+          ref: main
+          description: "Agent orchestration, TDD, debugging, planning, and code review workflows"
+
+        - name: gstack
+          repo: https://github.com/gstack/gstack.git
+          ref: main
+          description: "Headless browser QA, deployment workflows, design review, and project management"
+
+        - name: everything-claude-code
+          repo: https://github.com/everything-claude-code/everything-claude-code.git
+          ref: main
+          description: "Comprehensive skill collection covering all major development workflows"
+
+        - name: super-claude
+          repo: https://github.com/super-claude/super-claude.git
+          ref: main
+          description: "Extended Claude capabilities and advanced agent patterns"
+
+        - name: claude-official-skills
+          repo: https://github.com/anthropics/skills.git
+          ref: main
+          description: "Official Claude Code skill examples and reference implementations"
 
 
   hermes:

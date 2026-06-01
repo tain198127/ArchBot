@@ -507,6 +507,13 @@ export default {
     saveApiKey: 'Save Key',
     validateTitle: 'Validate Connection',
     validate: 'Validate',
+    skillsTitle: 'Installed Skills',
+    skillsInstalling: 'Installing skills...',
+    skillsReinstall: 'Reinstall Skills',
+    skillsUpdate: 'Update Skills',
+    skillsNone: 'No skills installed',
+    skillsFailed: 'skill installation failed',
+    skillsGitNotFound: 'git not found — skills skipped',
   },
   aiConfig: {
     title: 'AI Model Providers',

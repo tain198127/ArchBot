@@ -6,8 +6,17 @@ import VSelect from '../base/VSelect.vue'
 import { useI18n } from '../../i18n'
 import { useToast } from '../../composables/useToast'
 import { pushLog } from '../../stores/log'
-import { testRuntime } from '../../stores/agentStore'
+import { testRuntime, installSkills, listInstalledSkills, updateSkills } from '../../stores/agentStore'
+import type { InstalledSkill, SkillInstallSummary } from '../../stores/agentStore'
 import { invoke } from '@tauri-apps/api/core'
+
+interface SkillBundleInfo {
+  name: string
+  repo: string
+  ref: string
+  description: string
+  installed: boolean
+}
 
 const { t } = useI18n()
 const toast = useToast()
@@ -58,6 +67,13 @@ interface AgentState {
   envVars: Record<string, string>
   newEnvKey: string
   newEnvValue: string
+  // Extra CLI args appended at runtime (space-separated)
+  extraArgs: string
+  // Skill bundle
+  skillBundles: SkillBundleInfo[]
+  skills: InstalledSkill[]
+  skillsLoading: boolean
+  skillsSummary: SkillInstallSummary | null
 }
 
 const initState = (): AgentState => ({
@@ -77,6 +93,11 @@ const initState = (): AgentState => ({
   envVars: {},
   newEnvKey: '',
   newEnvValue: '',
+  extraArgs: '--dangerously-skip-permissions',
+  skillBundles: [],
+  skills: [],
+  skillsLoading: false,
+  skillsSummary: null,
 })
 
 const state = reactive<Record<string, AgentState>>({
@@ -87,6 +108,12 @@ const state = reactive<Record<string, AgentState>>({
 })
 
 const current = computed(() => state[activeTab.value])
+
+// Detect dangerous permission flags in extra_args
+const hasDangerousFlags = computed(() => {
+  const args = current.value.extraArgs || ''
+  return /\b(--dangerously-skip-permissions|--permission-mode\s+bypassPermissions)\b/.test(args)
+})
 
 // ── AI Providers ──
 const providers = ref<AIProvider[]>([])
@@ -137,6 +164,10 @@ async function refreshRuntimeStatus(runtime: string) {
       if (result.config.env_vars) {
         state[runtime].envVars = { ...result.config.env_vars }
       }
+      // Load persisted extra_args
+      if (result.config.extra_args) {
+        state[runtime].extraArgs = result.config.extra_args
+      }
     }
   } catch (e: any) {
     pushLog('warn', 'agent:status', `Failed to load ${runtime} status: ${String(e)}`)
@@ -156,6 +187,27 @@ async function refreshRuntimeStatus(runtime: string) {
       state[runtime].selectedModel = provider.default_model
     }
   }
+
+  // Load skill bundles + installed skills
+  await loadSkillBundles(runtime)
+  await loadInstalledSkills(runtime)
+}
+
+async function loadSkillBundles(runtime: string) {
+  try {
+    state[runtime].skillBundles = await invoke<SkillBundleInfo[]>('agent_get_skill_bundles', { runtime })
+  } catch {
+    state[runtime].skillBundles = []
+  }
+}
+
+async function loadInstalledSkills(runtime: string) {
+  try {
+    state[runtime].skills = await listInstalledSkills(runtime)
+  } catch {
+    // Skills might not be installed yet — that's fine
+    state[runtime].skills = []
+  }
 }
 
 function switchTab(runtime: string) {
@@ -169,10 +221,13 @@ async function installRuntime(runtime: string) {
   if (!s.selectedVersion) { toast.error('Please select a version to install'); return }
   s.installLoading = true
   try {
-    await invoke('agent_install_runtime', { runtime, version: s.selectedVersion })
+    const msg: string = await invoke('agent_install_runtime', { runtime, version: s.selectedVersion })
     s.installed = true
     s.installedVersion = s.selectedVersion
-    toast.success(`${tabs.find(x => x.value === runtime)?.label} installed`)
+    toast.success(msg)
+    // Reload skills after install (backend installs them as post-install hook)
+    await loadSkillBundles(runtime)
+    await loadInstalledSkills(runtime)
   } catch (e: any) {
     const msg = String(e); toast.error(msg); pushLog('error', 'agent:install', msg)
   } finally { s.installLoading = false }
@@ -189,6 +244,38 @@ async function updateRuntime(runtime: string) {
   } catch (e: any) {
     const msg = String(e); toast.error(msg); pushLog('error', 'agent:update', msg)
   } finally { s.updateLoading = false }
+}
+
+// ── Skill Actions ──
+
+async function installSkillsForRuntime(runtime: string) {
+  const s = state[runtime]
+  s.skillsLoading = true
+  try {
+    s.skillsSummary = await installSkills(runtime)
+    await loadSkillBundles(runtime)
+    await loadInstalledSkills(runtime)
+    if (s.skillsSummary.failed > 0) {
+      toast.error(`${s.skillsSummary.succeeded}/${s.skillsSummary.total} skills installed (${s.skillsSummary.failed} failed)`)
+    } else if (s.skillsSummary.succeeded > 0) {
+      toast.success(`${s.skillsSummary.succeeded} skills installed`)
+    }
+  } catch (e: any) {
+    toast.error(String(e))
+  } finally { s.skillsLoading = false }
+}
+
+async function updateSkillsForRuntime(runtime: string) {
+  const s = state[runtime]
+  s.skillsLoading = true
+  try {
+    s.skillsSummary = await updateSkills(runtime)
+    await loadSkillBundles(runtime)
+    await loadInstalledSkills(runtime)
+    toast.success(`${s.skillsSummary.succeeded} skills updated`)
+  } catch (e: any) {
+    toast.error(String(e))
+  } finally { s.skillsLoading = false }
 }
 
 async function rollbackRuntime(runtime: string) {
@@ -219,7 +306,7 @@ async function autoSaveConfig(runtime: string) {
         model_small: '',
         model_large: '',
         model_name: provider.protocol === 'openai' ? s.selectedModel : '',
-        extra_args: '',
+        extra_args: s.extraArgs,
         env_vars: s.envVars,
       },
     })
@@ -380,6 +467,75 @@ function removeEnvVar(rt: string, key: string) {
               </div>
             </section>
 
+            <!-- ========== Section 2.5: Skills ========== -->
+            <section>
+              <h3 class="text-sm font-semibold text-text-primary mb-3">{{ t.agentConfig.skillsTitle }}</h3>
+
+              <!-- Configured skill bundles -->
+              <div v-if="current.skillBundles.length > 0" class="space-y-2 max-w-[560px] mb-3">
+                <div
+                  v-for="bundle in current.skillBundles"
+                  :key="bundle.name"
+                  class="flex items-center justify-between text-xs py-2 px-3 rounded-lg border"
+                  :class="bundle.installed ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800' : 'bg-surface-1 border-border-default'"
+                >
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class="w-2 h-2 rounded-full flex-shrink-0" :class="bundle.installed ? 'bg-emerald-500' : 'bg-amber-400'" />
+                    <div class="min-w-0">
+                      <div class="font-medium text-text-primary truncate">{{ bundle.name }}</div>
+                      <div class="text-text-muted truncate text-[11px]">{{ bundle.description }}</div>
+                    </div>
+                  </div>
+                  <VButton
+                    size="sm"
+                    variant="secondary"
+                    :loading="current.skillsLoading"
+                    :disabled="bundle.installed"
+                    @click="installSkillsForRuntime(rt)"
+                  >
+                    {{ bundle.installed ? '✓ Installed' : 'Install' }}
+                  </VButton>
+                </div>
+              </div>
+              <div v-else class="text-xs text-text-muted py-2">
+                No skill bundles configured
+              </div>
+
+              <!-- Installed skill details -->
+              <div v-if="current.skills.length > 0" class="space-y-1 max-w-[560px] mt-3">
+                <div class="text-xs text-text-muted font-medium mb-1">Installed skill details</div>
+                <div
+                  v-for="skill in current.skills"
+                  :key="skill.name"
+                  class="flex items-center justify-between text-xs py-1 px-2 rounded bg-surface-1 border border-border-default"
+                >
+                  <div class="flex items-center gap-1.5 min-w-0">
+                    <span class="text-text-muted flex-shrink-0">{{ skill.name }}</span>
+                    <span class="text-text-muted/50">{{ skill.ref }}@{{ skill.commit }}</span>
+                  </div>
+                  <span class="text-text-muted/50 flex-shrink-0 ml-2">{{ skill.last_updated?.slice(0, 10) || '' }}</span>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2 mt-2">
+                <VButton size="sm" variant="secondary" :loading="current.skillsLoading" @click="installSkillsForRuntime(rt)">
+                  {{ t.agentConfig.skillsReinstall }}
+                </VButton>
+                <VButton size="sm" variant="secondary" :loading="current.skillsLoading" :disabled="current.skills.length === 0" @click="updateSkillsForRuntime(rt)">
+                  {{ t.agentConfig.skillsUpdate }}
+                </VButton>
+              </div>
+              <!-- Install summary -->
+              <div v-if="current.skillsSummary" class="mt-2 text-xs text-text-muted">
+                {{ current.skillsSummary.succeeded }}/{{ current.skillsSummary.total }} succeeded<span v-if="current.skillsSummary.failed > 0">, {{ current.skillsSummary.failed }} failed</span>
+                <div v-if="current.skillsSummary.failed > 0" class="mt-1 space-y-0.5">
+                  <div v-for="r in current.skillsSummary.results.filter(x => x.status === 'failed')" :key="r.name" class="text-red-400">
+                    ✕ {{ r.name }}: {{ r.error_message }}
+                  </div>
+                </div>
+              </div>
+            </section>
+
             <!-- ========== Section 3: AI Provider & Model ========== -->
             <section>
               <h3 class="text-sm font-semibold text-text-primary mb-3">{{ t.agentConfig.modelTitle }}</h3>
@@ -430,6 +586,30 @@ function removeEnvVar(rt: string, key: string) {
                         @update:model-value="selectModel(rt, $event as string)"
                       />
                     </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- ========== Section 3.5: Extra Arguments ========== -->
+            <section>
+              <h3 class="text-sm font-semibold text-text-primary mb-3">{{ t.agentConfig.extraArgs }}</h3>
+              <div class="max-w-[560px]">
+                <input
+                  :value="current.extraArgs"
+                  :placeholder="t.agentConfig.extraArgsPlaceholder"
+                  class="w-full px-3 py-2 text-sm rounded-lg border border-border-default bg-surface-1 text-text-primary placeholder-text-muted focus:outline-none focus:border-primary-500 transition-colors font-mono"
+                  @input="(e: Event) => { current.extraArgs = (e.target as HTMLInputElement).value; autoSaveConfig(rt) }"
+                />
+                <p class="text-[11px] text-text-muted mt-1">
+                  Space-separated CLI flags appended when the runtime launches. Example: <code class="text-primary-400">--verbose --debug</code>
+                </p>
+                <!-- ⚠️ Security: warn when dangerous permission flags are active -->
+                <div v-if="hasDangerousFlags" class="mt-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-600 dark:text-amber-400 flex items-start gap-2">
+                  <span class="mt-0.5 flex-shrink-0">⚠️</span>
+                  <div>
+                    <p class="font-medium">Permission checks bypassed</p>
+                    <p class="mt-0.5 text-amber-500">The runtime will skip all permission prompts. File edits, shell commands, and network requests will execute without confirmation. Only use this in isolated or trusted environments.</p>
                   </div>
                 </div>
               </div>

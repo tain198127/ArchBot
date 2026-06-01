@@ -319,3 +319,45 @@ pub fn agent_validate(runtime: String) -> Result<ValidateResult, String> {
         }),
     }
 }
+
+/// Return configured skill bundles for a runtime (from runtimes.yml).
+/// These are the bundles the user has configured, regardless of installation status.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkillBundleInfo {
+    pub name: String,
+    pub repo: String,
+    pub r#ref: String,
+    pub description: String,
+    pub installed: bool,
+}
+
+#[tauri::command]
+pub fn agent_get_skill_bundles(runtime: String) -> Result<Vec<SkillBundleInfo>, String> {
+    let rt_config = load_runtimes_config()?;
+    let entry = rt_config
+        .runtimes
+        .get(&runtime)
+        .ok_or_else(|| format!("Runtime not found: {}", runtime))?;
+
+    let bundle = match &entry.skill_bundle {
+        Some(b) if b.enabled => b,
+        _ => return Ok(vec![]),
+    };
+
+    let skills_dir = crate::agent_runtime::skill_installer::resolve_skills_dir_inner(entry)?;
+
+    Ok(bundle
+        .skills
+        .iter()
+        .map(|s| {
+            let installed = skills_dir.join(&s.name).join(".git").exists();
+            SkillBundleInfo {
+                name: s.name.clone(),
+                repo: s.repo.clone(),
+                r#ref: s.r#ref.clone(),
+                description: s.description.clone(),
+                installed,
+            }
+        })
+        .collect())
+}

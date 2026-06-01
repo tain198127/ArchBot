@@ -210,6 +210,7 @@ pub fn build_launch_config(
                     "Rejected dangerous token in extra_args: {}",
                     token
                 );
+                trace_fmt!("config", "Rejected dangerous token in extra_args: {}", token);
                 return Err(format!(
                     "extra_args contains unsafe characters in token: '{}'",
                     token

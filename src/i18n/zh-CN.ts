@@ -507,6 +507,13 @@ export default {
     saveApiKey: '保存密钥',
     validateTitle: '验证连接',
     validate: '验证',
+    skillsTitle: '已安装技能',
+    skillsInstalling: '正在安装技能...',
+    skillsReinstall: '重新安装技能',
+    skillsUpdate: '更新技能',
+    skillsNone: '暂无已安装技能',
+    skillsFailed: '技能安装失败',
+    skillsGitNotFound: '未找到 git — 已跳过技能安装',
   },
   aiConfig: {
     title: 'AI 大模型配置',

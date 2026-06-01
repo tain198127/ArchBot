@@ -306,7 +306,8 @@ agent_runtime:
   architecture:
     pattern: Adapter 模式（AgentAdapter trait，每 runtime 独立实现）
     modules:
-      - version_manager: 版本检测（三层：symlink → executable --version → system PATH）、安装（find_on_path + symlink）、切换、回滚
+      - version_manager: 版本检测（三层：symlink → executable --version → system PATH）、安装（find_on_path + symlink）、切换、回滚、安装后自动安装 skill bundle
+      - skill_installer: Skill Bundle 安装器 — git shallow clone 技能包到隔离 HOME 的 .claude/skills/，支持安装/更新/列举，失败不阻塞
       - session_manager: AgentSession + AgentTurn CRUD，SeaORM + SQLite 持久化
       - adapter_manager: 健康检查、能力查询，AgentAdapter trait 统一接口
       - event_stream: StandardEvent 事件总线，16 种事件类型，SSE 推送

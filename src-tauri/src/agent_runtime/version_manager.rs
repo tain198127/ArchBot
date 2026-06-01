@@ -2,6 +2,8 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
+use crate::agent_runtime::runtime_config;
+use crate::agent_runtime::skill_installer;
 use crate::trace_fmt;
 
 // ─── Runtime Installer ───
@@ -369,7 +371,35 @@ pub fn agent_install_runtime(runtime: String, version: String) -> Result<String,
     install_runtime(&runtime, &version)?;
     // 安装后直接链接到 current（跳过可行性检查：真实二进制下载后会再次验证）
     link_current(&runtime, &version)?;
-    Ok(format!("{} {} installed", runtime, version))
+
+    // Post-install: install skill bundle if configured
+    let mut messages = vec![format!("{} {} installed", runtime, version)];
+    if let Ok(rt_config) = runtime_config::load_runtimes_config() {
+        if let Some(entry) = rt_config.runtimes.get(&runtime) {
+            if let Some(ref bundle) = entry.skill_bundle {
+                if bundle.enabled && !bundle.skills.is_empty() {
+                    if let Ok(skills_dir) = skill_installer::resolve_skills_dir_inner(entry) {
+                        let summary = skill_installer::install_skill_bundle(bundle, &skills_dir);
+                        messages.push(format!(
+                            "Skills: {}/{} installed",
+                            summary.succeeded, summary.total
+                        ));
+                        if summary.failed > 0 {
+                            let failed_names: Vec<&str> = summary
+                                .results
+                                .iter()
+                                .filter(|r| r.status == skill_installer::SkillStatus::Failed)
+                                .map(|r| r.name.as_str())
+                                .collect();
+                            messages.push(format!("Failed: {}", failed_names.join(", ")));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(messages.join(" | "))
 }
 
 #[tauri::command]

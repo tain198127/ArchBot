@@ -166,6 +166,7 @@ pub fn run() {
             agent_runtime::agent_config_handler::agent_save_config,
             agent_runtime::agent_config_handler::agent_save_secret,
             agent_runtime::agent_config_handler::agent_validate,
+            agent_runtime::agent_config_handler::agent_get_skill_bundles,
             // agent_runtime — version manager (replaces legacy agent_install/agent_update stubs)
             agent_runtime::version_manager::agent_list_versions,
             agent_runtime::version_manager::agent_install_runtime,

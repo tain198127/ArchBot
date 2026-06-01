@@ -1760,7 +1760,8 @@ system_modules:
     key_modules:
       - turn_executor: 端到端执行引擎 — 构建 stdin prompt（内联 input.yml）→ 快照 → 启动 Runtime → 等待超时 → 事件发射 → 差异扫描 → TurnResult。支持 SecretManager + 父进程环境变量 fallback 双通道 token 注入
       - launcher: 子进程隔离启动（env_clear + 白名单注入 + stdin 管道 + 隔离 HOME）
-      - version_manager: 安装/更新/回滚，三层版本检测，runtime_name 白名单校验
+      - version_manager: 安装/更新/回滚，三层版本检测，runtime_name 白名单校验；安装后自动触发 skill_installer
+      - skill_installer: Skill Bundle 管理 — git clone 技能包到隔离 HOME 的 .claude/skills/，支持安装/更新/列举，非阻塞失败
       - session_manager: AgentSession + AgentTurn CRUD，会话/回合状态机
       - adapter_manager: AgentAdapter trait 统一接口，ClaudeCodeAdapter + 3 个 Stub
       - event_stream: StandardEvent 事件总线（16 种类型）+ SSE 推送，关联 turn_executor

@@ -204,6 +204,42 @@ export async function checkRuntimeHealth(runtime: string): Promise<AdapterHealth
   return await invoke('agent_check_runtime_health', { runtime })
 }
 
+// ── Skill Bundle ──
+
+export interface SkillInstallResult {
+  name: string
+  status: 'installed' | 'already_installed' | 'failed' | 'skipped'
+  version: string
+  error_message: string
+}
+
+export interface SkillInstallSummary {
+  results: SkillInstallResult[]
+  total: number
+  succeeded: number
+  failed: number
+  skipped: number
+}
+
+export interface InstalledSkill {
+  name: string
+  ref: string
+  commit: string
+  last_updated: string
+}
+
+export async function installSkills(runtime: string): Promise<SkillInstallSummary> {
+  return await invoke('agent_install_skills', { runtime })
+}
+
+export async function listInstalledSkills(runtime: string): Promise<InstalledSkill[]> {
+  return await invoke('agent_list_installed_skills', { runtime })
+}
+
+export async function updateSkills(runtime: string): Promise<SkillInstallSummary> {
+  return await invoke('agent_update_skills', { runtime })
+}
+
 export function selectSession(sessionId: string | null): void {
   agentStore.selectedSessionId = sessionId
   if (sessionId) {
