@@ -79,7 +79,14 @@ export default {
     chatPlaceholder: '对话消息将显示在这里',
     planPlaceholder: 'Plan 步骤将显示在这里',
     expertPlaceholder: '专家团讨论将显示在这里',
-    inputPlaceholder: '输入消息...'
+    inputPlaceholder: '输入消息 (@角色, #文件)...',
+    refine: '炼魂',
+    refineTitle: '炼魂 — 将对话蒸馏为可复用技能',
+    refineDesc: '将对话中的方法论、流程和知识蒸馏为一个可复用的 Skill。',
+    refineNameLabel: 'Skill 名称（留空自动生成）',
+    refineStart: '开始蒸馏',
+    cancel: '取消',
+    noMessagesToRefine: '没有对话内容可蒸馏'
   },
   bottom: {
     log: '日志',

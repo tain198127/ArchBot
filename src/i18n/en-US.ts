@@ -79,7 +79,14 @@ export default {
     chatPlaceholder: 'Chat messages will appear here',
     planPlaceholder: 'Plan steps will appear here',
     expertPlaceholder: 'Expert discussion will appear here',
-    inputPlaceholder: 'Type a message...'
+    inputPlaceholder: 'Type a message (@role, #file)...',
+    refine: 'Refine',
+    refineTitle: 'Soul Refine — Distill conversation into a reusable skill',
+    refineDesc: 'Extract methodologies, workflows, and knowledge from the conversation into a reusable Skill.',
+    refineNameLabel: 'Skill name (leave empty to auto-generate)',
+    refineStart: 'Start Distillation',
+    cancel: 'Cancel',
+    noMessagesToRefine: 'No conversation to refine'
   },
   bottom: {
     log: 'Log',

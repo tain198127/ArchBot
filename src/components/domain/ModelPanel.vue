@@ -2,12 +2,17 @@
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import VSelect from '../base/VSelect.vue'
 import VButton from '../base/VButton.vue'
+import VInput from '../base/VInput.vue'
 import { useI18n } from '../../i18n'
 import { invoke } from '@tauri-apps/api/core'
 import { homeDir } from '@tauri-apps/api/path'
 import { pushLog } from '../../stores/log'
+import { useProject } from '../../stores/project'
+import { useToast } from '../../composables/useToast'
 
-const { t } = useI18n()
+const { t, tt } = useI18n()
+const { currentProject } = useProject()
+const toast = useToast()
 const chatWorkspace = ref('')
 
 interface AIProvider {
@@ -92,6 +97,8 @@ async function loadProviders() {
 onMounted(async () => {
   chatWorkspace.value = (await homeDir()) + '/.archbot/chat-workspace'
   await loadProviders()
+  loadEmployees()
+  loadFiles()
 })
 
 // ── Auto-scroll ──
@@ -166,14 +173,246 @@ function handleKeydown(e: KeyboardEvent) {
     handleSend()
   }
 }
+
+// ── @ mention — Silicon Corps roles ──
+const showAtMention = ref(false)
+const atMentionFilter = ref('')
+const atMentionEmployees = ref<any[]>([])
+const textareaRef = ref<HTMLTextAreaElement | null>(null)
+
+async function loadEmployees() {
+  try {
+    atMentionEmployees.value = await invoke<any[]>('de_list', { dbType: 'local' })
+  } catch { atMentionEmployees.value = [] }
+}
+
+function filteredEmployees() {
+  const q = atMentionFilter.value.toLowerCase()
+  return atMentionEmployees.value.filter((e: any) =>
+    (e.name || '').toLowerCase().includes(q) || (e.code || '').toLowerCase().includes(q)
+  ).slice(0, 8)
+}
+
+function insertAtMention(emp: any) {
+  const textarea = textareaRef.value
+  if (!textarea) return
+  const pos = textarea.selectionStart
+  // Find the @ that started this
+  const before = inputText.value.slice(0, pos)
+  const atIdx = before.lastIndexOf('@')
+  if (atIdx === -1) return
+  const before2 = inputText.value.slice(0, atIdx)
+  const after = inputText.value.slice(pos)
+  inputText.value = before2 + '@' + emp.name + ' ' + after
+  showAtMention.value = false
+  atMentionFilter.value = ''
+  // Focus back
+  nextTick(() => {
+    textarea.focus()
+    const newPos = atIdx + emp.name.length + 2
+    textarea.setSelectionRange(newPos, newPos)
+  })
+}
+
+function onInput(e: Event) {
+  const textarea = e.target as HTMLTextAreaElement
+  const pos = textarea.selectionStart
+  const before = inputText.value.slice(0, pos)
+  // Check if we just typed @
+  const atMatch = before.match(/@([^\s@]*)$/)
+  if (atMatch) {
+    atMentionFilter.value = atMatch[1]
+    showAtMention.value = true
+  } else {
+    showAtMention.value = false
+    atMentionFilter.value = ''
+  }
+}
+
+// ── # file reference ──
+const showHashRef = ref(false)
+const hashRefFilter = ref('')
+const hashRefFiles = ref<string[]>([])
+
+async function loadFiles() {
+  try {
+    const projPath = currentProject.value?.path
+    if (!projPath) { hashRefFiles.value = []; return }
+    const result: any = await invoke('fs_list_tree', { root: projPath, maxDepth: 3 })
+    // Flatten tree to file paths
+    const paths: string[] = []
+    function walk(nodes: any[]) {
+      for (const n of nodes) {
+        if (n.type === 'file') paths.push(n.path || n.name)
+        if (n.children?.length) walk(n.children)
+      }
+    }
+    walk(result?.tree || result || [])
+    hashRefFiles.value = paths.slice(0, 100)
+  } catch { hashRefFiles.value = [] }
+}
+
+function filteredFiles() {
+  const q = hashRefFilter.value.toLowerCase()
+  if (!q) return hashRefFiles.value.slice(0, 12)
+  return hashRefFiles.value.filter(f => f.toLowerCase().includes(q)).slice(0, 12)
+}
+
+function insertHashRef(path: string) {
+  const textarea = textareaRef.value
+  if (!textarea) return
+  const pos = textarea.selectionStart
+  const before = inputText.value.slice(0, pos)
+  const hashIdx = before.lastIndexOf('#')
+  if (hashIdx === -1) return
+  const before2 = inputText.value.slice(0, hashIdx)
+  const after = inputText.value.slice(pos)
+  inputText.value = before2 + '#[' + path + '] ' + after
+  showHashRef.value = false
+  hashRefFilter.value = ''
+  nextTick(() => {
+    textarea.focus()
+    const newPos = hashIdx + path.length + 4
+    textarea.setSelectionRange(newPos, newPos)
+  })
+}
+
+function onInputHash(e: Event) {
+  const textarea = e.target as HTMLTextAreaElement
+  const pos = textarea.selectionStart
+  const before = inputText.value.slice(0, pos)
+  const hashMatch = before.match(/#([^\s#]*)$/)
+  if (hashMatch) {
+    hashRefFilter.value = hashMatch[1]
+    showHashRef.value = true
+    showAtMention.value = false
+  } else {
+    showHashRef.value = false
+    hashRefFilter.value = ''
+  }
+}
+
+function onCombinedInput(e: Event) {
+  onInput(e)
+  onInputHash(e)
+}
+
+// ── 炼魂 (Soul Refining) ──
+const refining = ref(false)
+const showRefineDialog = ref(false)
+const refineSkillName = ref('')
+
+function openRefineDialog() {
+  if (messages.value.length === 0) {
+    toast.warning(tt('model.noMessagesToRefine') || 'No conversation to refine')
+    return
+  }
+  refineSkillName.value = ''
+  showRefineDialog.value = true
+}
+
+async function handleRefine() {
+  if (!refineSkillName.value.trim() && messages.value.length < 2) {
+    toast.warning('Please enter a skill name')
+    return
+  }
+  refining.value = true
+  showRefineDialog.value = false
+  try {
+    // Collect all conversation content
+    const convo = messages.value
+      .map(m => `[${m.role === 'user' ? 'User' : 'Assistant'}]: ${m.content}`)
+      .join('\n\n')
+
+    const nameHint = refineSkillName.value.trim()
+      ? `Use this name for the skill: ${refineSkillName.value.trim()}`
+      : 'Generate a concise, descriptive skill name based on the conversation content.'
+
+    const prompt = [
+      'You are distilling a conversation into a reusable Claude Code skill (SKILL.md).',
+      '',
+      nameHint,
+      '',
+      '<conversation>',
+      convo.slice(0, 8000), // Truncate to avoid token overflow
+      '</conversation>',
+      '',
+      'Output ONLY valid SKILL.md content (YAML frontmatter + markdown body).',
+      'The skill should capture the methodology, patterns, and workflows discussed.',
+      'Include: name, description, usage examples, and tool coordination in the SKILL.md.',
+    ].join('\n')
+
+    const result: any = await invoke('agent_execute_turn', {
+      runtime: 'claude_code',
+      workspaceRoot: chatWorkspace.value,
+      userMessage: prompt,
+      contextFiles: [],
+      modelOverride: currentModel.value || null,
+    })
+
+    const skillContent = result.result_content || result.stdout_tail || ''
+
+    // Save the distilled skill to DB
+    const skillName = refineSkillName.value.trim() || 'distilled-skill-' + Date.now()
+    const skillCode = skillName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+    await invoke('db_insert', {
+      table: 'skills',
+      data: {
+        code: skillCode,
+        name: skillName,
+        command: '/' + skillCode,
+        description: 'Distilled from conversation on ' + new Date().toLocaleDateString(),
+        body: skillContent,
+        group_name: 'guerrillas',
+        updated_at: new Date().toISOString(),
+      },
+      dbType: 'local',
+    }).catch(async () => {
+      // If exists, update
+      await invoke('db_update', {
+        table: 'skills',
+        id: skillCode,
+        data: {
+          name: skillName,
+          command: '/' + skillCode,
+          body: skillContent,
+          updated_at: new Date().toISOString(),
+        },
+        dbType: 'local',
+      })
+    })
+
+    // Add a system message about the distillation
+    messages.value.push({
+      id: ++msgId,
+      role: 'assistant',
+      content: `🔮 **炼魂完成** — 已生成技能「${skillName}」(/${skillCode})\n\n对话中的方法论已萃取并保存到 Skill 配置中，可在硅基军团的默认能力中使用。`,
+    })
+    toast.success(`Skill "${skillName}" created from conversation`)
+  } catch (e: any) {
+    toast.error(String(e))
+  } finally {
+    refining.value = false
+  }
+}
 </script>
 
 <template>
   <div class="flex flex-col h-full bg-surface-50 dark:bg-surface-50">
-    <!-- Header: mode + model selectors -->
+    <!-- Header: mode + model selectors + 炼魂 -->
     <div class="flex items-center gap-2 px-3 py-2 border-b border-border-default shrink-0">
       <VSelect v-model="currentMode" :options="modeOptions" class="!w-[120px]" />
       <VSelect v-model="currentModel" :options="modelOptions" placeholder="Select model" class="!w-[200px]" />
+      <VButton
+        size="sm"
+        variant="secondary"
+        :loading="refining"
+        :disabled="messages.length === 0"
+        :title="tt('model.refineTitle') || '炼魂 — 将对话蒸馏为可复用技能'"
+        @click="openRefineDialog"
+      >
+        🔮 {{ tt('model.refine') || '炼魂' }}
+      </VButton>
     </div>
 
     <!-- Conversation area -->
@@ -221,23 +460,68 @@ function handleKeydown(e: KeyboardEvent) {
     </div>
 
     <!-- Input area with Send button -->
-    <div class="px-3 py-2 border-t border-border-default shrink-0 flex items-end gap-2">
-      <textarea
-        v-model="inputText"
-        :placeholder="t.model.inputPlaceholder"
-        :disabled="sending"
-        :rows="2"
-        class="flex-1 px-3 py-2 text-[13px] rounded-md border bg-surface-0 text-text-primary resize-none border-border-default hover:border-primary-300 placeholder:text-text-muted transition-all duration-150 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 disabled:opacity-40 disabled:cursor-not-allowed dark:bg-surface-100 dark:text-text-primary"
-        @keydown="handleKeydown"
-      />
-      <VButton
-        size="sm"
-        :loading="sending"
-        :disabled="!inputText.trim() || sending"
-        @click="handleSend"
-      >
-        Send
-      </VButton>
+    <div class="px-3 py-2 border-t border-border-default shrink-0 relative">
+      <!-- @ mention popup -->
+      <div v-if="showAtMention && filteredEmployees().length > 0" class="absolute bottom-full left-3 mb-1 z-50 w-60 bg-surface-0 dark:bg-surface-50 border border-border-default rounded-lg shadow-xl max-h-48 overflow-y-auto">
+        <div class="px-2 py-1 text-[10px] text-text-muted font-medium border-b border-border-default">@ Silicon Corps</div>
+        <div
+          v-for="emp in filteredEmployees()"
+          :key="emp.code"
+          class="px-3 py-1.5 text-xs cursor-pointer hover:bg-primary-50 dark:hover:bg-primary-900/20 flex items-center gap-2"
+          @click="insertAtMention(emp)"
+        >
+          <span class="text-text-primary font-medium">{{ emp.name }}</span>
+          <span class="text-text-muted text-[11px]">{{ emp.code }}</span>
+        </div>
+      </div>
+
+      <!-- # file reference popup -->
+      <div v-if="showHashRef && filteredFiles().length > 0" class="absolute bottom-full left-3 mb-1 z-50 w-72 bg-surface-0 dark:bg-surface-50 border border-border-default rounded-lg shadow-xl max-h-48 overflow-y-auto">
+        <div class="px-2 py-1 text-[10px] text-text-muted font-medium border-b border-border-default"># Files</div>
+        <div
+          v-for="f in filteredFiles()"
+          :key="f"
+          class="px-3 py-1 text-xs cursor-pointer hover:bg-primary-50 dark:hover:bg-primary-900/20 font-mono text-[11px] text-text-primary"
+          @click="insertHashRef(f)"
+        >
+          {{ f }}
+        </div>
+      </div>
+
+      <div class="flex items-end gap-2">
+        <textarea
+          ref="textareaRef"
+          v-model="inputText"
+          :placeholder="t.model.inputPlaceholder"
+          :disabled="sending"
+          :rows="2"
+          class="flex-1 px-3 py-2 text-[13px] rounded-md border bg-surface-0 text-text-primary resize-none border-border-default hover:border-primary-300 placeholder:text-text-muted transition-all duration-150 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 disabled:opacity-40 disabled:cursor-not-allowed dark:bg-surface-100 dark:text-text-primary"
+          @keydown="handleKeydown"
+          @input="onCombinedInput"
+        />
+        <VButton
+          size="sm"
+          :loading="sending"
+          :disabled="!inputText.trim() || sending"
+          @click="handleSend"
+        >
+          Send
+        </VButton>
+      </div>
+    </div>
+
+    <!-- 炼魂 Dialog -->
+    <div v-if="showRefineDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showRefineDialog = false">
+      <div class="bg-surface-0 dark:bg-surface-50 rounded-xl shadow-2xl p-6 w-[400px] border border-border-default">
+        <h3 class="text-base font-semibold text-text-primary mb-2">🔮 {{ tt('model.refine') || '炼魂' }}</h3>
+        <p class="text-sm text-text-secondary mb-4">{{ tt('model.refineDesc') || '将对话中的方法论、流程和知识蒸馏为一个可复用的 Skill。' }}</p>
+        <label class="text-sm text-text-secondary mb-1 block">{{ tt('model.refineNameLabel') || 'Skill 名称（留空自动生成）' }}</label>
+        <VInput v-model="refineSkillName" placeholder="e.g. code-review-workflow" class="mb-4" />
+        <div class="flex gap-2 justify-end">
+          <VButton variant="ghost" @click="showRefineDialog = false">{{ tt('model.cancel') || '取消' }}</VButton>
+          <VButton :loading="refining" @click="handleRefine">{{ tt('model.refineStart') || '开始蒸馏' }}</VButton>
+        </div>
+      </div>
     </div>
   </div>
 </template>
