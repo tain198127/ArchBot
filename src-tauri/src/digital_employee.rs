@@ -121,6 +121,15 @@ async fn run_migrations(db_type: &str) -> Result<(), String> {
         db::db_execute_raw(stmt, db_type.to_string()).await?;
     }
 
+    // ── Runtime migration: add columns that may not exist in older DBs ──
+    // Try ALTER TABLE — ignore error if column already exists (SQLite < 3.35
+    // doesn't support ADD COLUMN IF NOT EXISTS)
+    let _ = db::db_execute_raw(
+        "ALTER TABLE digital_employees ADD COLUMN default_capability VARCHAR(256) NOT NULL DEFAULT ''".to_string(),
+        db_type.to_string(),
+    )
+    .await;
+
     // Check if seed already exists
     let existing = db::db_find_all(
         "digital_employees".to_string(),
