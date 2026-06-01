@@ -10,6 +10,8 @@ pub mod launcher;
 pub mod runtime_config;
 pub mod session_manager;
 pub mod shell_control;
+pub mod skill_discovery;
+pub mod skill_installer;
 pub mod turn_config;
 pub mod turn_executor;
 pub mod version_manager;
