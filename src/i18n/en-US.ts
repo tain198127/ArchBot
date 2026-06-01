@@ -338,6 +338,13 @@ export default {
       docs: 'Documentation',
       plan: 'Planning',
       loop: 'Autonomous Loop',
+      // super-claude
+      scBrainstorm: 'Brainstorming',
+      scConfidenceCheck: 'Confidence Check',
+      scDeepResearch: 'Deep Research',
+      scPm: 'Project Management',
+      scTokenEfficiency: 'Token Efficiency',
+      scTroubleshoot: 'Troubleshooting',
       openspecPropose: 'Create Change Proposal',
       openspecApply: 'Apply Change',
       openspecExplore: 'Explore Requirements',

@@ -222,6 +222,14 @@ const SKILL_NAME_MAP: Record<string, string> = {
   'everything-claude-code/docs':             'de.cap.docs',
   'everything-claude-code/plan':             'de.cap.plan',
   'everything-claude-code/loop':             'de.cap.loop',
+  // ── super-claude ──
+  'super-claude/brainstorm':        'de.cap.scBrainstorm',
+  'super-claude/confidence-check':  'de.cap.scConfidenceCheck',
+  'super-claude/deep-research':     'de.cap.scDeepResearch',
+  'super-claude/pm':                'de.cap.scPm',
+  'super-claude/token-efficiency':  'de.cap.scTokenEfficiency',
+  'super-claude/troubleshoot':      'de.cap.scTroubleshoot',
+  // ── claude-official-skills (OpenSpec) ──
   'claude-official-skills/openspec-propose':       'de.cap.openspecPropose',
   'claude-official-skills/openspec-apply-change':  'de.cap.openspecApply',
   'claude-official-skills/openspec-explore':       'de.cap.openspecExplore',

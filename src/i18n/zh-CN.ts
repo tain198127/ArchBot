@@ -338,6 +338,13 @@ export default {
       docs: '文档生成',
       plan: '制定计划',
       loop: '自主循环',
+      // super-claude
+      scBrainstorm: '头脑风暴',
+      scConfidenceCheck: '信心检查',
+      scDeepResearch: '深度研究',
+      scPm: '项目管理',
+      scTokenEfficiency: '令牌效率',
+      scTroubleshoot: '故障排除',
       openspecPropose: '创建变更提案',
       openspecApply: '实施变更',
       openspecExplore: '需求探索',
