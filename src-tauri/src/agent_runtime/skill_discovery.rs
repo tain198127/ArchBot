@@ -4,7 +4,7 @@
 //! individual slash commands available in each installed package.
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
@@ -42,7 +42,14 @@ fn discover_commands(skills_dir: &Path) -> Result<Vec<SkillCommand>, String> {
 
     let dir = match fs::read_dir(skills_dir) {
         Ok(d) => d,
-        Err(_) => return Ok(commands), // No skills installed yet — empty
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(commands),
+        Err(e) => {
+            return Err(format!(
+                "failed to read skills dir {}: {}",
+                skills_dir.display(),
+                e
+            ))
+        }
     };
 
     for entry in dir.flatten() {
@@ -76,7 +83,10 @@ fn discover_commands(skills_dir: &Path) -> Result<Vec<SkillCommand>, String> {
                 parse_skill_md(&skill_md, &skill_name)
             } else {
                 // Fallback: derive from directory name
-                (skill_name_to_display(&skill_name), format!("/{}", skill_name))
+                (
+                    skill_name_to_display(&skill_name),
+                    format!("/{}", skill_name),
+                )
             };
 
             commands.push(SkillCommand {
@@ -139,7 +149,11 @@ fn extract_frontmatter(content: &str) -> Option<std::collections::HashMap<String
         if let Some((key, value)) = trimmed.split_once(':') {
             map.insert(
                 key.trim().to_string(),
-                value.trim().trim_matches('"').trim_matches('\'').to_string(),
+                value
+                    .trim()
+                    .trim_matches('"')
+                    .trim_matches('\'')
+                    .to_string(),
             );
         }
     }
@@ -188,6 +202,7 @@ pub fn agent_list_skill_commands(runtime: String) -> Result<Vec<SkillCommand>, S
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     #[test]
     fn test_skill_name_to_display() {
@@ -202,10 +217,7 @@ mod tests {
     #[test]
     fn test_find_first_command() {
         let content = "# Brainstorming\n\nUsage: /brainstorming to start";
-        assert_eq!(
-            find_first_command(content, "fallback"),
-            "/brainstorming"
-        );
+        assert_eq!(find_first_command(content, "fallback"), "/brainstorming");
     }
 
     #[test]
@@ -243,10 +255,7 @@ mod tests {
         let tmp = std::env::temp_dir().join("archbot_test_discover_skills");
         let _ = fs::remove_dir_all(&tmp);
 
-        let skill_dir = tmp
-            .join("superpowers")
-            .join("skills")
-            .join("brainstorming");
+        let skill_dir = tmp.join("superpowers").join("skills").join("brainstorming");
         fs::create_dir_all(&skill_dir).unwrap();
         fs::write(
             skill_dir.join("SKILL.md"),
@@ -254,7 +263,10 @@ mod tests {
         )
         .unwrap();
 
-        let tdd_dir = tmp.join("superpowers").join("skills").join("test-driven-development");
+        let tdd_dir = tmp
+            .join("superpowers")
+            .join("skills")
+            .join("test-driven-development");
         fs::create_dir_all(&tdd_dir).unwrap();
         fs::write(
             tdd_dir.join("SKILL.md"),
