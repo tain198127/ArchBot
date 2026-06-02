@@ -248,23 +248,46 @@ const SKILL_NAME_MAP: Record<string, string> = {
 const capabilityOptions = ref<CapabilityOption[]>([])
 const capabilityLoading = ref(false)
 
+interface SkillBundleInfo {
+  name: string; repo: string; ref: string; description: string; installed: boolean
+}
+
 async function loadCapabilities() {
   capabilityLoading.value = true
   try {
-    const commands = await invoke<SkillCommand[]>('agent_list_skill_commands', { runtime: 'claude_code' })
-    capabilityOptions.value = buildGroupedOptions(commands, skillOptions.value)
+    // Load from three sources in parallel:
+    // 1. Installed skill commands from agent runtime
+    // 2. Skill bundles configured for the runtime (even if not installed)
+    // 3. Custom skills from DB (already in skillOptions from loadLookups)
+    const [commands, bundles] = await Promise.all([
+      invoke<SkillCommand[]>('agent_list_skill_commands', { runtime: 'claude_code' }).catch(() => [] as SkillCommand[]),
+      invoke<SkillBundleInfo[]>('agent_get_skill_bundles', { runtime: 'claude_code' }).catch(() => [] as SkillBundleInfo[]),
+    ])
+    capabilityOptions.value = buildGroupedOptions(commands, bundles, skillOptions.value, editSkills.value)
   } catch {
-    capabilityOptions.value = buildGroupedOptions([], skillOptions.value)
+    capabilityOptions.value = buildGroupedOptions([], [], skillOptions.value, editSkills.value)
   } finally {
     capabilityLoading.value = false
   }
 }
 
-function buildGroupedOptions(commands: SkillCommand[], customSkills: any[]): CapabilityOption[] {
+function buildGroupedOptions(
+  commands: SkillCommand[],
+  bundles: SkillBundleInfo[],
+  customSkills: any[],
+  currentSkills: string[],
+): CapabilityOption[] {
   const options: CapabilityOption[] = []
   const guerrillasGroup = tt('digitalEmployee.guerrillas') || 'Guerrillas'
+  const seen = new Set<string>()
 
-  // Installed skill commands grouped by package
+  function addOption(value: string, label: string, group: string, command: string) {
+    if (seen.has(value)) return
+    seen.add(value)
+    options.push({ value, label, group, command })
+  }
+
+  // 1. Installed skill commands grouped by package
   const grouped = new Map<string, SkillCommand[]>()
   for (const cmd of commands) {
     if (!grouped.has(cmd.package)) grouped.set(cmd.package, [])
@@ -276,25 +299,42 @@ function buildGroupedOptions(commands: SkillCommand[], customSkills: any[]): Cap
       const mapKey = `${cmd.package}/${cmd.skill_name}`
       const i18nKey = SKILL_NAME_MAP[mapKey]
       const displayName = i18nKey ? tt(i18nKey) : (cmd.display_name_en || cmd.skill_name)
-      options.push({
-        value: mapKey,
-        label: `${displayName} (${cmd.command})`,
-        group: pkgDisplayName,
-        command: cmd.command,
-      })
+      addOption(mapKey, `${displayName} (${cmd.command})`, pkgDisplayName, cmd.command)
     }
   }
 
-  // Custom skills from DB → 游击队 (Guerrillas)
+  // 2. Configured skill bundles (from Agent Config) — show even if not installed
+  for (const b of bundles) {
+    const pkgName = PACKAGE_DISPLAY_NAMES[b.name] || b.name
+    // Use the bundle itself as a capability (e.g., "Super Power (/superpowers)")
+    addOption(
+      `bundle/${b.name}`,
+      `${pkgName} (${b.installed ? '✓' : '⬇'} /${b.name})`,
+      'Agent Skill Bundles',
+      `/${b.name}`,
+    )
+  }
+
+  // 3. Custom skills from DB → 游击队 (Guerrillas)
   for (const cs of customSkills) {
     const code = cs.code || cs.id || ''
     const name = cs.name || cs.label || code
-    options.push({
-      value: `guerrillas/${code}`,
-      label: `${name} (/${code})`,
-      group: guerrillasGroup,
-      command: `/${code}`,
-    })
+    addOption(`guerrillas/${code}`, `${name} (/${code})`, guerrillasGroup, `/${code}`)
+  }
+
+  // 4. Employee's current skill stack — always show so they persist
+  for (const skillCode of currentSkills) {
+    // Already covered by one of the above?
+    const alreadySeen = seen.has(`guerrillas/${skillCode}`)
+      || [...grouped.values()].flat().some(c => c.skill_name === skillCode)
+    if (!alreadySeen) {
+      addOption(
+        `skill/${skillCode}`,
+        `${skillCode} (/${skillCode})`,
+        'Current Skills',
+        `/${skillCode}`,
+      )
+    }
   }
 
   return options
