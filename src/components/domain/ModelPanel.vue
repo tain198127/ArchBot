@@ -171,14 +171,65 @@ function handleKeydown(e: KeyboardEvent) {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
     handleSend()
+  } else if (e.key === '@') {
+    // On next tick, the @ will be in the textarea value
+    nextTick(() => {
+      showHashRef.value = false
+      showAtMention.value = true
+      atMentionFilter.value = ''
+    })
+  } else if (e.key === '#') {
+    nextTick(() => {
+      showAtMention.value = false
+      showHashRef.value = true
+      hashRefFilter.value = ''
+    })
+  } else {
+    // Update filter on any other key
+    updateMentionFilters()
   }
 }
 
-// ── @ mention — Silicon Corps roles ──
+function updateMentionFilters() {
+  const textarea = textareaRef.value
+  if (!textarea) return
+  const pos = textarea.selectionStart
+  const before = textarea.value.slice(0, pos)
+
+  if (showAtMention.value) {
+    const atIdx = before.lastIndexOf('@')
+    if (atIdx === -1) {
+      showAtMention.value = false
+      return
+    }
+    atMentionFilter.value = before.slice(atIdx + 1)
+    // Close if space after @
+    if (atMentionFilter.value.includes(' ')) {
+      showAtMention.value = false
+    }
+  }
+
+  if (showHashRef.value) {
+    const hashIdx = before.lastIndexOf('#')
+    if (hashIdx === -1) {
+      showHashRef.value = false
+      return
+    }
+    hashRefFilter.value = before.slice(hashIdx + 1)
+    if (hashRefFilter.value.includes(' ')) {
+      showHashRef.value = false
+    }
+  }
+}
+
+// ── Shared state ──
+const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const showAtMention = ref(false)
 const atMentionFilter = ref('')
 const atMentionEmployees = ref<any[]>([])
-const textareaRef = ref<HTMLTextAreaElement | null>(null)
+const showHashRef = ref(false)
+const hashRefFilter = ref('')
+const hashRefFiles = ref<string[]>([])
 
 async function loadEmployees() {
   try {
@@ -198,58 +249,21 @@ function insertAtMention(emp: any) {
   if (!textarea) return
   const pos = textarea.selectionStart
   const fullText = textarea.value
-  // Find the @ that started this
   const before = fullText.slice(0, pos)
   const atIdx = before.lastIndexOf('@')
   if (atIdx === -1) return
-  const before2 = fullText.slice(0, atIdx)
-  const after = fullText.slice(pos)
-  inputText.value = textarea.value = before2 + '@' + emp.name + ' ' + after
+  inputText.value = textarea.value = fullText.slice(0, atIdx) + '@' + emp.name + ' ' + fullText.slice(pos)
   showAtMention.value = false
-  atMentionFilter.value = ''
-  // Focus back
-  nextTick(() => {
-    textarea.focus()
-    const newPos = atIdx + emp.name.length + 2
-    textarea.setSelectionRange(newPos, newPos)
-  })
+  nextTick(() => { textarea.focus(); textarea.setSelectionRange(atIdx + emp.name.length + 2, atIdx + emp.name.length + 2) })
 }
-
-function onInput(e: Event) {
-  const textarea = e.target as HTMLTextAreaElement
-  const fullText = textarea.value
-  const pos = textarea.selectionStart
-  const before = fullText.slice(0, pos)
-  // Check if we just typed @
-  const atMatch = before.match(/@([^\s@]*)$/)
-  if (atMatch) {
-    atMentionFilter.value = atMatch[1]
-    showAtMention.value = true
-    showHashRef.value = false
-  } else {
-    showAtMention.value = false
-    atMentionFilter.value = ''
-  }
-}
-
-// ── # file reference ──
-const showHashRef = ref(false)
-const hashRefFilter = ref('')
-const hashRefFiles = ref<string[]>([])
 
 async function loadFiles() {
   try {
     const projPath = currentProject.value?.path
     if (!projPath) { hashRefFiles.value = []; return }
     const result: any = await invoke('fs_list_tree', { root: projPath, maxDepth: 3 })
-    // Flatten tree to file paths
     const paths: string[] = []
-    function walk(nodes: any[]) {
-      for (const n of nodes) {
-        if (n.type === 'file') paths.push(n.path || n.name)
-        if (n.children?.length) walk(n.children)
-      }
-    }
+    function walk(nodes: any[]) { for (const n of nodes) { if (n.type === 'file') paths.push(n.path || n.name); if (n.children?.length) walk(n.children) } }
     walk(result?.tree || result || [])
     hashRefFiles.value = paths.slice(0, 100)
   } catch { hashRefFiles.value = [] }
@@ -269,37 +283,9 @@ function insertHashRef(path: string) {
   const before = fullText.slice(0, pos)
   const hashIdx = before.lastIndexOf('#')
   if (hashIdx === -1) return
-  const before2 = fullText.slice(0, hashIdx)
-  const after = fullText.slice(pos)
-  inputText.value = textarea.value = before2 + '#[' + path + '] ' + after
+  inputText.value = textarea.value = fullText.slice(0, hashIdx) + '#[' + path + '] ' + fullText.slice(pos)
   showHashRef.value = false
-  hashRefFilter.value = ''
-  nextTick(() => {
-    textarea.focus()
-    const newPos = hashIdx + path.length + 4
-    textarea.setSelectionRange(newPos, newPos)
-  })
-}
-
-function onInputHash(e: Event) {
-  const textarea = e.target as HTMLTextAreaElement
-  const fullText = textarea.value
-  const pos = textarea.selectionStart
-  const before = fullText.slice(0, pos)
-  const hashMatch = before.match(/#([^\s#]*)$/)
-  if (hashMatch) {
-    hashRefFilter.value = hashMatch[1]
-    showHashRef.value = true
-    showAtMention.value = false
-  } else {
-    showHashRef.value = false
-    hashRefFilter.value = ''
-  }
-}
-
-function onCombinedInput(e: Event) {
-  onInput(e)
-  onInputHash(e)
+  nextTick(() => { textarea.focus(); textarea.setSelectionRange(hashIdx + path.length + 4, hashIdx + path.length + 4) })
 }
 
 // ── 炼魂 (Soul Refining) ──
@@ -502,7 +488,6 @@ async function handleRefine() {
           :rows="2"
           class="flex-1 px-3 py-2 text-[13px] rounded-md border bg-surface-0 text-text-primary resize-none border-border-default hover:border-primary-300 placeholder:text-text-muted transition-all duration-150 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 disabled:opacity-40 disabled:cursor-not-allowed dark:bg-surface-100 dark:text-text-primary"
           @keydown="handleKeydown"
-          @input="onCombinedInput"
         />
         <VButton
           size="sm"
