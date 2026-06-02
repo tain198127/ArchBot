@@ -197,13 +197,14 @@ function insertAtMention(emp: any) {
   const textarea = textareaRef.value
   if (!textarea) return
   const pos = textarea.selectionStart
+  const fullText = textarea.value
   // Find the @ that started this
-  const before = inputText.value.slice(0, pos)
+  const before = fullText.slice(0, pos)
   const atIdx = before.lastIndexOf('@')
   if (atIdx === -1) return
-  const before2 = inputText.value.slice(0, atIdx)
-  const after = inputText.value.slice(pos)
-  inputText.value = before2 + '@' + emp.name + ' ' + after
+  const before2 = fullText.slice(0, atIdx)
+  const after = fullText.slice(pos)
+  inputText.value = textarea.value = before2 + '@' + emp.name + ' ' + after
   showAtMention.value = false
   atMentionFilter.value = ''
   // Focus back
@@ -216,13 +217,15 @@ function insertAtMention(emp: any) {
 
 function onInput(e: Event) {
   const textarea = e.target as HTMLTextAreaElement
+  const fullText = textarea.value
   const pos = textarea.selectionStart
-  const before = inputText.value.slice(0, pos)
+  const before = fullText.slice(0, pos)
   // Check if we just typed @
   const atMatch = before.match(/@([^\s@]*)$/)
   if (atMatch) {
     atMentionFilter.value = atMatch[1]
     showAtMention.value = true
+    showHashRef.value = false
   } else {
     showAtMention.value = false
     atMentionFilter.value = ''
@@ -262,12 +265,13 @@ function insertHashRef(path: string) {
   const textarea = textareaRef.value
   if (!textarea) return
   const pos = textarea.selectionStart
-  const before = inputText.value.slice(0, pos)
+  const fullText = textarea.value
+  const before = fullText.slice(0, pos)
   const hashIdx = before.lastIndexOf('#')
   if (hashIdx === -1) return
-  const before2 = inputText.value.slice(0, hashIdx)
-  const after = inputText.value.slice(pos)
-  inputText.value = before2 + '#[' + path + '] ' + after
+  const before2 = fullText.slice(0, hashIdx)
+  const after = fullText.slice(pos)
+  inputText.value = textarea.value = before2 + '#[' + path + '] ' + after
   showHashRef.value = false
   hashRefFilter.value = ''
   nextTick(() => {
@@ -279,8 +283,9 @@ function insertHashRef(path: string) {
 
 function onInputHash(e: Event) {
   const textarea = e.target as HTMLTextAreaElement
+  const fullText = textarea.value
   const pos = textarea.selectionStart
-  const before = inputText.value.slice(0, pos)
+  const before = fullText.slice(0, pos)
   const hashMatch = before.match(/#([^\s#]*)$/)
   if (hashMatch) {
     hashRefFilter.value = hashMatch[1]

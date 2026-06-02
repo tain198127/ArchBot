@@ -306,13 +306,36 @@ function buildGroupedOptions(
   // 2. Configured skill bundles (from Agent Config) — show even if not installed
   for (const b of bundles) {
     const pkgName = PACKAGE_DISPLAY_NAMES[b.name] || b.name
-    // Use the bundle itself as a capability (e.g., "Super Power (/superpowers)")
     addOption(
       `bundle/${b.name}`,
       `${pkgName} (${b.installed ? '✓' : '⬇'} /${b.name})`,
       'Agent Skill Bundles',
       `/${b.name}`,
     )
+  }
+
+  // Fallback: if no installed commands found, show all known skills from SKILL_NAME_MAP
+  // grouped by package so users can see available capabilities even before installing
+  if (commands.length === 0) {
+    const mapGrouped = new Map<string, string[]>()
+    for (const mapKey of Object.keys(SKILL_NAME_MAP)) {
+      const slashIdx = mapKey.indexOf('/')
+      if (slashIdx === -1) continue
+      const pkg = mapKey.slice(0, slashIdx)
+      if (!mapGrouped.has(pkg)) mapGrouped.set(pkg, [])
+      mapGrouped.get(pkg)!.push(mapKey)
+    }
+    for (const [pkg, keys] of mapGrouped) {
+      const pkgDisplayName = PACKAGE_DISPLAY_NAMES[pkg] || pkg
+      for (const key of keys) {
+        const skillName = key.slice(key.indexOf('/') + 1)
+        const i18nKey = SKILL_NAME_MAP[key]
+        if (!i18nKey) continue
+        const displayName = tt(i18nKey)
+        const cmd = `/${skillName}`
+        addOption(key, `${displayName} (${cmd})`, `${pkgDisplayName} (available)`, cmd)
+      }
+    }
   }
 
   // 3. Custom skills from DB → 游击队 (Guerrillas)
