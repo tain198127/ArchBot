@@ -104,7 +104,7 @@ async function loadLookups() {
 // ── list actions ──
 function handleNew() {
   isNew.value = true; editMode.value = 'edit'
-  editForm.value = { code: '', name: '', is_builtin: false, role: '', personality_tags: '[]', personality_desc: '', comm_style: '', decision_pref: '', focus_areas: '[]', deliverable_groups: '[]', default_capability: '', avatar: '' }
+  editForm.value = { code: '', name: '', is_builtin: false, avatar: '', personality_tags: '[]', personality_desc: '', comm_style: '', decision_pref: '', focus_areas: '[]', deliverable_groups: '[]', default_op: 'write', default_capability: '', sort_order: 0, created_at: '', updated_at: '' }
   editSkills.value = []
 }
 
