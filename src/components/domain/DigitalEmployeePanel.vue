@@ -184,6 +184,10 @@ interface CapabilityOption {
   command: string
 }
 
+interface SkillBundleInfo {
+  name: string; repo: string; ref: string; description: string; installed: boolean
+}
+
 const PACKAGE_DISPLAY_NAMES: Record<string, string> = {
   'superpowers':            'Super Power',
   'gstack':                 'Gstack',
@@ -248,8 +252,40 @@ const SKILL_NAME_MAP: Record<string, string> = {
 const capabilityOptions = ref<CapabilityOption[]>([])
 const capabilityLoading = ref(false)
 
-interface SkillBundleInfo {
-  name: string; repo: string; ref: string; description: string; installed: boolean
+// ── Capability tree picker ──
+const showCapPicker = ref(false)
+const expandedGroups = ref<Set<string>>(new Set())
+
+interface CapTreeNode {
+  group: string
+  items: CapabilityOption[]
+}
+
+const capTree = computed<CapTreeNode[]>(() => {
+  const map = new Map<string, CapabilityOption[]>()
+  for (const opt of capabilityOptions.value) {
+    const g = opt.group || 'Other'
+    if (!map.has(g)) map.set(g, [])
+    map.get(g)!.push(opt)
+  }
+  return [...map.entries()].map(([group, items]) => ({ group, items }))
+})
+
+const selectedCapLabel = computed(() => {
+  const sel = capabilityOptions.value.find(o => o.value === editForm.value.default_capability)
+  return sel ? sel.label.split(' ')[0] : (de.value.defaultCapability || '默认能力')
+})
+
+function toggleGroup(group: string) {
+  const s = new Set(expandedGroups.value)
+  if (s.has(group)) s.delete(group)
+  else s.add(group)
+  expandedGroups.value = s
+}
+
+function selectCapability(opt: CapabilityOption) {
+  editForm.value.default_capability = opt.value
+  showCapPicker.value = false
 }
 
 async function loadCapabilities() {
@@ -628,8 +664,53 @@ onMounted(async () => { await loadEmployees(); await loadLookups(); await loadCa
             </div>
           </div>
           <div class="flex items-center gap-3">
-            <label class="w-[100px] text-sm text-text-secondary shrink-0 text-right">{{ de.defaultCapability || '默认能力' }}</label>
-            <VSelect v-model="editForm.default_capability" :options="capabilityOptions" option-group-label="group" :loading="capabilityLoading" class="!w-[200px]" />
+            <label class="w-[100px] text-sm text-text-secondary shrink-0 text-right pt-1">{{ de.defaultCapability || '默认能力' }}</label>
+            <div class="relative flex-1 max-w-[240px]">
+              <button
+                class="w-full px-3 py-1.5 text-[13px] rounded-md border bg-surface-0 text-text-primary text-left truncate border-border-default hover:border-primary-300 transition-colors dark:bg-surface-100 dark:text-text-primary"
+                :class="capabilityLoading ? 'opacity-60' : ''"
+                :disabled="capabilityLoading"
+                @click="showCapPicker = !showCapPicker"
+              >
+                <span v-if="capabilityLoading">Loading...</span>
+                <span v-else>{{ selectedCapLabel }}</span>
+                <span class="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted text-[10px]">{{ showCapPicker ? '▲' : '▼' }}</span>
+              </button>
+              <!-- Tree popover -->
+              <!-- Backdrop to close on click outside -->
+              <div v-if="showCapPicker" class="fixed inset-0 z-40" @click="showCapPicker = false" />
+              <div v-if="showCapPicker" class="absolute top-full left-0 mt-1 z-50 w-72 bg-surface-0 dark:bg-surface-50 border border-border-default rounded-lg shadow-xl max-h-72 overflow-y-auto">
+                <div
+                  v-for="node in capTree"
+                  :key="node.group"
+                >
+                  <!-- Group header -->
+                  <button
+                    class="w-full flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold hover:bg-surface-50 dark:hover:bg-surface-100 transition-colors sticky top-0 bg-surface-0 dark:bg-surface-50 border-b border-border-default"
+                    @click="toggleGroup(node.group)"
+                  >
+                    <span class="text-[10px] transition-transform" :class="expandedGroups.has(node.group) ? 'rotate-90' : ''">▶</span>
+                    <span class="text-text-secondary">{{ node.group }}</span>
+                    <span class="text-text-muted font-normal ml-auto">{{ node.items.length }}</span>
+                  </button>
+                  <!-- Leaf items -->
+                  <div v-if="expandedGroups.has(node.group)">
+                    <button
+                      v-for="opt in node.items"
+                      :key="opt.value"
+                      class="w-full text-left pl-7 pr-3 py-1.5 text-[12px] hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+                      :class="editForm.default_capability === opt.value ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 font-medium' : 'text-text-primary'"
+                      @click="selectCapability(opt)"
+                    >
+                      {{ opt.label }}
+                    </button>
+                  </div>
+                </div>
+                <div v-if="capTree.length === 0 && !capabilityLoading" class="px-3 py-4 text-xs text-text-muted text-center">
+                  No capabilities available. Install skills in Agent Config first.
+                </div>
+              </div>
+            </div>
           </div>
         </fieldset>
 
