@@ -1,8 +1,12 @@
 //! Skill command discovery from installed skill packages.
 //!
-//! Walks `{skills_dir}/{package}/skills/*/SKILL.md` to enumerate
+//! Walks both `{skills_dir}/{package}/skills/*/SKILL.md` and
+//! `{skills_dir}/{package}/plugins/*/skills/*/SKILL.md` to enumerate
 //! individual slash commands available in each installed package.
+//! The plugin path handles repos structured as Claude Code plugins
+//! (e.g., SuperClaude Framework).
 
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
@@ -37,8 +41,11 @@ pub fn list_skill_commands(runtime_name: &str) -> Result<Vec<SkillCommand>, Stri
 }
 
 /// Discover commands by walking the skills directory.
+/// Scans both `{package}/skills/` (standard layout) and
+/// `{package}/plugins/*/skills/` (Claude Code plugin layout).
 fn discover_commands(skills_dir: &Path) -> Result<Vec<SkillCommand>, String> {
     let mut commands = Vec::new();
+    let mut seen = HashSet::new();
 
     let dir = match fs::read_dir(skills_dir) {
         Ok(d) => d,
@@ -59,42 +66,32 @@ fn discover_commands(skills_dir: &Path) -> Result<Vec<SkillCommand>, String> {
         }
         let package_name = entry.file_name().to_string_lossy().to_string();
 
-        // Look for skills/ subdirectory inside the package
+        // Standard layout: {package}/skills/
         let skills_subdir = package_path.join("skills");
-        if !skills_subdir.is_dir() {
-            continue;
+        if skills_subdir.is_dir() {
+            collect_skills(&mut commands, &mut seen, &package_name, &skills_subdir);
         }
 
-        let skills_dir_entries = match fs::read_dir(&skills_subdir) {
-            Ok(d) => d,
-            Err(_) => continue,
-        };
-
-        for skill_entry in skills_dir_entries.flatten() {
-            let skill_path = skill_entry.path();
-            if !skill_path.is_dir() {
-                continue;
+        // Plugin layout: {package}/plugins/*/skills/ (used by SuperClaude et al.)
+        let plugins_dir = package_path.join("plugins");
+        if plugins_dir.is_dir() {
+            if let Ok(plugin_entries) = fs::read_dir(&plugins_dir) {
+                for plugin_entry in plugin_entries.flatten() {
+                    let plugin_path = plugin_entry.path();
+                    if !plugin_path.is_dir() {
+                        continue;
+                    }
+                    let plugin_skills = plugin_path.join("skills");
+                    if plugin_skills.is_dir() {
+                        collect_skills(
+                            &mut commands,
+                            &mut seen,
+                            &package_name,
+                            &plugin_skills,
+                        );
+                    }
+                }
             }
-            let skill_name = skill_entry.file_name().to_string_lossy().to_string();
-
-            // Try to read SKILL.md for metadata
-            let skill_md = skill_path.join("SKILL.md");
-            let (display_name, command) = if skill_md.exists() {
-                parse_skill_md(&skill_md, &skill_name)
-            } else {
-                // Fallback: derive from directory name
-                (
-                    skill_name_to_display(&skill_name),
-                    format!("/{}", skill_name),
-                )
-            };
-
-            commands.push(SkillCommand {
-                package: package_name.clone(),
-                skill_name,
-                command,
-                display_name_en: display_name,
-            });
         }
     }
 
@@ -105,6 +102,50 @@ fn discover_commands(skills_dir: &Path) -> Result<Vec<SkillCommand>, String> {
     });
 
     Ok(commands)
+}
+
+/// Collect skills from a skills directory, deduplicating by (package, skill_name).
+fn collect_skills(
+    commands: &mut Vec<SkillCommand>,
+    seen: &mut HashSet<(String, String)>,
+    package_name: &str,
+    skills_dir: &Path,
+) {
+    let entries = match fs::read_dir(skills_dir) {
+        Ok(d) => d,
+        Err(_) => return,
+    };
+
+    for entry in entries.flatten() {
+        let skill_path = entry.path();
+        if !skill_path.is_dir() {
+            continue;
+        }
+        let skill_name = entry.file_name().to_string_lossy().to_string();
+
+        // Skip duplicates (e.g., when a skill exists in both skills/ and plugins/*/skills/)
+        let key = (package_name.to_string(), skill_name.clone());
+        if !seen.insert(key) {
+            continue;
+        }
+
+        let skill_md = skill_path.join("SKILL.md");
+        let (display_name, command) = if skill_md.exists() {
+            parse_skill_md(&skill_md, &skill_name)
+        } else {
+            (
+                skill_name_to_display(&skill_name),
+                format!("/{}", skill_name),
+            )
+        };
+
+        commands.push(SkillCommand {
+            package: package_name.to_string(),
+            skill_name,
+            command,
+            display_name_en: display_name,
+        });
+    }
 }
 
 /// Parse SKILL.md frontmatter to extract display name and command trigger.
@@ -320,5 +361,81 @@ mod tests {
         let (name, cmd) = parse_skill_md(&path, "missing");
         assert_eq!(name, "Missing");
         assert_eq!(cmd, "/missing");
+    }
+
+    #[test]
+    fn test_discover_plugin_layout_skills() {
+        let tmp = std::env::temp_dir().join("archbot_test_discover_plugin");
+        let _ = fs::remove_dir_all(&tmp);
+
+        // Standard layout: skills/confidence-check/
+        let std_skill = tmp.join("super-claude").join("skills").join("confidence-check");
+        fs::create_dir_all(&std_skill).unwrap();
+        fs::write(
+            std_skill.join("SKILL.md"),
+            "---\nname: Confidence Check\n---\n\nUse /confidence-check before implementing.\n",
+        )
+        .unwrap();
+
+        // Plugin layout: plugins/superclaude/skills/{pm, brainstorm, troubleshoot}
+        let plugin_skills = tmp
+            .join("super-claude")
+            .join("plugins")
+            .join("superclaude")
+            .join("skills");
+        for (name, display) in &[
+            ("pm", "Project Manager"),
+            ("brainstorm", "Brainstorm"),
+            ("troubleshoot", "Troubleshoot"),
+        ] {
+            let dir = plugin_skills.join(name);
+            fs::create_dir_all(&dir).unwrap();
+            fs::write(
+                dir.join("SKILL.md"),
+                format!("---\nname: {display}\n---\n\nUse /{name} to start.\n"),
+            )
+            .unwrap();
+        }
+
+        let commands = discover_commands(&tmp).unwrap();
+        // 1 from standard + 3 from plugin = 4 unique skills
+        // (confidence-check from standard only — no duplicate)
+        assert_eq!(commands.len(), 4);
+
+        let names: Vec<&str> = commands.iter().map(|c| c.skill_name.as_str()).collect();
+        assert!(names.contains(&"confidence-check"));
+        assert!(names.contains(&"pm"));
+        assert!(names.contains(&"brainstorm"));
+        assert!(names.contains(&"troubleshoot"));
+
+        // All should have package "super-claude"
+        for cmd in &commands {
+            assert_eq!(cmd.package, "super-claude");
+        }
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_discover_dedup_across_layouts() {
+        let tmp = std::env::temp_dir().join("archbot_test_discover_dedup");
+        let _ = fs::remove_dir_all(&tmp);
+
+        // Same skill in both layouts → should only appear once
+        for layout in &["skills", "plugins/myplugin/skills"] {
+            let dir = tmp.join("super-claude").join(layout).join("brainstorm");
+            fs::create_dir_all(&dir).unwrap();
+            fs::write(
+                dir.join("SKILL.md"),
+                "---\nname: Brainstorm\n---\n\n/brainstorm\n",
+            )
+            .unwrap();
+        }
+
+        let commands = discover_commands(&tmp).unwrap();
+        assert_eq!(commands.len(), 1, "duplicate skills should be deduplicated");
+        assert_eq!(commands[0].skill_name, "brainstorm");
+
+        let _ = fs::remove_dir_all(&tmp);
     }
 }

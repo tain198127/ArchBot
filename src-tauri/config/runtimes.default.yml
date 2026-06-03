@@ -111,8 +111,8 @@ runtimes:
           description: "Comprehensive skill collection covering all major development workflows"
 
         - name: super-claude
-          repo: https://github.com/super-claude/super-claude.git
-          ref: main
+          repo: https://github.com/SuperClaude-Org/SuperClaude_Framework.git
+          ref: master
           description: "Extended Claude capabilities and advanced agent patterns"
 
         - name: claude-official-skills

@@ -171,53 +171,45 @@ function handleKeydown(e: KeyboardEvent) {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
     handleSend()
-  } else if (e.key === '@') {
-    // On next tick, the @ will be in the textarea value
-    nextTick(() => {
-      showHashRef.value = false
-      showAtMention.value = true
-      atMentionFilter.value = ''
-    })
-  } else if (e.key === '#') {
-    nextTick(() => {
-      showAtMention.value = false
-      showHashRef.value = true
-      hashRefFilter.value = ''
-    })
-  } else {
-    // Update filter on any other key
-    updateMentionFilters()
   }
 }
 
-function updateMentionFilters() {
-  const textarea = textareaRef.value
-  if (!textarea) return
-  const pos = textarea.selectionStart
-  const before = textarea.value.slice(0, pos)
+// @input fires AFTER DOM update — always reads current textarea value
+function handleInput() {
+  const ta = textareaRef.value
+  if (!ta) return
+  const pos = ta.selectionStart
+  const before = ta.value.slice(0, pos)
 
-  if (showAtMention.value) {
-    const atIdx = before.lastIndexOf('@')
-    if (atIdx === -1) {
-      showAtMention.value = false
-      return
-    }
-    atMentionFilter.value = before.slice(atIdx + 1)
-    // Close if space after @
-    if (atMentionFilter.value.includes(' ')) {
-      showAtMention.value = false
-    }
+  // Find last @ or # before cursor
+  const atIdx = before.lastIndexOf('@')
+  const hashIdx = before.lastIndexOf('#')
+
+  if (atIdx === -1 && hashIdx === -1) {
+    showAtMention.value = false
+    showHashRef.value = false
+    return
   }
 
-  if (showHashRef.value) {
-    const hashIdx = before.lastIndexOf('#')
-    if (hashIdx === -1) {
+  if (atIdx > hashIdx) {
+    // @ mention active
+    const filter = before.slice(atIdx + 1)
+    if (filter.includes(' ') || filter.includes('\n')) {
+      showAtMention.value = false
+    } else {
       showHashRef.value = false
-      return
+      showAtMention.value = true
+      atMentionFilter.value = filter
     }
-    hashRefFilter.value = before.slice(hashIdx + 1)
-    if (hashRefFilter.value.includes(' ')) {
+  } else {
+    // # file reference active
+    const filter = before.slice(hashIdx + 1)
+    if (filter.includes(' ') || filter.includes('\n')) {
       showHashRef.value = false
+    } else {
+      showAtMention.value = false
+      showHashRef.value = true
+      hashRefFilter.value = filter
     }
   }
 }
@@ -229,7 +221,62 @@ const atMentionFilter = ref('')
 const atMentionEmployees = ref<any[]>([])
 const showHashRef = ref(false)
 const hashRefFilter = ref('')
-const hashRefFiles = ref<string[]>([])
+const hashRefTree = ref<FileRefNode[]>([])
+const expandedDirs = ref<Set<string>>(new Set())
+
+// ── File tree types and helpers ──
+interface FileRefNode {
+  name: string
+  type: 'file' | 'dir'
+  path?: string
+  children?: FileRefNode[]
+}
+
+interface VisibleNode {
+  node: FileRefNode
+  depth: number
+}
+
+function filterTree(nodes: FileRefNode[], q: string): FileRefNode[] {
+  if (!q) return nodes
+  const lower = q.toLowerCase()
+  const result: FileRefNode[] = []
+  for (const n of nodes) {
+    const match = n.name.toLowerCase().includes(lower)
+    if (n.type === 'file') {
+      if (match) result.push(n)
+    } else {
+      const filteredChildren = n.children ? filterTree(n.children, q) : []
+      if (match || filteredChildren.length > 0) {
+        result.push({ ...n, children: filteredChildren })
+      }
+    }
+  }
+  return result
+}
+
+const filteredFileTree = computed(() => filterTree(hashRefTree.value, hashRefFilter.value))
+
+const visibleNodes = computed(() => {
+  const result: VisibleNode[] = []
+  function walk(nodes: FileRefNode[], depth: number) {
+    for (const n of nodes) {
+      result.push({ node: n, depth })
+      if (n.type === 'dir' && n.children && expandedDirs.value.has(n.path || n.name)) {
+        walk(n.children, depth + 1)
+      }
+    }
+  }
+  walk(filteredFileTree.value, 0)
+  return result
+})
+
+function toggleDir(path: string) {
+  const next = new Set(expandedDirs.value)
+  if (next.has(path)) next.delete(path)
+  else next.add(path)
+  expandedDirs.value = next
+}
 
 async function loadEmployees() {
   try {
@@ -260,32 +307,24 @@ function insertAtMention(emp: any) {
 async function loadFiles() {
   try {
     const projPath = currentProject.value?.path
-    if (!projPath) { hashRefFiles.value = []; return }
+    if (!projPath) { hashRefTree.value = []; return }
     const result: any = await invoke('fs_list_tree', { root: projPath, maxDepth: 3 })
-    const paths: string[] = []
-    function walk(nodes: any[]) { for (const n of nodes) { if (n.type === 'file') paths.push(n.path || n.name); if (n.children?.length) walk(n.children) } }
-    walk(result?.tree || result || [])
-    hashRefFiles.value = paths.slice(0, 100)
-  } catch { hashRefFiles.value = [] }
+    hashRefTree.value = (result?.tree || result || []) as FileRefNode[]
+  } catch { hashRefTree.value = [] }
 }
 
-function filteredFiles() {
-  const q = hashRefFilter.value.toLowerCase()
-  if (!q) return hashRefFiles.value.slice(0, 12)
-  return hashRefFiles.value.filter(f => f.toLowerCase().includes(q)).slice(0, 12)
-}
-
-function insertHashRef(path: string) {
+function insertHashRef(node: FileRefNode) {
   const textarea = textareaRef.value
   if (!textarea) return
+  const filePath = node.path || node.name
   const pos = textarea.selectionStart
   const fullText = textarea.value
   const before = fullText.slice(0, pos)
   const hashIdx = before.lastIndexOf('#')
   if (hashIdx === -1) return
-  inputText.value = textarea.value = fullText.slice(0, hashIdx) + '#[' + path + '] ' + fullText.slice(pos)
+  inputText.value = textarea.value = fullText.slice(0, hashIdx) + '#[' + filePath + '] ' + fullText.slice(pos)
   showHashRef.value = false
-  nextTick(() => { textarea.focus(); textarea.setSelectionRange(hashIdx + path.length + 4, hashIdx + path.length + 4) })
+  nextTick(() => { textarea.focus(); textarea.setSelectionRange(hashIdx + filePath.length + 4, hashIdx + filePath.length + 4) })
 }
 
 // ── 炼魂 (Soul Refining) ──
@@ -466,16 +505,31 @@ async function handleRefine() {
         </div>
       </div>
 
-      <!-- # file reference popup -->
-      <div v-if="showHashRef && filteredFiles().length > 0" class="absolute bottom-full left-3 mb-1 z-50 w-72 bg-surface-0 dark:bg-surface-50 border border-border-default rounded-lg shadow-xl max-h-48 overflow-y-auto">
-        <div class="px-2 py-1 text-[10px] text-text-muted font-medium border-b border-border-default"># Files</div>
-        <div
-          v-for="f in filteredFiles()"
-          :key="f"
-          class="px-3 py-1 text-xs cursor-pointer hover:bg-primary-50 dark:hover:bg-primary-900/20 font-mono text-[11px] text-text-primary"
-          @click="insertHashRef(f)"
-        >
-          {{ f }}
+      <!-- # file reference tree popup -->
+      <div v-if="showHashRef && visibleNodes.length > 0" class="absolute bottom-full left-3 mb-1 z-50 w-80 h-72 bg-surface-0 dark:bg-surface-50 border border-border-default rounded-lg shadow-xl flex flex-col">
+        <div class="px-2 py-1 text-[10px] text-text-muted font-medium border-b border-border-default shrink-0"># Project Files</div>
+        <div class="flex-1 overflow-y-auto p-1">
+          <div
+            v-for="item in visibleNodes"
+            :key="(item.node.path || item.node.name) + '@' + item.depth"
+            :style="{ paddingLeft: (item.depth * 14 + 8) + 'px' }"
+            class="flex items-center gap-1 py-0.5 text-xs cursor-pointer hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded mr-0.5"
+            :class="item.node.type === 'file' ? 'font-mono text-[11px]' : ''"
+            @click="item.node.type === 'dir' ? toggleDir(item.node.path || item.node.name) : insertHashRef(item.node)"
+          >
+            <!-- Dir: expand/collapse icon -->
+            <template v-if="item.node.type === 'dir'">
+              <span class="w-3 text-center text-[10px] shrink-0">{{ expandedDirs.has(item.node.path || item.node.name) ? '▾' : '▸' }}</span>
+              <span class="text-amber-500 shrink-0">{{ expandedDirs.has(item.node.path || item.node.name) ? '📂' : '📁' }}</span>
+              <span class="text-text-primary truncate">{{ item.node.name }}</span>
+            </template>
+            <!-- File: click to insert -->
+            <template v-else>
+              <span class="w-3 shrink-0" />
+              <span class="text-text-muted shrink-0">📄</span>
+              <span class="text-text-primary truncate">{{ item.node.name }}</span>
+            </template>
+          </div>
         </div>
       </div>
 
@@ -488,6 +542,7 @@ async function handleRefine() {
           :rows="2"
           class="flex-1 px-3 py-2 text-[13px] rounded-md border bg-surface-0 text-text-primary resize-none border-border-default hover:border-primary-300 placeholder:text-text-muted transition-all duration-150 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 disabled:opacity-40 disabled:cursor-not-allowed dark:bg-surface-100 dark:text-text-primary"
           @keydown="handleKeydown"
+          @input="handleInput"
         />
         <VButton
           size="sm"

@@ -126,6 +126,9 @@ function handleRowClick(row: any) {
 }
 
 // ── edit actions ──
+const showDeleteConfirm = ref(false)
+const deleting = ref(false)
+
 async function handleSave() {
   if (!editForm.value.code || !editForm.value.name) {
     toast.warning(de.value.nameOrCodeRequired)
@@ -154,14 +157,17 @@ function handleDelete() {
     toast.warning(de.value.builtinCannotDelete)
     return
   }
-  toast.confirm(de.value.deleteConfirmTitle, de.value.deleteConfirmMessage.replace('{name}', editForm.value.name)).then(async (confirmed) => {
-    if (!confirmed) return
-    try {
-      await invoke('de_delete', { id: editForm.value.id, dbType: DB_TYPE })
-      toast.success(de.value.deleted)
-      backToList()
-    } catch (e) { toast.error(String(e)) }
-  })
+  showDeleteConfirm.value = true
+}
+
+async function confirmDelete() {
+  deleting.value = true
+  try {
+    await invoke('de_delete', { id: editForm.value.id, dbType: DB_TYPE })
+    toast.success(de.value.deleted || 'Deleted')
+    backToList()
+  } catch (e) { toast.error(String(e)) }
+  finally { deleting.value = false; showDeleteConfirm.value = false }
 }
 
 function backToList() {
@@ -742,6 +748,18 @@ onMounted(async () => { await loadEmployees(); await loadLookups(); await loadCa
           <VButton variant="secondary" @click="handleCopy" :disabled="isNew">{{ de.copy || '复制' }}</VButton>
           <VButton variant="danger" @click="handleDelete" :disabled="isNew || editForm.is_builtin">{{ de.delete || '删除' }}</VButton>
           <VButton variant="ghost" @click="backToList">{{ de.cancel || '取消' }}</VButton>
+        </div>
+
+        <!-- Delete confirm dialog -->
+        <div v-if="showDeleteConfirm" class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50" @click.self="showDeleteConfirm = false">
+          <div class="bg-surface-0 dark:bg-surface-50 rounded-xl shadow-xl p-5 max-w-sm w-full mx-4 ring-1 ring-border-default/50">
+            <h3 class="text-sm font-semibold text-text-primary">{{ de.deleteConfirmTitle || 'Confirm Delete' }}</h3>
+            <p class="mt-2 text-[13px] text-text-secondary leading-relaxed">{{ (de.deleteConfirmMessage || 'Delete this employee?').replace('{name}', editForm.name) }}</p>
+            <div class="mt-4 flex justify-end gap-2">
+              <button class="px-4 py-1.5 text-[13px] rounded-md bg-surface-100 dark:bg-surface-200 text-text-primary hover:bg-surface-200 dark:hover:bg-surface-300 transition-colors" @click="showDeleteConfirm = false">Cancel</button>
+              <button class="px-4 py-1.5 text-[13px] rounded-md bg-danger-500 text-white hover:bg-danger-600 transition-colors shadow-sm" :disabled="deleting" @click="confirmDelete">{{ deleting ? 'Deleting...' : 'Delete' }}</button>
+            </div>
+          </div>
         </div>
       </div>
     </template>
