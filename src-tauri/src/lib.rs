@@ -6,7 +6,8 @@ mod db;
 mod digital_employee;
 mod fs;
 mod handlers;
-mod lancedb_store;
+// mod lancedb_store; — removed: unused module, commands never called from frontend.
+// The lancedb crate is still used by vector/local_vector.rs via direct import.
 mod license;
 mod resource;
 mod scenario;
@@ -206,12 +207,7 @@ pub fn run() {
             ai_config::ai_delete_provider,
             ai_config::ai_validate_provider,
             ai_config::ai_save_provider_secret,
-            // lancedb (legacy)
-            lancedb_store::lancedb_init,
-            lancedb_store::lancedb_list_tables,
-            lancedb_store::lancedb_create_table,
-            lancedb_store::lancedb_insert,
-            lancedb_store::lancedb_search
+            // lancedb (legacy) — removed: unused commands. Use vector::vec_* instead.
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

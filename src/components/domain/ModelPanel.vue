@@ -94,11 +94,16 @@ async function loadProviders() {
   }
 }
 
+// ── Lazy-load guards for @/# mention data ──
+// Employee list and file tree are only fetched when the user actually
+// types @ or # in the input area.  This avoids 2-3 Tauri IPC round-trips
+// (including a potentially expensive de_list DB query) at app startup.
+let employeesLoaded = false
+let filesLoaded = false
+
 onMounted(async () => {
   chatWorkspace.value = (await homeDir()) + '/.archbot/chat-workspace'
   await loadProviders()
-  loadEmployees()
-  loadFiles()
 })
 
 // ── Auto-scroll ──
@@ -192,7 +197,8 @@ function handleInput() {
   }
 
   if (atIdx > hashIdx) {
-    // @ mention active
+    // @ mention active — lazy-load employee list on first use
+    if (!employeesLoaded) { employeesLoaded = true; loadEmployees() }
     const filter = before.slice(atIdx + 1)
     if (filter.includes(' ') || filter.includes('\n')) {
       showAtMention.value = false
@@ -202,7 +208,8 @@ function handleInput() {
       atMentionFilter.value = filter
     }
   } else {
-    // # file reference active
+    // # file reference active — lazy-load file tree on first use
+    if (!filesLoaded) { filesLoaded = true; loadFiles() }
     const filter = before.slice(hashIdx + 1)
     if (filter.includes(' ') || filter.includes('\n')) {
       showHashRef.value = false
