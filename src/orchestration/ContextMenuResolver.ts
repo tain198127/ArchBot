@@ -62,12 +62,33 @@ export function getContextMenuItems(context: ContextObject): ContextMenuItem[] {
 
   for (const candidate of candidates) {
     for (const item of candidate.items) {
-      // Skip items that don't match semanticType (if specified in original config)
       items.push(item)
     }
   }
 
+  // Inject business flow menu items for file-type resources
+  if (context.resourceType === 'file' && context.resource?.path) {
+    const flowItems = getBusinessFlowMenuItems(context.resource.path as string)
+    if (flowItems.length > 0) {
+      items.push({ type: 'separator' })
+      items.push(...flowItems)
+    }
+  }
+
   return items
+}
+
+// ─── Business Flow dynamic menu integration ──────────────────
+
+let flowMenuProvider: ((filePath: string) => ContextMenuItem[]) | null = null
+
+export function registerFlowMenuProvider(provider: (filePath: string) => ContextMenuItem[]) {
+  flowMenuProvider = provider
+}
+
+function getBusinessFlowMenuItems(filePath: string): ContextMenuItem[] {
+  if (!flowMenuProvider) return []
+  return flowMenuProvider(filePath)
 }
 
 export function invalidateContextMenuCache(): void {

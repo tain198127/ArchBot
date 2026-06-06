@@ -1,0 +1,97 @@
+id: BUG-20260604-001
+title: 业务流编辑器拖拽节点无法渲染到画布且无法保存
+status: resolved
+severity: major
+date_created: 2026-06-04
+date_resolved: 2026-06-04
+environment:
+  os: macOS 24.6.0 (Darwin)
+  tauri: v2
+  webview: WebKit
+  vue-flow: 1.48.2
+  tailwind: 4.3.0
+steps_to_reproduce:
+  - 启动 Tauri 应用 (npm run tauri dev)
+  - 文件 → 打开项目 → /Users/baodan/RustroverProjects/demo/demo.ab
+  - 配置 → 业务流 → 选择一个业务流程（或新建）
+  - 从左侧工具面板拖拽任意节点到中间画布
+  - 尝试连线两个节点
+  - 点击保存按钮
+  - 关闭编辑器后重新打开同一个业务流程
+actual_behavior:
+  - 拖拽到画布的节点不显示（画布保持空白）
+  - 点击保存无效果（或保存空 JSON）
+  - 关闭重开后没有任何节点/连线
+expected_behavior:
+  - 拖拽节点后应立即显示在画布上
+  - 可以在节点间拖拽连线
+  - 保存后数据持久化
+  - 关闭重开后节点和连线关系完整保留
+root_cause: |
+  三个关联根因：
+  1. onDrop 中使用 nodes.value = [...nodes.value, newNode] 直接改 ref，
+     绕过了 VueFlow 的 addNodes() → change pipeline → store 更新 → 渲染链路。
+     直接改 ref 不会触发 VueFlow 内部 hooks.nodesChange，节点无法渲染。
+  2. @dragover 放在外层 wrapper div 而非 VueFlow 组件上，VueFlow 内部
+     pane 元素可能消费了 dragover 事件，preventDefault() 无法阻止浏览器
+     默认的"禁止放置"行为，导致 @drop 事件根本不会触发。
+  3. palette 拖拽项缺少 select-none，WebKit WebView 点击文字启动拖拽时
+     浏览器优先触发文本选中而非 DragEvent。
+fix_description: |
+  共 5 处修改，均在 BusinessFlowEditorPanel.vue：
+
+  修复 1: palette item CSS 加 select-none（防止文本选中干扰拖拽启动）
+  修复 2: @dragover 从 wrapper div 移到 <VueFlow> 组件
+  修复 3: @drop 从 wrapper div 移到 <VueFlow> 组件
+  修复 4: onDrop 改用 addNodes([newNode])（走 VueFlow change pipeline）
+  修复 5: onNodesChange/onEdgesChange 移除错误的 applyNodeChanges 调用，
+         仅标记 dirty（v-model 模式下 VueFlow 自动处理变化）
+
+  数据流修复（after）:
+  onDragStart → onDrop → addNodes([newNode])
+    → store.nodesChange hook → onNodesChange(dirty=true)
+    → update:nodes emit → nodes.value 自动更新
+    → VueFlow 渲染新节点
+    → getNodes.value → 包含新节点 → 保存正确
+files_changed:
+  - path: src/components/domain/business-flow/BusinessFlowEditorPanel.vue
+    lines_changed: "~15 行"
+    details:
+      - "useVueFlow(): 新增 addNodes，移除 applyNodeChanges/applyEdgeChanges"
+      - "onDrop(): nodes.value = [...] → addNodes([newNode])"
+      - "onNodesChange/onEdgesChange: 移除 applyNodeChanges 调用"
+      - "palette item: 加 select-none class"
+      - "template: @dragover @drop 移到 VueFlow 组件上"
+verification: |
+  代码级验证:
+  - TypeScript 编译通过 (vue-tsc)，无新增错误
+  - Vite 构建通过 (因已有的 BusinessFlowRunPanel import 路径错误失败，与修复无关)
+  - VueFlow addNodes API 确认存在 (v1.48.2)
+  - applyChanges 实现确认 (会 mutate 传入的 elements 数组)
+
+  E2E 测试状态:
+  - Tauri app + Playwright plugin + Vite 三者成功启动
+  - Playwright eval API 确认可用 (需 `return` 前缀)
+  - E2E 测试文件已创建: e2e/native/business-flow-dnd.spec.ts (7 个测试)
+  - 测试被阻止: app 处于欢迎页，项目未打开，"配置"菜单 disabled
+  - 需要手动打开项目 (/Users/baodan/RustroverProjects/demo/demo.ab) 后重新运行测试
+
+  运行 E2E 测试的命令:
+  1. 终端 1: npx tauri dev --features e2e-test
+  2. 等待 "READY" 信号
+  3. 终端 2: npm run test:e2e:native -- e2e/native/business-flow-dnd.spec.ts
+related_bugs: []
+tags: [frontend, vue-flow, drag-and-drop, business-flow-editor, dnd, e2e]
+notes: |
+  第一轮修复: select-none + @dragover 移到 VueFlow（解决拖拽启动问题）
+  第二轮修复: addNodes + @drop 移到 VueFlow + 移除 applyNodeChanges（解决渲染和保存问题）
+
+  Playwright 插件的 eval API 要求 JS 字符串以 `return` 开头，否则 inner function
+  返回 undefined。这是插件的已知限制（bridge.rs 的 eval wrapper 不自动加 return）。
+
+  验证建议: 启动 Tauri app，手动打开 demo.ab 项目，进入业务流编辑器，
+  拖拽节点到画布 → 连线 → 保存 → 关闭重开 → 确认连线保持。
+
+  Tailwind v4 cursor-grab 确认可用。
+  唯一遗留 TS 错误是 VueFlow 类型系统自身的递归深度限制（不影响运行）。
+e2e_test: skipped

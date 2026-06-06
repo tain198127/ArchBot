@@ -1,5 +1,6 @@
 mod agent_runtime;
 mod ai_config;
+mod business_flow;
 mod context;
 mod data_standard;
 mod db;
@@ -207,6 +208,21 @@ pub fn run() {
             ai_config::ai_delete_provider,
             ai_config::ai_validate_provider,
             ai_config::ai_save_provider_secret,
+            // business_flow
+            business_flow::handler::bf_init,
+            business_flow::handler::bf_list_flows,
+            business_flow::handler::bf_get_flow,
+            business_flow::handler::bf_create_flow,
+            business_flow::handler::bf_update_flow,
+            business_flow::handler::bf_delete_flow,
+            business_flow::handler::bf_publish_flow,
+            business_flow::handler::bf_copy_flow,
+            business_flow::handler::bf_validate_flow,
+            business_flow::handler::bf_validate_graph,
+            business_flow::handler::bf_list_runs,
+            business_flow::handler::bf_get_run,
+            business_flow::conductor::bf_run_flow,
+            business_flow::conductor::bf_abort_run,
             // lancedb (legacy) — removed: unused commands. Use vector::vec_* instead.
         ])
         .run(tauri::generate_context!())

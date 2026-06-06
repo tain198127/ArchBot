@@ -10,6 +10,15 @@ import AgentConfigPanel from './AgentConfigPanel.vue'
 import AIConfigPanel from './AIConfigPanel.vue'
 import ContextEngineeringPanel from './ContextEngineeringPanel.vue'
 import SkillConfigPanel from './SkillConfigPanel.vue'
+import BusinessFlowListPanel from './BusinessFlowListPanel.vue'
+import { defineAsyncComponent } from 'vue'
+
+const BusinessFlowEditorPanel = defineAsyncComponent(
+  () => import('./business-flow/BusinessFlowEditorPanel.vue')
+)
+const BusinessFlowRunPanel = defineAsyncComponent(
+  () => import('./business-flow/BusinessFlowRunPanel.vue')
+)
 
 const { t, tt } = useI18n()
 
@@ -139,6 +148,18 @@ onMounted(() => {
       else if (dc) { id = `ds-domain-${dc}`; labelKey = `dataStandard.title / ${dn || dc}` }
       else { id = 'dataStandard'; labelKey = 'dataStandard.title' }
       openTab(id, labelKey, 'dataStandard', dc, focus)
+    } else if (action === 'config.businessFlow') {
+      openTab('business-flow-list', 'businessFlow.list.title', 'business-flow-list')
+    } else if (action === 'open.businessFlowEditor') {
+      const flowId = payload?.flowId || ''
+      const flowName = payload?.flowName || 'Flow'
+      openTab(`bf-editor-${flowId}`, `businessFlow.editor.title / ${flowName}`, 'business-flow-editor', flowId)
+    } else if (action === 'bf.runFlow') {
+      // Context menu → Run flow with clicked file as material
+      const flowId = payload?.flowId || ''
+      const flowName = payload?.flowName || 'Flow'
+      const filePath = payload?.filePath || ''
+      openTab(`bf-editor-${flowId}`, `businessFlow.editor.title / ${flowName}`, 'business-flow-editor', flowId, filePath)
     }
   })
 })
@@ -194,6 +215,13 @@ onUnmounted(() => { unsubscribe?.() })
       <AgentConfigPanel v-else-if="activeTabData()?.type === 'agent-config'" />
       <SkillConfigPanel v-else-if="activeTabData()?.type === 'skill-config'" />
       <DigitalEmployeePanel v-else-if="activeTabData()?.type === 'digital-employee'" />
+      <BusinessFlowListPanel v-else-if="activeTabData()?.type === 'business-flow-list'" />
+      <BusinessFlowEditorPanel
+        v-else-if="activeTabData()?.type === 'business-flow-editor'"
+        :flowId="(activeTabData()?.domainCode as string) || ''"
+        :materialFile="(activeTabData()?.focus as string) || ''"
+        :key="activeTab"
+      />
       <DataStandardEditor
         v-else-if="activeTabData()?.type === 'dataStandard'"
         :key="activeTab"

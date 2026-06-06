@@ -1,0 +1,73 @@
+# Bug Tracking Format Specification
+# All files under .bug/ MUST conform to this schema.
+# Schema version: 1.0
+# Created: 2026-06-04
+
+# ─── Field Definitions ───────────────────────────────────────────
+
+# id:            Bug 编号，格式 BUG-YYYYMMDD-NNN（日期+3位序号，如 BUG-20260604-001）
+# title:         Bug 简短标题（一句话描述，中文或英文）
+# status:        状态，枚举值: open | in_progress | resolved | closed | wontfix
+# severity:      严重程度: critical | major | minor | cosmetic
+# date_created:  创建日期，ISO 8601 格式 YYYY-MM-DD
+# date_resolved: 解决日期，ISO 8601 格式，未解决时留空 ''
+# environment:   运行环境描述（OS、Tauri 版本、浏览器 WebView 等）
+# steps_to_reproduce: 复现步骤，数组格式，按顺序列出
+# expected_behavior:  期望行为
+# actual_behavior:    实际行为
+# root_cause:    根因分析
+# fix_description: 修复描述，含具体改动的文件和行数
+# files_changed:  修改的文件列表，含改动行数和说明
+# verification:   验证方法（如何确认已修复）
+# related_bugs:   关联 Bug 编号列表
+# tags:           标签列表
+# notes:          备注/额外信息
+# e2e_test:       E2E 测试状态: passed | failed | skipped | not_run
+
+# ─── Example ─────────────────────────────────────────────────────
+#
+# id: BUG-20260604-001
+# title: 业务流编辑器拖拽节点无法渲染到画布且无法保存
+# status: resolved
+# severity: major
+# date_created: 2026-06-04
+# date_resolved: 2026-06-04
+# environment:
+#   os: macOS 24.6.0
+#   tauri: v2
+#   webview: WebKit
+#   vue-flow: 1.48.2
+#   tailwind: 4.3.0
+# steps_to_reproduce:
+#   - 启动 Tauri 应用
+#   - 文件 → 打开项目 → /Users/baodan/RustroverProjects/demo/demo.ab
+#   - 配置 → 业务流 → 选择一个业务流程
+#   - 从左侧工具栏拖拽任意节点到画布
+# actual_behavior: 节点不显示在画布上，也无法保存
+# expected_behavior: 节点应显示在画布上，可连线，可保存，关闭重开后连线保持
+# root_cause: |
+#   1. onDrop 使用 nodes.value 直接赋值绕过 VueFlow change pipeline
+#   2. @dragover 在外层 div 而非 VueFlow 组件上
+#   3. 缺少 select-none 导致拖拽启动时文本选中干扰
+# fix_description: |
+#   修复 1: palette 项加 select-none
+#   修复 2: @dragover 移到 VueFlow 组件
+#   修复 3: onDrop 改用 addNodes() API
+#   修复 4: onNodesChange 移除错误的 applyNodeChanges 调用
+#   修复 5: @drop 移到 VueFlow 组件
+# files_changed:
+#   - path: src/components/domain/business-flow/BusinessFlowEditorPanel.vue
+#     changes:
+#       - "第 369 行: palette item 加 select-none"
+#       - "第 37-44 行: useVueFlow 新增 addNodes 解构，移除 applyNodeChanges/applyEdgeChanges"
+#       - "第 116-138 行: onDrop 改用 addNodes([newNode])"
+#       - "第 173-180 行: onNodesChange/onEdgesChange 简化为仅标记 dirty"
+#       - "第 380 行: wrapper div 移除 @drop"
+#       - "第 396 行: VueFlow 组件加 @dragover @drop"
+# verification: E2E 测试通过：拖拽节点到画布 → 连线 → 保存 → 关闭重开 → 连线保持
+# related_bugs: []
+# tags: [frontend, vue-flow, drag-and-drop, business-flow-editor]
+# notes: |
+#   Tailwind v4 cursor-grab 确认可用
+#   唯一遗留 TS 错误是 VueFlow 类型系统自身的递归深度限制（不影响运行）
+# e2e_test: passed
