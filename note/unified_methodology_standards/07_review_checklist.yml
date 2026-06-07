@@ -1,0 +1,64 @@
+review_checklist:
+  id: meta_capability_pattern_enum_relation_review
+  version: "1.0"
+
+  checks:
+    - id: check_meta_capability_has_card
+      target: meta_capability
+      rule: "每个正式元能力必须有 capability_card。"
+      severity: blocker
+
+    - id: check_meta_capability_score
+      target: meta_capability
+      rule: "正式元能力评分必须 >= 90。"
+      severity: blocker
+
+    - id: check_composition_pattern_has_multiple_capabilities
+      target: composition_pattern
+      rule: "组合套路至少组合 3 个元能力。"
+      severity: blocker
+
+    - id: check_composition_pattern_score
+      target: composition_pattern
+      rule: "正式组合套路评分必须 >= 90。"
+      severity: blocker
+
+    - id: check_enum_extraction_score
+      target: enum
+      rule: "必须枚举项评分必须 >= 85。"
+      severity: blocker
+
+    - id: check_relation_has_full_edge
+      target: relationship_registry
+      rule: "每条关系必须有 from.kind、from.id、to.kind、to.id、namespace、type、meaning。"
+      severity: blocker
+
+    - id: check_relation_type_namespace
+      target: relationship_registry
+      rule: "关系 type 必须属于指定 namespace。"
+      severity: blocker
+
+    - id: check_relation_direction
+      target: relationship_registry
+      rule: "关系方向必须符合语义，不允许隐式 target。"
+      severity: blocker
+
+    - id: check_cross_cutting_mapping
+      target: cross_cutting_relations
+      rule: "横切对象必须通过 cross_cutting_relations 表达，不得伪装成普通 concept。"
+      severity: major
+
+    - id: check_evolution_relations
+      target: evolution_relations
+      rule: "反馈、历史反思、规律提炼、方法论更新之间必须有演化关系。"
+      severity: major
+
+    - id: check_no_unclassified_object
+      target: object_taxonomy
+      rule: "所有对象必须归入 concept、capability、pattern、enum、runtime_object、evolution_object 之一。"
+      severity: blocker
+
+    - id: check_no_duplicate_capability
+      target: capability_registry
+      rule: "不得存在输入输出和执行语义高度重复的元能力。"
+      severity: major

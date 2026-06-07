@@ -8,7 +8,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { useI18n } from '../../i18n'
+import { useI18n } from '../../../i18n'
 
 const props = defineProps<{ flowId: string }>()
 

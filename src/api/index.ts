@@ -134,10 +134,6 @@ export function dbDelete(table: string, id: string, dbType: string) {
   return call<void>('db_delete', 'POST', '/db/delete', { table, id, db_type: dbType })
 }
 
-export function dbExecuteRaw(sql: string, dbType: string) {
-  return call<QueryResult>('db_execute_raw', 'POST', '/db/execute-raw', { sql, db_type: dbType })
-}
-
 // ── Context Engineering ──
 
 export function getContextConfig(projectPath: string, section: string) {

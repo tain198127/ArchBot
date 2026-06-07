@@ -135,7 +135,7 @@ pub fn run() {
             db::db_insert,
             db::db_update,
             db::db_delete,
-            db::db_execute_raw,
+
             // digital_employee
             digital_employee::de_init,
             digital_employee::de_list,
@@ -221,6 +221,7 @@ pub fn run() {
             business_flow::handler::bf_validate_graph,
             business_flow::handler::bf_list_runs,
             business_flow::handler::bf_get_run,
+            business_flow::handler::bf_update_run_status,
             business_flow::conductor::bf_run_flow,
             business_flow::conductor::bf_abort_run,
             // lancedb (legacy) — removed: unused commands. Use vector::vec_* instead.

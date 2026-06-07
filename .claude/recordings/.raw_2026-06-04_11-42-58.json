@@ -1,0 +1,8 @@
+{
+  "session_id": "9bd57697-eb05-4d25-8e35-5f1cf9b6c49d",
+  "transcript_path": "/Users/baodan/.claude/projects/-Users-baodan-RustroverProjects-ArchBot/9bd57697-eb05-4d25-8e35-5f1cf9b6c49d.jsonl",
+  "cwd": "/Users/baodan/RustroverProjects/ArchBot",
+  "hook_event_name": "SessionStart",
+  "source": "startup",
+  "model": "glm-5.1[1m]"
+}

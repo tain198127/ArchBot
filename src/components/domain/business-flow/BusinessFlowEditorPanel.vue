@@ -9,7 +9,7 @@
  *
  * Lazy-loaded by EditorPanel via defineAsyncComponent.
  */
-import { ref, onMounted, onUnmounted, computed, markRaw, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, computed, markRaw } from 'vue'
 import { VueFlow, useVueFlow, type GraphNode, type GraphEdge, type Node, type Edge } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
@@ -102,86 +102,90 @@ async function loadEmployees() {
   }
 }
 
-// ─── Drag-and-drop from palette ───────────────────────────────
+// ─── Drag-and-drop from palette (mouse-event based — WKWebView blocks HTML5 DnD) ──
 
-// Tauri WKWebView intercepts all dataTransfer MIME types (even text/plain).
-// Pass drag context via a closure variable instead — proven to work everywhere.
+// Context: palette mousedown stores what's being dragged; mouseup on canvas creates node
 let _dragCtx: { type: string; employeeCode?: string; employeeName?: string; avatar?: string; personality?: string } | null = null
+let _dragGhost: HTMLElement | null = null
 
-function onDragStart(event: DragEvent, type: string) {
-  _dragCtx = { type }
-  // setData is only needed so the browser treats this as a real drag; value is irrelevant
-  event.dataTransfer!.setData('text/plain', '')
-  event.dataTransfer!.effectAllowed = 'move'
+function createDragGhost(text: string, x: number, y: number) {
+  const el = document.createElement('div')
+  el.textContent = text.slice(0, 20)
+  el.style.cssText = [
+    'position:fixed', 'z-index:99999', 'pointer-events:none',
+    'background:#4f6ef7', 'color:white', 'padding:4px 10px', 'border-radius:6px',
+    'font-size:12px', 'font-weight:600', 'white-space:nowrap',
+    `left:${x + 10}px`, `top:${y - 14}px`,
+    'opacity:0.9', 'transition:transform 0.05s',
+  ].join(';')
+  document.body.appendChild(el)
+  return el
 }
 
-function onDragOver(event: DragEvent) {
+function onPaletteMouseDown(event: MouseEvent, type: string) {
   event.preventDefault()
-  if (event.dataTransfer) {
-    event.dataTransfer.dropEffect = 'move'
-  }
+  _dragCtx = { type }
+  _dragGhost = createDragGhost(
+    (event.currentTarget as HTMLElement)?.textContent?.trim() ?? type,
+    event.clientX, event.clientY)
+  window.addEventListener('mousemove', onWindowMouseMove)
+  window.addEventListener('mouseup', onWindowMouseUp)
+  console.log('[DnD] mousedown | type=%s | x=%d y=%d', type, event.clientX, event.clientY)
 }
 
-/** Drag-and-drop entry point — uses VueFlow's addNodes to go through the correct
-  * internal change pipeline (applyChanges → store update → v-model sync → render). */
-
-function getDefaultNodeData(type: string): Record<string, unknown> {
-  switch (type) {
-    case 'start':
-      return { label: 'Start' }
-    case 'end':
-      return { label: 'End' }
-    case 'agent':
-      return { agentId: '', agentName: '', skillName: '', inputPaths: [], outputPath: '', forbiddenPaths: [], timeout: 300, retryPolicy: { maxRetries: 0, onFail: 'abort' } }
-    case 'gateway_xor':
-      return { label: 'XOR Gateway', conditions: {} }
-    case 'gateway_and':
-      return { label: 'AND Gateway' }
-    case 'gateway_or':
-      return { label: 'OR Gateway', conditions: {} }
-    case 'material_input':
-      return { label: 'Material', filePath: '', fileName: '', fileType: '' }
-    case 'quality_gate':
-      return { label: 'Quality Gate', metric: '', threshold: 0.8, onFail: 'abort' }
-    case 'employee':
-      return { label: 'Employee', employeeCode: '', employeeName: '', avatar: '🧑‍💼', personality: '', skillName: '' }
-    case 'skill':
-      return { label: 'Skill', skillCode: '', skillName: '', command: '' }
-    case 'reference':
-      return { label: 'Reference', refType: 'file', refId: '', refName: '', filePath: '' }
-    case 'numeric_gate':
-      return { label: 'Numeric Gate', operation: 'compare', operands: [], threshold: 0, comparisonOp: 'gte' }
-    default:
-      return { label: type }
-  }
-}
-
-/** Called when an employee palette item is dragged — context stored in closure */
-function onDragStartEmployee(event: DragEvent, code: string, name: string, avatar: string, personality: string) {
+function onPaletteMouseDownEmployee(event: MouseEvent, code: string, name: string, avatar: string, personality: string) {
+  event.preventDefault()
   _dragCtx = { type: 'employee', employeeCode: code, employeeName: name, avatar, personality }
-  event.dataTransfer!.setData('text/plain', '')
-  event.dataTransfer!.effectAllowed = 'move'
+  _dragGhost = createDragGhost(name, event.clientX, event.clientY)
+  window.addEventListener('mousemove', onWindowMouseMove)
+  window.addEventListener('mouseup', onWindowMouseUp)
+  console.log('[DnD] mousedown EMPLOYEE | code=%s name=%s', code, name)
 }
 
-/** Drop handler — reads drag context from closure variable (avoids WKWebView dataTransfer bugs) */
-function onDropExtended(event: DragEvent) {
+function onWindowMouseMove(event: MouseEvent) {
+  if (_dragGhost) {
+    _dragGhost.style.left = `${event.clientX + 10}px`
+    _dragGhost.style.top = `${event.clientY - 14}px`
+  }
+}
+
+function onWindowMouseUp(event: MouseEvent) {
+  window.removeEventListener('mousemove', onWindowMouseMove)
+  window.removeEventListener('mouseup', onWindowMouseUp)
+
+  // Remove ghost
+  if (_dragGhost) {
+    _dragGhost.remove()
+    _dragGhost = null
+  }
+
   if (!_dragCtx) {
-    console.warn('[BusinessFlowEditor] Drop without drag context — was dragstart outside the palette?')
+    console.log('[DnD] mouseup — no drag context (was not a palette drag)')
     return
   }
 
   const { type: nodeType, ...employeeFields } = _dragCtx
   _dragCtx = null
 
-  if (!nodeType) {
-    console.warn('[BusinessFlowEditor] Drag context missing type field')
+  console.log('[DnD] mouseup | type=%s | x=%d y=%d', nodeType, event.clientX, event.clientY)
+
+  // Check if mouse is over the VueFlow pane
+  const pane = document.querySelector('.vue-flow__pane')
+  if (!pane) {
+    console.warn('[DnD] ❌ mouseup — .vue-flow__pane not found in DOM')
+    return
+  }
+  const paneRect = pane.getBoundingClientRect()
+  const overPane = event.clientX >= paneRect.left && event.clientX <= paneRect.right
+                && event.clientY >= paneRect.top && event.clientY <= paneRect.bottom
+  if (!overPane) {
+    console.log('[DnD] mouseup — outside pane (pane=%s)', JSON.stringify(paneRect))
     return
   }
 
   const position = screenToFlowCoordinate({ x: event.clientX, y: event.clientY })
   let data = getDefaultNodeData(nodeType)
 
-  // Enrich employee nodes with the dragged role's metadata
   if (nodeType === 'employee') {
     data = {
       ...data,
@@ -201,6 +205,26 @@ function onDropExtended(event: DragEvent) {
 
   addNodes([newNode])
   dirty.value = true
+  console.log('[DnD] ✅ node ADDED | id=%s type=%s pos=(%d,%d) total=%d',
+    newNode.id, newNode.type, position.x, position.y, getNodes.value.length)
+}
+
+function getDefaultNodeData(type: string): Record<string, unknown> {
+  switch (type) {
+    case 'start': return { label: 'Start' }
+    case 'end': return { label: 'End' }
+    case 'agent': return { agentId: '', agentName: '', skillName: '', inputPaths: [], outputPath: '', forbiddenPaths: [], timeout: 300, retryPolicy: { maxRetries: 0, onFail: 'abort' } }
+    case 'gateway_xor': return { label: 'XOR Gateway', conditions: {} }
+    case 'gateway_and': return { label: 'AND Gateway' }
+    case 'gateway_or': return { label: 'OR Gateway', conditions: {} }
+    case 'material_input': return { label: 'Material', filePath: '', fileName: '', fileType: '' }
+    case 'quality_gate': return { label: 'Quality Gate', metric: '', threshold: 0.8, onFail: 'abort' }
+    case 'employee': return { label: 'Employee', employeeCode: '', employeeName: '', avatar: '🧑‍💼', personality: '', skillName: '' }
+    case 'skill': return { label: 'Skill', skillCode: '', skillName: '', command: '' }
+    case 'reference': return { label: 'Reference', refType: 'file', refId: '', refName: '', filePath: '' }
+    case 'numeric_gate': return { label: 'Numeric Gate', operation: 'compare', operands: [], threshold: 0, comparisonOp: 'gte' }
+    default: return { label: type }
+  }
 }
 
 // ─── Connection handling ──────────────────────────────────────
@@ -242,6 +266,7 @@ async function loadFlow() {
       edges.value = []
     }
     dirty.value = false
+    console.log('[DnD] loadFlow SUCCESS | nodes=%d edges=%d', nodes.value.length, edges.value.length)
 
     // If opened from context menu with a material file, add a material input node
     if (props.materialFile) {
@@ -335,51 +360,18 @@ function handleKeydown(event: KeyboardEvent) {
   }
 }
 
-// ─── Native DnD bindings (VueFlow has inheritAttrs:false — event passthrough fails) ──
-
-let _paneDndBound = false
-
-function bindPaneDnd(retries = 5) {
-  if (_paneDndBound) return
-  const pane = document.querySelector('.vue-flow__pane') as HTMLElement | null
-  if (pane) {
-    pane.addEventListener('dragover', onDragOver)
-    pane.addEventListener('drop', onDropExtended)
-    _paneDndBound = true
-  } else if (retries > 0) {
-    // VueFlow pane may not be in the DOM yet — retry on next frame
-    requestAnimationFrame(() => bindPaneDnd(retries - 1))
-  }
-}
-
-function unbindPaneDnd() {
-  _paneDndBound = false
-  const pane = document.querySelector('.vue-flow__pane') as HTMLElement | null
-  if (pane) {
-    pane.removeEventListener('dragover', onDragOver)
-    pane.removeEventListener('drop', onDropExtended)
-  }
-}
-
-// Watch loading → when VueFlow renders, bind native DnD
-watch(loading, (v) => {
-  if (!v) {
-    // Flow done loading — wait for VueFlow to render its internal DOM
-    nextTick(() => bindPaneDnd())
-  }
-})
-
 onMounted(() => {
+  console.log('[DnD] onMounted — component mounted')
   loadFlow()
   loadEmployees()
   window.addEventListener('keydown', handleKeydown)
-  // VueFlow renders its internal pane asynchronously — retry with rAF until found
-  bindPaneDnd()
 })
 
 onUnmounted(() => {
+  console.log('[DnD] onUnmounted — cleaning up')
   window.removeEventListener('keydown', handleKeydown)
-  unbindPaneDnd()
+  window.removeEventListener('mousemove', onWindowMouseMove)
+  window.removeEventListener('mouseup', onWindowMouseUp)
 })
 
 const isPublished = computed(() => flowData.value?.published ?? false)
@@ -450,10 +442,10 @@ const readOnly = computed(() => isPublished.value || isBuiltin.value)
               {{ tt('businessFlow.editor.palette.flowControl') }}
             </summary>
             <div class="flex flex-col gap-0.5 mt-1">
-              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'start')">
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" @mousedown="onPaletteMouseDown($event, 'start')">
                 <span class="text-base w-5 text-center">●</span><span class="truncate">{{ tt('businessFlow.editor.nodes.start') }}</span>
               </div>
-              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'end')">
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" @mousedown="onPaletteMouseDown($event, 'end')">
                 <span class="text-base w-5 text-center">◉</span><span class="truncate">{{ tt('businessFlow.editor.nodes.end') }}</span>
               </div>
             </div>
@@ -465,13 +457,13 @@ const readOnly = computed(() => isPublished.value || isBuiltin.value)
               {{ tt('businessFlow.editor.palette.references') }}
             </summary>
             <div class="flex flex-col gap-0.5 mt-1">
-              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'reference')">
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" @mousedown="onPaletteMouseDown($event, 'reference')">
                 <span class="text-base w-5 text-center">📁</span><span class="truncate">File</span>
               </div>
-              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'reference')">
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" @mousedown="onPaletteMouseDown($event, 'reference')">
                 <span class="text-base w-5 text-center">🤖</span><span class="truncate">Agent</span>
               </div>
-              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'reference')">
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" @mousedown="onPaletteMouseDown($event, 'reference')">
                 <span class="text-base w-5 text-center">⚡</span><span class="truncate">Skill</span>
               </div>
             </div>
@@ -486,8 +478,7 @@ const readOnly = computed(() => isPublished.value || isBuiltin.value)
               <div
                 v-for="emp in employees" :key="emp.code"
                 class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors"
-                draggable="true"
-                @dragstart="onDragStartEmployee($event, emp.code, emp.name, emp.avatar, emp.personality_tags)"
+                @mousedown="onPaletteMouseDownEmployee($event, emp.code, emp.name, emp.avatar, emp.personality_tags)"
               >
                 <span class="text-base w-5 text-center">{{ emp.avatar || '🧑‍💼' }}</span>
                 <span class="truncate">{{ emp.name }}</span>
@@ -504,10 +495,10 @@ const readOnly = computed(() => isPublished.value || isBuiltin.value)
               {{ tt('businessFlow.editor.palette.execution') }}
             </summary>
             <div class="flex flex-col gap-0.5 mt-1">
-              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'agent')">
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" @mousedown="onPaletteMouseDown($event, 'agent')">
                 <span class="text-base w-5 text-center">👤</span><span class="truncate">{{ tt('businessFlow.editor.nodes.agent') }}</span>
               </div>
-              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'skill')">
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" @mousedown="onPaletteMouseDown($event, 'skill')">
                 <span class="text-base w-5 text-center">⚡</span><span class="truncate">Skill</span>
               </div>
             </div>
@@ -519,22 +510,22 @@ const readOnly = computed(() => isPublished.value || isBuiltin.value)
               {{ tt('businessFlow.editor.palette.gates') }}
             </summary>
             <div class="flex flex-col gap-0.5 mt-1">
-              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'gateway_and')">
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" @mousedown="onPaletteMouseDown($event, 'gateway_and')">
                 <span class="text-base w-5 text-center">◈</span><span class="truncate">{{ tt('businessFlow.editor.nodes.gatewayAnd') }}</span>
               </div>
-              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'gateway_xor')">
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" @mousedown="onPaletteMouseDown($event, 'gateway_xor')">
                 <span class="text-base w-5 text-center">◇</span><span class="truncate">{{ tt('businessFlow.editor.nodes.gatewayXor') }}</span>
               </div>
-              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'gateway_or')">
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" @mousedown="onPaletteMouseDown($event, 'gateway_or')">
                 <span class="text-base w-5 text-center">◆</span><span class="truncate">{{ tt('businessFlow.editor.nodes.gatewayOr') }}</span>
               </div>
-              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'numeric_gate')">
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" @mousedown="onPaletteMouseDown($event, 'numeric_gate')">
                 <span class="text-base w-5 text-center">🔢</span><span class="truncate">Numeric Gate</span>
               </div>
-              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'quality_gate')">
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" @mousedown="onPaletteMouseDown($event, 'quality_gate')">
                 <span class="text-base w-5 text-center">🛡</span><span class="truncate">{{ tt('businessFlow.editor.nodes.qualityGate') }}</span>
               </div>
-              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'material_input')">
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" @mousedown="onPaletteMouseDown($event, 'material_input')">
                 <span class="text-base w-5 text-center">📄</span><span class="truncate">{{ tt('businessFlow.editor.nodes.materialInput') }}</span>
               </div>
             </div>
@@ -542,7 +533,7 @@ const readOnly = computed(() => isPublished.value || isBuiltin.value)
         </div>
       </div>
 
-      <!-- Canvas — DnD handlers MUST be on VueFlow (its internal SVG pane consumes dragover otherwise) -->
+      <!-- Canvas -->
       <div class="flex-1 relative">
         <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-surface-0/80 z-50">
           <span class="text-sm text-text-secondary animate-pulse">Loading flow…</span>
@@ -558,8 +549,6 @@ const readOnly = computed(() => isPublished.value || isBuiltin.value)
           fit-view-on-init
           class="w-full h-full"
           :class="{ 'pointer-events-none opacity-70': readOnly }"
-          @dragover="onDragOver"
-          @drop="onDropExtended"
         >
           <Background />
           <Controls />

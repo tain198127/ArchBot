@@ -189,7 +189,7 @@ onUnmounted(() => { unsubscribe?.() })
         >&times;</span>
       </div>
     </div>
-    <div class="flex-1 overflow-hidden">
+    <div class="flex-1 overflow-y-auto">
       <div v-if="activeTab === 'welcome'" class="flex flex-col items-center justify-center h-full select-none">
         <div class="text-center animate-fade-in">
           <div class="mb-6 inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary-500/10 ring-1 ring-primary-500/20">

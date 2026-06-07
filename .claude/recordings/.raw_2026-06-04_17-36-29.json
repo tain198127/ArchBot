@@ -1,0 +1,8 @@
+{
+  "session_id": "fb500b09-8a3e-460c-bdcb-45cd95ba672a",
+  "transcript_path": "/Users/baodan/.claude/projects/-Users-baodan-RustroverProjects-ArchBot/fb500b09-8a3e-460c-bdcb-45cd95ba672a.jsonl",
+  "cwd": "/Users/baodan/RustroverProjects/ArchBot",
+  "hook_event_name": "SessionStart",
+  "source": "startup",
+  "model": "deepseek-v4-pro[1m]"
+}

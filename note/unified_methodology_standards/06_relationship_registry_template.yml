@@ -1,0 +1,179 @@
+relationship_registry:
+  version: "2.1"
+
+  relation_type_namespaces:
+    concept_relation_types:
+      - contains
+      - depends_on
+      - produces
+      - validates
+      - controls
+      - references
+      - blocks
+      - resolves
+
+    capability_relation_types:
+      - depends_on
+      - produces
+      - consumes
+      - invokes
+      - validates
+      - controls
+      - enriches
+
+    pattern_relation_types:
+      - composed_of
+      - ordered_before
+      - requires
+      - produces
+      - handles_failure_with
+
+    enum_relation_types:
+      - constrains
+      - validates
+      - routes
+      - classifies
+      - used_by
+
+    cross_cutting_relation_types:
+      - crosses
+      - constrains
+      - enriches
+      - monitors
+
+    evolution_relation_types:
+      - observes
+      - abstracts
+      - reinforces
+      - weakens
+      - distills_into
+      - updates
+
+  concept_relations:
+    - id: workflow_depends_on_required_inputs
+      namespace: concept_relation_types
+      type: depends_on
+      from:
+        kind: concept
+        id: workflow
+      to:
+        kind: concept
+        id: required_inputs
+      meaning: "workflow 启动依赖 required_inputs。"
+      evidence_required: true
+      enforcement: runtime
+      validation_rules:
+        - from_id_must_exist
+        - to_id_must_exist
+        - type_must_belong_to_namespace
+
+    - id: stage_gates_validates_workflow
+      namespace: concept_relation_types
+      type: validates
+      from:
+        kind: concept
+        id: stage_gates
+      to:
+        kind: concept
+        id: workflow
+      meaning: "stage_gates 校验 workflow 阶段是否可以通过。"
+      evidence_required: true
+      enforcement: runtime
+      validation_rules:
+        - stage_gate_must_reference_existing_workflow_stage
+
+  capability_relations:
+    - id: situation_recognition_depends_on_environment_recognition
+      namespace: capability_relation_types
+      type: depends_on
+      from:
+        kind: capability
+        id: situation_recognition
+      to:
+        kind: capability
+        id: environment_recognition
+      meaning: "情景识别依赖环境识别。"
+      evidence_required: true
+      enforcement: runtime
+      validation_rules:
+        - capability_id_must_exist
+
+    - id: strategy_selection_depends_on_situation_recognition
+      namespace: capability_relation_types
+      type: depends_on
+      from:
+        kind: capability
+        id: strategy_selection
+      to:
+        kind: capability
+        id: situation_recognition
+      meaning: "策略选择依赖情景识别结果。"
+      evidence_required: true
+      enforcement: coordinator
+      validation_rules:
+        - capability_id_must_exist
+
+  pattern_relations:
+    - id: concept_extraction_pattern_composed_of_concept_capability
+      namespace: pattern_relation_types
+      type: composed_of
+      from:
+        kind: pattern
+        id: concept_extraction_pattern
+      to:
+        kind: capability
+        id: concept_capability
+      meaning: "概念提取套路由概念能力组成。"
+      evidence_required: false
+      enforcement: schema
+      validation_rules:
+        - pattern_id_must_exist
+        - capability_id_must_exist
+
+  enum_relations:
+    - id: rule_effect_constrains_policy_effect
+      namespace: enum_relation_types
+      type: constrains
+      from:
+        kind: enum
+        id: rule_effect
+      to:
+        kind: schema_field
+        id: policy.effect
+      meaning: "rule_effect 枚举约束 policy.effect 字段。"
+      evidence_required: false
+      enforcement: schema
+      validation_rules:
+        - enum_value_must_be_declared
+
+  cross_cutting_relations:
+    - id: domain_profile_crosses_input_layer
+      namespace: cross_cutting_relation_types
+      type: crosses
+      from:
+        kind: runtime_object
+        id: domain_profile
+      to:
+        kind: layer
+        id: input_layer
+      meaning: "domain_profile 影响输入定义。"
+      evidence_required: false
+      enforcement: review
+      validation_rules:
+        - layer_id_must_exist
+
+  evolution_relations:
+    - id: historical_reflection_abstracts_audit_logs
+      namespace: evolution_relation_types
+      type: abstracts
+      from:
+        kind: capability
+        id: historical_reflection
+      to:
+        kind: evolution_object
+        id: audit_logs
+      meaning: "历史反思从审计日志中抽象改进点。"
+      evidence_required: true
+      enforcement: review
+      validation_rules:
+        - source_object_must_exist
