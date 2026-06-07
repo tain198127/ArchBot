@@ -117,7 +117,6 @@ export function useMenuConfig(currentProject: Ref<ProjectInfo | null>) {
     },
     {
       name: t.value.menu.config,
-      disabled: !hasProject.value,
       groups: [
         {
           items: [

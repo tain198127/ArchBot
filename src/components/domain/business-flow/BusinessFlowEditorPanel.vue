@@ -9,7 +9,7 @@
  *
  * Lazy-loaded by EditorPanel via defineAsyncComponent.
  */
-import { ref, onMounted, onUnmounted, computed, markRaw } from 'vue'
+import { ref, onMounted, onUnmounted, computed, markRaw, watch, nextTick } from 'vue'
 import { VueFlow, useVueFlow, type GraphNode, type GraphEdge, type Node, type Edge } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
@@ -29,6 +29,10 @@ import AgentNode from './nodes/AgentNode.vue'
 import GatewayNode from './nodes/GatewayNode.vue'
 import MaterialInputNode from './nodes/MaterialInputNode.vue'
 import QualityGateNode from './nodes/QualityGateNode.vue'
+import EmployeeNode from './nodes/EmployeeNode.vue'
+import SkillNode from './nodes/SkillNode.vue'
+import ReferenceNode from './nodes/ReferenceNode.vue'
+import NumericGateNode from './nodes/NumericGateNode.vue'
 
 const props = defineProps<{ flowId: string; materialFile?: string }>()
 
@@ -72,41 +76,46 @@ const nodeTypes: Record<string, any> = {
   gateway_or: markRaw(GatewayNode),
   material_input: markRaw(MaterialInputNode),
   quality_gate: markRaw(QualityGateNode),
+  employee: markRaw(EmployeeNode),
+  skill: markRaw(SkillNode),
+  reference: markRaw(ReferenceNode),
+  numeric_gate: markRaw(NumericGateNode),
 }
 
-// ─── Palette items for drag-and-drop ──────────────────────────
+// ─── Palette: grouped drag-and-drop items ──────────────────────
 
-interface PaletteItem {
-  type: string
-  label: string
-  icon: string
+/** 硅基军团 18 个角色 — 从 de_list 动态加载 */
+const employees = ref<Array<{ code: string; name: string; avatar: string; personality_tags: string; skills: string[] }>>([])
+
+async function loadEmployees() {
+  try {
+    const list = await invoke<Array<Record<string, unknown>>>('de_list', { dbType: 'local' })
+    employees.value = list.map((e: Record<string, unknown>) => ({
+      code: e.code as string,
+      name: e.name as string,
+      avatar: e.avatar as string,
+      personality_tags: (e.personality_tags as string) ?? '',
+      skills: (e.skills as string[]) ?? [],
+    }))
+  } catch {
+    // de_list may fail if DB not initialized — palette still works without roles
+  }
 }
-
-const paletteItems: PaletteItem[] = [
-  { type: 'start', label: tt('businessFlow.editor.nodes.start'), icon: '●' },
-  { type: 'end', label: tt('businessFlow.editor.nodes.end'), icon: '◉' },
-  { type: 'agent', label: tt('businessFlow.editor.nodes.agent'), icon: '👤' },
-  { type: 'gateway_xor', label: tt('businessFlow.editor.nodes.gatewayXor'), icon: '◇' },
-  { type: 'gateway_and', label: tt('businessFlow.editor.nodes.gatewayAnd'), icon: '◈' },
-  { type: 'gateway_or', label: tt('businessFlow.editor.nodes.gatewayOr'), icon: '◆' },
-  { type: 'material_input', label: tt('businessFlow.editor.nodes.materialInput'), icon: '📄' },
-  { type: 'quality_gate', label: tt('businessFlow.editor.nodes.qualityGate'), icon: '🛡' },
-]
 
 // ─── Drag-and-drop from palette ───────────────────────────────
 
-const DRAG_MIME = 'application/vueflow'
+// Tauri WKWebView intercepts all dataTransfer MIME types (even text/plain).
+// Pass drag context via a closure variable instead — proven to work everywhere.
+let _dragCtx: { type: string; employeeCode?: string; employeeName?: string; avatar?: string; personality?: string } | null = null
 
 function onDragStart(event: DragEvent, type: string) {
-  if (!event.dataTransfer) return
-  event.dataTransfer.setData(DRAG_MIME, type)
-  event.dataTransfer.effectAllowed = 'move'
+  _dragCtx = { type }
+  // setData is only needed so the browser treats this as a real drag; value is irrelevant
+  event.dataTransfer!.setData('text/plain', '')
+  event.dataTransfer!.effectAllowed = 'move'
 }
 
 function onDragOver(event: DragEvent) {
-  // preventDefault() is REQUIRED on every dragover for the browser
-  // to permit the subsequent drop event. Without this, dropping
-  // shows a "no-drop" cursor and onDrop never fires.
   event.preventDefault()
   if (event.dataTransfer) {
     event.dataTransfer.dropEffect = 'move'
@@ -115,28 +124,6 @@ function onDragOver(event: DragEvent) {
 
 /** Drag-and-drop entry point — uses VueFlow's addNodes to go through the correct
   * internal change pipeline (applyChanges → store update → v-model sync → render). */
-function onDrop(event: DragEvent) {
-  const nodeType = event.dataTransfer?.getData(DRAG_MIME)
-  if (!nodeType) return
-
-  const position = screenToFlowCoordinate({
-    x: event.clientX,
-    y: event.clientY,
-  })
-
-  const newNode: Node = {
-    id: `${nodeType}-${Date.now()}`,
-    type: nodeType,
-    position,
-    data: getDefaultNodeData(nodeType),
-  }
-
-  // addNodes triggers the store's change pipeline, which fires onNodesChange
-  // → applyNodeChanges → nodes.value updated via v-model sync.
-  // This ensures both the canvas renders AND getNodes.value returns the node.
-  addNodes([newNode])
-  dirty.value = true
-}
 
 function getDefaultNodeData(type: string): Record<string, unknown> {
   switch (type) {
@@ -156,9 +143,64 @@ function getDefaultNodeData(type: string): Record<string, unknown> {
       return { label: 'Material', filePath: '', fileName: '', fileType: '' }
     case 'quality_gate':
       return { label: 'Quality Gate', metric: '', threshold: 0.8, onFail: 'abort' }
+    case 'employee':
+      return { label: 'Employee', employeeCode: '', employeeName: '', avatar: '🧑‍💼', personality: '', skillName: '' }
+    case 'skill':
+      return { label: 'Skill', skillCode: '', skillName: '', command: '' }
+    case 'reference':
+      return { label: 'Reference', refType: 'file', refId: '', refName: '', filePath: '' }
+    case 'numeric_gate':
+      return { label: 'Numeric Gate', operation: 'compare', operands: [], threshold: 0, comparisonOp: 'gte' }
     default:
       return { label: type }
   }
+}
+
+/** Called when an employee palette item is dragged — context stored in closure */
+function onDragStartEmployee(event: DragEvent, code: string, name: string, avatar: string, personality: string) {
+  _dragCtx = { type: 'employee', employeeCode: code, employeeName: name, avatar, personality }
+  event.dataTransfer!.setData('text/plain', '')
+  event.dataTransfer!.effectAllowed = 'move'
+}
+
+/** Drop handler — reads drag context from closure variable (avoids WKWebView dataTransfer bugs) */
+function onDropExtended(event: DragEvent) {
+  if (!_dragCtx) {
+    console.warn('[BusinessFlowEditor] Drop without drag context — was dragstart outside the palette?')
+    return
+  }
+
+  const { type: nodeType, ...employeeFields } = _dragCtx
+  _dragCtx = null
+
+  if (!nodeType) {
+    console.warn('[BusinessFlowEditor] Drag context missing type field')
+    return
+  }
+
+  const position = screenToFlowCoordinate({ x: event.clientX, y: event.clientY })
+  let data = getDefaultNodeData(nodeType)
+
+  // Enrich employee nodes with the dragged role's metadata
+  if (nodeType === 'employee') {
+    data = {
+      ...data,
+      employeeCode: employeeFields.employeeCode ?? '',
+      employeeName: employeeFields.employeeName ?? '',
+      avatar: employeeFields.avatar ?? '🧑‍💼',
+      personality: employeeFields.personality ?? '',
+    }
+  }
+
+  const newNode: Node = {
+    id: `${nodeType}-${Date.now()}`,
+    type: nodeType,
+    position,
+    data,
+  }
+
+  addNodes([newNode])
+  dirty.value = true
 }
 
 // ─── Connection handling ──────────────────────────────────────
@@ -293,13 +335,51 @@ function handleKeydown(event: KeyboardEvent) {
   }
 }
 
+// ─── Native DnD bindings (VueFlow has inheritAttrs:false — event passthrough fails) ──
+
+let _paneDndBound = false
+
+function bindPaneDnd(retries = 5) {
+  if (_paneDndBound) return
+  const pane = document.querySelector('.vue-flow__pane') as HTMLElement | null
+  if (pane) {
+    pane.addEventListener('dragover', onDragOver)
+    pane.addEventListener('drop', onDropExtended)
+    _paneDndBound = true
+  } else if (retries > 0) {
+    // VueFlow pane may not be in the DOM yet — retry on next frame
+    requestAnimationFrame(() => bindPaneDnd(retries - 1))
+  }
+}
+
+function unbindPaneDnd() {
+  _paneDndBound = false
+  const pane = document.querySelector('.vue-flow__pane') as HTMLElement | null
+  if (pane) {
+    pane.removeEventListener('dragover', onDragOver)
+    pane.removeEventListener('drop', onDropExtended)
+  }
+}
+
+// Watch loading → when VueFlow renders, bind native DnD
+watch(loading, (v) => {
+  if (!v) {
+    // Flow done loading — wait for VueFlow to render its internal DOM
+    nextTick(() => bindPaneDnd())
+  }
+})
+
 onMounted(() => {
   loadFlow()
+  loadEmployees()
   window.addEventListener('keydown', handleKeydown)
+  // VueFlow renders its internal pane asynchronously — retry with rAF until found
+  bindPaneDnd()
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
+  unbindPaneDnd()
 })
 
 const isPublished = computed(() => flowData.value?.published ?? false)
@@ -312,9 +392,14 @@ const readOnly = computed(() => isPublished.value || isBuiltin.value)
     <!-- Top bar: flow name + action buttons -->
     <div class="flex items-center justify-between px-3 py-2 border-b border-border-default shrink-0">
       <div class="flex items-center gap-2">
-        <h3 class="text-sm font-semibold text-text-primary truncate max-w-[200px]">
-          {{ flowData?.name || 'Loading…' }}
-        </h3>
+        <input
+          v-if="flowData"
+          v-model="flowData.name"
+          :disabled="readOnly"
+          class="text-sm font-semibold text-text-primary bg-transparent border border-transparent hover:border-border-default focus:border-primary-500 rounded px-1.5 py-0.5 outline-none max-w-[220px] disabled:cursor-default disabled:opacity-100"
+          @input="dirty = true"
+        />
+        <h3 v-else class="text-sm font-semibold text-text-muted animate-pulse">Loading…</h3>
         <span
           v-if="isPublished"
           class="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
@@ -353,32 +438,111 @@ const readOnly = computed(() => isPublished.value || isBuiltin.value)
 
     <!-- Main area: toolbar + canvas -->
     <div class="flex flex-1 overflow-hidden">
-      <!-- Left toolbar: palette -->
+      <!-- Left toolbar: grouped palette -->
       <div
         v-if="!readOnly"
-        class="w-[160px] shrink-0 border-r border-border-default bg-surface-50 dark:bg-surface-50 overflow-y-auto"
+        class="w-[180px] shrink-0 border-r border-border-default bg-surface-50 dark:bg-surface-50 overflow-y-auto"
       >
-        <div class="p-2">
-          <p class="text-[10px] font-semibold uppercase text-text-muted mb-2 tracking-wider">
-            {{ tt('businessFlow.editor.toolbar.flowControls') }}
-          </p>
-          <div class="flex flex-col gap-1">
-            <div
-              v-for="item in paletteItems"
-              :key="item.type"
-              class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary
-                     hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors"
-              draggable="true"
-              @dragstart="onDragStart($event, item.type)"
-            >
-              <span class="text-base w-5 text-center">{{ item.icon }}</span>
-              <span class="truncate">{{ item.label }}</span>
+        <div class="p-2 flex flex-col gap-2">
+          <!-- Group 1: Flow Control -->
+          <details open class="group">
+            <summary class="text-[10px] font-semibold uppercase text-text-muted tracking-wider cursor-pointer py-0.5 select-none">
+              {{ tt('businessFlow.editor.palette.flowControl') }}
+            </summary>
+            <div class="flex flex-col gap-0.5 mt-1">
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'start')">
+                <span class="text-base w-5 text-center">●</span><span class="truncate">{{ tt('businessFlow.editor.nodes.start') }}</span>
+              </div>
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'end')">
+                <span class="text-base w-5 text-center">◉</span><span class="truncate">{{ tt('businessFlow.editor.nodes.end') }}</span>
+              </div>
             </div>
-          </div>
+          </details>
+
+          <!-- Group 2: References -->
+          <details open class="group">
+            <summary class="text-[10px] font-semibold uppercase text-text-muted tracking-wider cursor-pointer py-0.5 select-none">
+              {{ tt('businessFlow.editor.palette.references') }}
+            </summary>
+            <div class="flex flex-col gap-0.5 mt-1">
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'reference')">
+                <span class="text-base w-5 text-center">📁</span><span class="truncate">File</span>
+              </div>
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'reference')">
+                <span class="text-base w-5 text-center">🤖</span><span class="truncate">Agent</span>
+              </div>
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'reference')">
+                <span class="text-base w-5 text-center">⚡</span><span class="truncate">Skill</span>
+              </div>
+            </div>
+          </details>
+
+          <!-- Group 3: Silicon Corps (18 roles, dynamic) -->
+          <details open class="group">
+            <summary class="text-[10px] font-semibold uppercase text-text-muted tracking-wider cursor-pointer py-0.5 select-none">
+              {{ tt('businessFlow.editor.palette.siliconCorps') }} ({{ employees.length }})
+            </summary>
+            <div class="flex flex-col gap-0.5 mt-1">
+              <div
+                v-for="emp in employees" :key="emp.code"
+                class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors"
+                draggable="true"
+                @dragstart="onDragStartEmployee($event, emp.code, emp.name, emp.avatar, emp.personality_tags)"
+              >
+                <span class="text-base w-5 text-center">{{ emp.avatar || '🧑‍💼' }}</span>
+                <span class="truncate">{{ emp.name }}</span>
+              </div>
+              <div v-if="employees.length === 0" class="text-[10px] text-text-muted italic px-2 py-1">
+                Loading roles…
+              </div>
+            </div>
+          </details>
+
+          <!-- Group 4: Execution Nodes -->
+          <details open class="group">
+            <summary class="text-[10px] font-semibold uppercase text-text-muted tracking-wider cursor-pointer py-0.5 select-none">
+              {{ tt('businessFlow.editor.palette.execution') }}
+            </summary>
+            <div class="flex flex-col gap-0.5 mt-1">
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'agent')">
+                <span class="text-base w-5 text-center">👤</span><span class="truncate">{{ tt('businessFlow.editor.nodes.agent') }}</span>
+              </div>
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'skill')">
+                <span class="text-base w-5 text-center">⚡</span><span class="truncate">Skill</span>
+              </div>
+            </div>
+          </details>
+
+          <!-- Group 5: Gates -->
+          <details open class="group">
+            <summary class="text-[10px] font-semibold uppercase text-text-muted tracking-wider cursor-pointer py-0.5 select-none">
+              {{ tt('businessFlow.editor.palette.gates') }}
+            </summary>
+            <div class="flex flex-col gap-0.5 mt-1">
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'gateway_and')">
+                <span class="text-base w-5 text-center">◈</span><span class="truncate">{{ tt('businessFlow.editor.nodes.gatewayAnd') }}</span>
+              </div>
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'gateway_xor')">
+                <span class="text-base w-5 text-center">◇</span><span class="truncate">{{ tt('businessFlow.editor.nodes.gatewayXor') }}</span>
+              </div>
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'gateway_or')">
+                <span class="text-base w-5 text-center">◆</span><span class="truncate">{{ tt('businessFlow.editor.nodes.gatewayOr') }}</span>
+              </div>
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'numeric_gate')">
+                <span class="text-base w-5 text-center">🔢</span><span class="truncate">Numeric Gate</span>
+              </div>
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'quality_gate')">
+                <span class="text-base w-5 text-center">🛡</span><span class="truncate">{{ tt('businessFlow.editor.nodes.qualityGate') }}</span>
+              </div>
+              <div class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-text-primary hover:bg-surface-100 dark:hover:bg-surface-200 cursor-grab select-none transition-colors" draggable="true" @dragstart="onDragStart($event, 'material_input')">
+                <span class="text-base w-5 text-center">📄</span><span class="truncate">{{ tt('businessFlow.editor.nodes.materialInput') }}</span>
+              </div>
+            </div>
+          </details>
         </div>
       </div>
 
-      <!-- Canvas — all DnD handlers on VueFlow (official pattern) -->
+      <!-- Canvas — DnD handlers MUST be on VueFlow (its internal SVG pane consumes dragover otherwise) -->
       <div class="flex-1 relative">
         <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-surface-0/80 z-50">
           <span class="text-sm text-text-secondary animate-pulse">Loading flow…</span>
@@ -395,7 +559,7 @@ const readOnly = computed(() => isPublished.value || isBuiltin.value)
           class="w-full h-full"
           :class="{ 'pointer-events-none opacity-70': readOnly }"
           @dragover="onDragOver"
-          @drop="onDrop"
+          @drop="onDropExtended"
         >
           <Background />
           <Controls />

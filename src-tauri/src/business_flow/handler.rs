@@ -91,15 +91,125 @@ pub async fn bf_get_flow(id: String) -> Result<FlowRow, String> {
     model::flow_row_from_db(&row)
 }
 
-/// Create a new business flow.
+/// Same as deduplicate_flow_name but excludes a specific flow ID (for updates).
+async fn deduplicate_flow_name_excluding(base: &str, exclude_id: &str) -> String {
+    let existing = db::db_find_all(
+        "business_flows".into(),
+        db::QueryParams {
+            filters: vec![
+                db::Filter {
+                    field: "name".into(),
+                    operator: "eq".into(),
+                    value: serde_json::Value::String(base.to_string()),
+                },
+                db::Filter {
+                    field: "id".into(),
+                    operator: "neq".into(),
+                    value: serde_json::Value::String(exclude_id.to_string()),
+                },
+            ],
+            ..Default::default()
+        },
+        "local".into(),
+    )
+    .await;
+
+    match existing {
+        Ok(result) if result.total == 0 => base.to_string(),
+        _ => {
+            for n in 2..100 {
+                let candidate = format!("{} ({})", base, n);
+                let check = db::db_find_all(
+                    "business_flows".into(),
+                    db::QueryParams {
+                        filters: vec![
+                            db::Filter {
+                                field: "name".into(),
+                                operator: "eq".into(),
+                                value: serde_json::Value::String(candidate.clone()),
+                            },
+                            db::Filter {
+                                field: "id".into(),
+                                operator: "neq".into(),
+                                value: serde_json::Value::String(exclude_id.to_string()),
+                            },
+                        ],
+                        ..Default::default()
+                    },
+                    "local".into(),
+                )
+                .await;
+                if let Ok(r) = check {
+                    if r.total == 0 {
+                        return candidate;
+                    }
+                }
+            }
+            format!("{} ({})", base, chrono::Utc::now().timestamp())
+        }
+    }
+}
+
+/// Find a unique name by appending " (2)", " (3)", etc. if the base name exists.
+async fn deduplicate_flow_name(base: &str) -> String {
+    // Check if the name already exists
+    let existing = db::db_find_all(
+        "business_flows".into(),
+        db::QueryParams {
+            filters: vec![db::Filter {
+                field: "name".into(),
+                operator: "eq".into(),
+                value: serde_json::Value::String(base.to_string()),
+            }],
+            ..Default::default()
+        },
+        "local".into(),
+    )
+    .await;
+
+    match existing {
+        Ok(result) if result.total == 0 => base.to_string(),
+        _ => {
+            // Find next available suffix
+            for n in 2..100 {
+                let candidate = format!("{} ({})", base, n);
+                let check = db::db_find_all(
+                    "business_flows".into(),
+                    db::QueryParams {
+                        filters: vec![db::Filter {
+                            field: "name".into(),
+                            operator: "eq".into(),
+                            value: serde_json::Value::String(candidate.clone()),
+                        }],
+                        ..Default::default()
+                    },
+                    "local".into(),
+                )
+                .await;
+                if let Ok(r) = check {
+                    if r.total == 0 {
+                        return candidate;
+                    }
+                }
+            }
+            // Fallback with timestamp
+            format!("{} ({})", base, chrono::Utc::now().timestamp())
+        }
+    }
+}
+
+/// Create a new business flow with auto-deduplicated name.
 #[tauri::command]
 pub async fn bf_create_flow(input: FlowInput) -> Result<FlowRow, String> {
     let id = uuid::Uuid::new_v4().to_string();
     let now = now_iso();
 
+    // Auto-suffix duplicate names (e.g. "Untitled Flow" → "Untitled Flow (2)")
+    let name = deduplicate_flow_name(&input.name).await;
+
     let data = json!({
         "id": id,
-        "name": input.name,
+        "name": name,
         "description": input.description,
         "type": input.flow_type,
         "published": false,
@@ -146,8 +256,15 @@ pub async fn bf_update_flow(id: String, input: FlowInput, expected_version: i64)
     let now = now_iso();
     let new_version = expected_version + 1;
 
+    // If name changed, ensure it doesn't collide with another flow
+    let new_name = if input.name != existing.name {
+        deduplicate_flow_name_excluding(&input.name, &id).await
+    } else {
+        input.name.clone()
+    };
+
     let data = json!({
-        "name": input.name,
+        "name": new_name,
         "description": input.description,
         "flow_json": input.flow_json,
         "output_dir": input.output_dir,
@@ -386,4 +503,15 @@ pub async fn bf_init() -> Result<(), String> {
 
     db::db_execute_raw(sql.into(), "local".into()).await?;
     Ok(())
+}
+
+/// Update the status of a flow run from TypeScript.
+/// Called by the TS-side DagEngine during execution.
+#[tauri::command]
+pub async fn bf_update_run_status(
+    run_id: String,
+    status: String,
+    error_message: Option<String>,
+) -> Result<(), String> {
+    update_run_status(&run_id, &status, error_message.as_deref()).await
 }

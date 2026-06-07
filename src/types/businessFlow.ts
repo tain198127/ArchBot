@@ -25,6 +25,11 @@ export type NodeType =
   | 'signal'
   | 'error_handler'
   | 'human_approval'
+  // P3 — AgentFlow IR standard
+  | 'employee'
+  | 'skill'
+  | 'reference'
+  | 'numeric_gate'
 
 /** 2D position on the Vue Flow canvas */
 export interface Position {
@@ -109,6 +114,44 @@ export interface HumanApprovalNodeData {
   autoApproveOnTimeout: boolean
 }
 
+/** 硅基军团角色节点 */
+export interface EmployeeNodeData {
+  label: string
+  employeeCode: string
+  employeeName: string
+  avatar: string
+  personality: string
+  skillName?: string
+}
+
+/** 独立 Skill 节点 */
+export interface SkillNodeData {
+  label: string
+  skillCode: string
+  skillName: string
+  command: string
+}
+
+/** 引用节点（引用文件、Agent、Skill、角色） */
+export interface ReferenceNodeData {
+  label: string
+  refType: 'file' | 'agent' | 'skill' | 'employee'
+  refId: string
+  refName: string
+  filePath?: string
+}
+
+/** 数字控制门 */
+export interface NumericGateNodeData {
+  label: string
+  operation: 'add' | 'subtract' | 'multiply' | 'divide' | 'compare' | 'aggregate'
+  operands: string[]
+  threshold?: number
+  comparisonOp?: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte'
+  onPass?: string
+  onFail?: string
+}
+
 /** Union of all node data types — discriminated by the parent node's `type` field */
 export type NodeData =
   | StartNodeData
@@ -122,6 +165,10 @@ export type NodeData =
   | SignalNodeData
   | ErrorHandlerNodeData
   | HumanApprovalNodeData
+  | EmployeeNodeData
+  | SkillNodeData
+  | ReferenceNodeData
+  | NumericGateNodeData
 
 // ─── Flow Graph ───────────────────────────────────────────────
 

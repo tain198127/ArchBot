@@ -86,7 +86,6 @@ menus:
 
   - id: config
     label: menu.config
-    disabledWhen: project.loaded == false
     groups:
       - items:
           - id: config.digitalEmployee
